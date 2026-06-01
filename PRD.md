@@ -17,7 +17,28 @@ This is a conviction bet. No prototype exists. No users have asked for this. The
 
 ---
 
-## 2. Target User
+## 2. Tech Stack
+
+| Layer | Technology | Why this choice |
+|-------|-----------|-----------------|
+| **Frontend** | React + Vite (mobile-first PWA) | Fastest path to a shareable URL. No App Store gatekeeping. Vite for instant HMR during development. |
+| **Hosting** | Vercel | Zero-config deploys for Vite/React. CDN for static TTS audio files (Q2-Q6). Manual deploy for V1, GitHub Actions for Phase 2. |
+| **Auth** | Supabase Auth (email magic link) | No passwords. One tap from email to authenticated session. Google OAuth added in Sprint 2 for calendar access. |
+| **Database** | Supabase (Postgres + RLS) | Row-Level Security enforced from migration 001. Users can only read/write their own journal entries. Hosted Postgres with real-time subscriptions if needed later. |
+| **API Proxy** | Supabase Edge Functions (Deno) | All third-party API keys live here — never in the browser bundle. Three endpoints: `/extract-events`, `/generate-q1`, `/process-entry`. |
+| **Speech-to-Text** | Whisper API (OpenAI) | Best-in-class transcription accuracy. Edge Function streams audio to Whisper and discards immediately — no audio stored server-side. |
+| **AI / NLP** | Claude API (Anthropic) | Two roles: (1) Claude Vision extracts calendar events from screenshots (V1), (2) Claude analyzes 6 transcripts to extract 3 themes per entry. |
+| **Text-to-Speech** | ElevenLabs | Natural-sounding voice for question prompts. Q1 is dynamic (generated per session with calendar context). Q2-Q6 are pre-generated static `.mp3` files. |
+| **Audio Recording** | MediaRecorder API (browser native) | No library dependency. Runtime codec detection: `audio/webm` on Chrome, `audio/mp4` on Safari. Audio session starts in `touchstart` handler for iOS compatibility. |
+| **Client Storage** | IndexedDB (via `idb` library) | Audio blobs buffered per question locally. Deleted only after server-side transcript confirmation. Enables retry on Whisper failure without re-recording. |
+
+**Why this stack:** Every choice optimizes for build speed and deployment simplicity for a solo founder over a 2-3 weekend sprint. Supabase consolidates auth, database, and API proxy into one platform. The PWA approach avoids native toolchains entirely. All AI services are API-call-based — no ML infrastructure to manage.
+
+**What changes in Sprint 2:** Google OAuth (via Supabase Auth) replaces the screenshot + Claude Vision workaround. If retention validates and push notifications become the bottleneck, Sprint 3 evaluates migrating to React Native (Expo) for native app distribution.
+
+---
+
+## 3. Target User
 
 **Primary persona:** Early-career professionals, 22-30, wellness and self-improvement oriented. They've heard journaling is good for them. Some have tried (Day One, Notion, paper notebooks) and quit within weeks. Most never started.
 
@@ -27,7 +48,7 @@ This is a conviction bet. No prototype exists. No users have asked for this. The
 
 ---
 
-## 3. Core Thesis
+## 4. Core Thesis
 
 | Premise | Confidence | How we validate |
 |---------|-----------|-----------------|
@@ -41,7 +62,7 @@ This is a conviction bet. No prototype exists. No users have asked for this. The
 
 ---
 
-## 4. Product Vision
+## 5. Product Vision
 
 **The wedge (V1):** A single, magical voice journal entry experience. Calendar events, contextual prompt, 30-120 seconds of talking, transcript + 3 themes. Under 90 seconds. Zero typing. If this is compelling enough to drive unprompted return, everything else can be built on top.
 
@@ -49,9 +70,9 @@ This is a conviction bet. No prototype exists. No users have asked for this. The
 
 ---
 
-## 5. V1 MVP Requirements
+## 6. V1 MVP Requirements
 
-### 5.1 User Journey
+### 6.1 User Journey
 
 ```
 Open app → [Optional: upload calendar screenshot] → See calendar events
@@ -65,7 +86,7 @@ Open app → [Optional: upload calendar screenshot] → See calendar events
 **Total session time target:** Under 7 minutes for all 6 questions.
 **Time to first insight:** Under 90 seconds (Q1 alone).
 
-### 5.2 The 6-Question Guided Session
+### 6.2 The 6-Question Guided Session
 
 | # | Question | Source | Purpose |
 |---|----------|--------|---------|
@@ -80,7 +101,7 @@ Open app → [Optional: upload calendar screenshot] → See calendar events
 
 **Progressive reveal:** Q1 transcript appears immediately after Q1 recording. All 6 transcripts + 3 themes surface after Q6 completes.
 
-### 5.3 Functional Requirements
+### 6.3 Functional Requirements
 
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|------------|----------|-------------------|
@@ -97,7 +118,7 @@ Open app → [Optional: upload calendar screenshot] → See calendar events
 | F11 | Session open source tracking | P1 | `session_open` event includes `source` tag ("direct" vs. "email") to measure unprompted vs. prompted return. |
 | F12 | Error resilience | P1 | Whisper timeout: retry button, audio preserved. ElevenLabs failure: question shown as text. Claude timeout: transcripts saved without themes. Mic denied: clear instructions. |
 
-### 5.4 Non-Functional Requirements
+### 6.4 Non-Functional Requirements
 
 | Requirement | Target |
 |-------------|--------|
@@ -109,7 +130,7 @@ Open app → [Optional: upload calendar screenshot] → See calendar events
 | Data encrypted at rest | Yes (Supabase default) |
 | User can delete all their data | Yes (RLS + delete endpoint) |
 
-### 5.5 What's Explicitly NOT in V1
+### 6.5 What's Explicitly NOT in V1
 
 - Google Calendar OAuth (screenshot + Claude Vision workaround instead)
 - Analytics dashboard or historical view
@@ -121,7 +142,7 @@ Open app → [Optional: upload calendar screenshot] → See calendar events
 
 ---
 
-## 6. Data Model
+## 7. Data Model
 
 ### journal_entries
 | Column | Type | Notes |
@@ -151,7 +172,7 @@ Open app → [Optional: upload calendar screenshot] → See calendar events
 
 ---
 
-## 7. Technical Architecture
+## 8. Technical Architecture
 
 ```
 BROWSER (PWA, mobile-first — React + Vite, deployed to Vercel)
@@ -182,7 +203,7 @@ STATIC ASSETS (Vercel CDN)
 
 ---
 
-## 8. Session State Machine
+## 9. Session State Machine
 
 ```
 IDLE
@@ -198,11 +219,11 @@ Each state transition has defined error handling (see F12). The user never enter
 
 ---
 
-## 9. Sprint 2 Roadmap (Post-Validation)
+## 10. Sprint 2 Roadmap (Post-Validation)
 
 Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fails validation, Sprint 2 is replaced by thesis revision.
 
-### 9.1 Google Calendar OAuth Integration
+### 10.1 Google Calendar OAuth Integration
 
 **What:** Replace screenshot + Claude Vision with direct Google Calendar API access via Supabase Auth's built-in Google OAuth provider (PKCE flow).
 
@@ -214,7 +235,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 
 **Acceptance criteria:** User authenticates once with Google. On every subsequent app open, today's calendar events appear automatically. Q1 prompt is generated from actual event data without any user action.
 
-### 9.2 Analytics Dashboard
+### 10.2 Analytics Dashboard
 
 **What:** A view that surfaces patterns across journal entries over time. Recurring themes, emotional trends, question-level engagement patterns.
 
@@ -225,7 +246,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 - What visualization makes theme recurrence feel like an insight, not a statistic?
 - Does the dashboard feel rewarding or judgmental? (Critical for emotionally vulnerable content)
 
-### 9.3 Light Gamification
+### 10.3 Light Gamification
 
 **What:** Non-streak-based encouragement mechanics for week 1 bridging.
 
@@ -236,7 +257,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 - Celebrate return after absence, not consecutive days
 - Frame progress as depth ("You've reflected on 12 moments this week") not frequency
 
-### 9.4 Per-Question Funnel Optimization
+### 10.4 Per-Question Funnel Optimization
 
 **What:** Analyze per-question completion data from V1 (TODO-1) and optimize the question set.
 
@@ -244,7 +265,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 
 ---
 
-## 10. Success Metrics
+## 11. Success Metrics
 
 ### V1 (Primary — answers "is this worth building?")
 
@@ -272,7 +293,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 
 ---
 
-## 11. Risk Register
+## 12. Risk Register
 
 | Risk | Severity | Likelihood | Mitigation |
 |------|----------|-----------|------------|
@@ -286,7 +307,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 
 ---
 
-## 12. Open Questions
+## 13. Open Questions
 
 1. **Will Gen-Z users actually talk into their phone for vulnerable reflection?** Voice memos are normalized for casual communication, but journaling is more intimate. Pre-build interviews should probe this directly.
 
@@ -298,7 +319,7 @@ Sprint 2 is gated on V1 validation: day-2 unprompted return rate >40%. If V1 fai
 
 ---
 
-## 13. Implementation Plan
+## 14. Implementation Plan
 
 ### V1 Build (2-3 weekends)
 
@@ -330,7 +351,7 @@ Tasks can be parallelized across two lanes:
 
 ---
 
-## 14. Decision Log
+## 15. Decision Log
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
