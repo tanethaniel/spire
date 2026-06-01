@@ -129,6 +129,106 @@ Before writing a single line of code: find 5 people in your life who have tried 
 
 Then build Approach A in a weekend and put it in their hands.
 
+## Engineering Architecture (from /plan-eng-review 2026-06-01)
+
+### Finalized Stack
+
+```
+BROWSER (PWA, mobile-first — React + Vite → Vercel)
+    │
+    ├── Optional: camera/upload → calendar screenshot
+    ├── MediaRecorder API → audio (codec detection: webm on Chrome, mp4 on Safari)
+    ├── IndexedDB (idb) → audio buffer per question (deleted after transcript confirmed)
+    │
+    └── Supabase Edge Functions (API proxy — keys never in browser)
+            ├── POST /extract-events  → Claude Vision → event list from screenshot
+            ├── POST /generate-q1     → ElevenLabs TTS (dynamic, uses calendar context)
+            └── POST /process-entry   → Whisper (transcribe) + Claude (themes)
+
+SUPABASE
+    ├── Auth: email magic link
+    ├── DB: journal_entries (RLS enabled — users can only read own entries)
+    │       q1_transcript, q2_transcript, ..., q6_transcript, themes[], event_context
+    └── DB: user_events (session_open + source tag, question_started/completed per index)
+
+STATIC ASSETS (Vercel)
+    └── public/audio/q2.mp3 ... q6.mp3 (ElevenLabs pre-generated, instant playback)
+```
+
+### 6-Question Guided Session
+
+ElevenLabs speaks each question. User holds button to record their answer (~1 min each). Background transcription: Q1 uploads to Whisper while ElevenLabs reads Q2. Total target: under 7 minutes.
+
+```
+Q1: [Context-aware, dynamic TTS]
+    - With calendar screenshot: "You had a meeting with Sarah today — what stood out?"
+    - Without: "What did you do today?"
+Q2: How did those things make you feel? What emotions stemmed from today?
+Q3: What memories did you make today? What stuck with you?
+Q4: Was there anything interesting you learned today?
+Q5: Was there anything interesting you learned about yourself today? What caused it?
+Q6: Anything else?
+```
+
+After Q6: Claude analyzes all 6 transcripts → extracts 3 themes → saves entry. Progressive reveal: transcript appears → themes surface.
+
+### Session State Machine
+
+```
+IDLE
+  └─► CALENDAR_UPLOAD (optional)
+        └─► GENERATING_Q1 (ElevenLabs, ~1-3s)
+              └─► [ROUND 1-6]
+                    TTS_PLAYING → RECORDING → BACKGROUND_TRANSCRIBING → next TTS_PLAYING
+              └─► ANALYZING (Claude — all 6 transcripts)
+                    └─► RESULT | ERROR
+```
+
+### Error Handling
+
+| Stage | Failure | User experience |
+|-------|---------|----------------|
+| Whisper | Timeout / 5xx | Retry button. Audio in IndexedDB — user doesn't re-record. |
+| ElevenLabs | Any error | Silent fallback: question shown as text. User taps to start recording. |
+| Claude | Timeout | Transcripts saved without themes. User sees raw entries. |
+| Mic permission | Denied | Clear instructions to enable in Settings + restart session. |
+
+### Key Architectural Decisions
+
+- **API keys**: Supabase Edge Functions only. Never in browser bundle.
+- **RLS**: Enabled on `journal_entries` from migration 001. Users own their rows.
+- **iOS Safari**: Runtime codec detection (`audio/mp4` fallback). Audio session must start in `touchstart` handler — no `setTimeout` delay.
+- **Q1 TTS**: Dynamic (ElevenLabs at session start with calendar context). Q2-Q6: pre-generated static files.
+- **Audio privacy**: Edge Function streams audio to Whisper, discards immediately. No audio stored.
+- **Metric integrity**: No engagement emails for 48h after first session. `session_open.source` tag distinguishes direct vs. email-driven return.
+
+### NOT in Scope (V1)
+
+- Google Calendar OAuth (deferred to Sprint 2 — use screenshot + Claude Vision for now)
+- Analytics dashboard
+- Gamification / streaks
+- Native mobile app (Expo/React Native)
+- CI/CD (manual Vercel deploy for Phase 1)
+- AI-generated follow-up questions (standardized 6 questions in V1)
+
+### Distribution
+
+Phase 1: Manual Vercel deploy → share URL directly with 20 contacts. No App Store.
+Phase 2 (if validated): iOS App Store first (wellness demographic is iPhone-heavy). Consider ProductHunt.
+
+### Parallelization Opportunity
+
+```
+Lane A (independent): DB migrations + Supabase setup (T1, T7)
+Lane B (independent): Edge Functions (T4)
+Lane C (depends on A+B): Frontend PWA shell + recording UI (T2, T3, T5, T6)
+Lane D (depends on C): TTS static assets + Q1 dynamic flow (T8)
+Lane E (parallel with C): Test infrastructure (T9, T10, T11)
+
+Launch A + B in parallel. Then C. Then D.
+E runs alongside C.
+```
+
 ## What I noticed about how you think
 
 - You described the product mechanics fluently -- voice, calendar, analytics, gamification, feedback loops -- but when pushed for a specific user, you kept returning to the demographic. "Gen-Z, wellness-oriented" came out three different times in three different ways. That's not a weakness; it's a signal that you're thinking about the product before the person. Your first assignment flips that.
@@ -138,3 +238,16 @@ Then build Approach A in a weekend and put it in their hands.
 - When the second opinion challenged premise #5 (streaks), you didn't just defend it. You revised it: "The interface wins session 1, gamification bridges week 1, analytics own week 2." That's a more nuanced retention model than most pre-product founders articulate. The handoff framework is good thinking.
 
 - You chose speed (Approach A) over completeness (Approach B). That's the right instinct for a conviction bet with no user validation. Ship fast, learn fast.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Outside Voice | `/plan-eng-review` | Independent 2nd opinion | 1 | issues_found | 6 gaps identified, all resolved |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 9 issues found, all resolved |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+**UNRESOLVED:** 0
+**VERDICT:** ENG CLEARED — ready to implement.
