@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { SessionState, type CalendarEvent } from './types/session';
 import { useSession } from './hooks/useSession';
+import { useMicPermission } from './hooks/useMicPermission';
 import { supabase } from './lib/supabase';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { SessionPage } from './pages/SessionPage';
 import { ResultPage } from './pages/ResultPage';
+import { MicPermission } from './components/MicPermission';
 
 function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null);
@@ -25,6 +27,9 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const { status: micStatus, requestMic } = useMicPermission();
+  const [showMicPrompt, setShowMicPrompt] = useState(false);
+
   const {
     session,
     setCalendarEvents,
@@ -36,10 +41,19 @@ function App() {
     runAnalysis,
   } = useSession();
 
-  const handleStart = useCallback((events: CalendarEvent[] | null) => {
+  const handleStart = useCallback(async (events: CalendarEvent[] | null) => {
     if (events) setCalendarEvents(events);
+
+    if (micStatus !== 'granted') {
+      const granted = await requestMic();
+      if (!granted) {
+        setShowMicPrompt(true);
+        return;
+      }
+    }
+
     startSession();
-  }, [setCalendarEvents, startSession]);
+  }, [setCalendarEvents, startSession, micStatus, requestMic]);
 
   const handleDone = useCallback(() => {
     window.location.reload();
@@ -70,7 +84,23 @@ function App() {
   }
 
   if (session.state === SessionState.IDLE) {
-    return <HomePage onStart={handleStart} />;
+    return (
+      <>
+        {showMicPrompt && (
+          <MicPermission
+            status={micStatus === 'denied' ? 'denied' : 'prompt'}
+            onRequest={async () => {
+              const granted = await requestMic();
+              if (granted) {
+                setShowMicPrompt(false);
+                startSession();
+              }
+            }}
+          />
+        )}
+        <HomePage onStart={handleStart} />
+      </>
+    );
   }
 
   if (session.state === SessionState.RESULT) {
