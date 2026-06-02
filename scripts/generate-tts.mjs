@@ -17,7 +17,7 @@ if (!API_KEY) {
 }
 
 // Rachel voice — warm, calm, female. Good for reflection prompts.
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // Rachel — warm, calm female
+const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'MClEFoImJXBTgLwdLI5n';
 
 const QUESTIONS = [
   // Q1 is dynamic (generated at runtime via Edge Function) — skip
