@@ -32,42 +32,42 @@ export function SessionPage({
   const isTranscribing = state === SessionState.BACKGROUND_TRANSCRIBING;
   const buttonDisabled = ttsPlaying || isTranscribing;
 
-  // Play static TTS for Q2-Q6 (Q1 would come from API in production)
+  // Speak each question using browser TTS, falling back to static MP3 if available
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;
 
-    // For Q2-Q6, try to play static audio. For Q1, skip TTS in dev.
-    const audioFile = currentQuestion > 0
-      ? `/audio/q${currentQuestion + 1}.mp3`
-      : null;
+    // Try static MP3 first (ElevenLabs pre-generated), fall back to browser speech
+    const audioFile = currentQuestion > 0 ? `/audio/q${currentQuestion + 1}.mp3` : null;
 
-    if (!audioFile) {
-      // Q1 or no audio available — skip to ready
-      setTtsPlaying(false);
-      onTTSDone();
-      return;
+    if (audioFile) {
+      const audio = new Audio(audioFile);
+      audioRef.current = audio;
+      audio.play().then(() => {
+        setTtsPlaying(true);
+        audio.onended = () => { setTtsPlaying(false); onTTSDone(); };
+      }).catch(() => speakWithBrowser(round.question));
+    } else {
+      speakWithBrowser(round.question);
     }
 
-    setTtsPlaying(true);
-    const audio = new Audio(audioFile);
-    audioRef.current = audio;
-
-    audio.play().then(() => {
-      audio.onended = () => {
-        setTtsPlaying(false);
-        onTTSDone();
-      };
-    }).catch(() => {
-      // Audio not available — text fallback
-      setTtsPlaying(false);
-      onTTSDone();
-    });
+    function speakWithBrowser(text: string) {
+      if (!window.speechSynthesis) { onTTSDone(); return; }
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate = 0.92;
+      utt.pitch = 1;
+      utt.volume = 1;
+      setTtsPlaying(true);
+      utt.onend = () => { setTtsPlaying(false); onTTSDone(); };
+      utt.onerror = () => { setTtsPlaying(false); onTTSDone(); };
+      window.speechSynthesis.speak(utt);
+    }
 
     return () => {
-      audio.pause();
-      audio.onended = null;
+      audioRef.current?.pause();
+      window.speechSynthesis?.cancel();
     };
-  }, [currentQuestion, state, onTTSDone]);
+  }, [currentQuestion, state, onTTSDone, round.question]);
 
   const handleStart = useCallback(() => {
     setShowShortWarning(false);
