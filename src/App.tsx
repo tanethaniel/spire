@@ -15,13 +15,21 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    // Handle magic link callback — Supabase puts tokens in the URL hash
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthSession(session);
       setAuthLoading(false);
+      // Clean up the URL hash after auth (removes #error=... or #access_token=...)
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthSession(session);
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     return () => subscription.unsubscribe();
