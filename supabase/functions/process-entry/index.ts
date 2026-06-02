@@ -1,10 +1,18 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+const allowedOrigin = Deno.env.get('SITE_URL') || 'http://localhost:5173';
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': allowedOrigin,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// ~25 MB — generous for a voice journal recording
+const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+
+// Per-user limit: max transcriptions per day (rate limiting)
+const MAX_TRANSCRIPTIONS_PER_DAY = 20;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -33,6 +41,22 @@ serve(async (req) => {
       });
     }
 
+    // Rate limit: count questions transcribed today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('user_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('event', 'question_completed')
+      .gte('created_at', todayStart.toISOString());
+
+    if ((count ?? 0) >= MAX_TRANSCRIPTIONS_PER_DAY) {
+      return new Response(JSON.stringify({ error: 'Daily limit reached' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File;
     if (!audioFile) {
@@ -42,15 +66,23 @@ serve(async (req) => {
       });
     }
 
+    if (audioFile.size > MAX_AUDIO_BYTES) {
+      return new Response(JSON.stringify({ error: 'Audio file too large' }), {
+        status: 413,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiKey) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
+      console.error('[process-entry] OPENAI_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'Service unavailable' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Stream to Whisper — audio is NOT stored
+    // Stream audio directly to Whisper — audio is never stored on our servers
     const whisperForm = new FormData();
     whisperForm.append('file', audioFile, audioFile.name);
     whisperForm.append('model', 'whisper-1');
@@ -63,8 +95,8 @@ serve(async (req) => {
     });
 
     if (!whisperRes.ok) {
-      const err = await whisperRes.text();
-      return new Response(JSON.stringify({ error: `Whisper error: ${err}` }), {
+      console.error('[process-entry] Whisper API error:', whisperRes.status);
+      return new Response(JSON.stringify({ error: 'Transcription unavailable' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -76,7 +108,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
+    console.error('[process-entry] Unhandled error:', err);
+    return new Response(JSON.stringify({ error: 'Something went wrong' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

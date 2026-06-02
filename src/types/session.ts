@@ -62,13 +62,19 @@ export const QUESTIONS: { question: string; subPrompt: string }[] = [
   },
 ];
 
+// Sanitize event titles before using in question text — calendar data is untrusted
+function sanitizeTitle(raw: string): string {
+  return raw.replace(/[^\w\s,.'&:()\-]/g, '').trim().slice(0, 80);
+}
+
 export function getQ1WithContext(events: CalendarEvent[] | null): { question: string; subPrompt: string } {
   if (!events || events.length === 0) {
     return QUESTIONS[0];
   }
-  const topEvent = events[0];
+  const safeTitle = sanitizeTitle(events[0].title);
+  if (!safeTitle) return QUESTIONS[0];
   return {
-    question: `You had ${topEvent.title} today — what stood out to you?`,
+    question: `You had ${safeTitle} today — what stood out to you?`,
     subPrompt: 'Take your time. There\'s no wrong answer.',
   };
 }

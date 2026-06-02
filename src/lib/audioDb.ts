@@ -59,3 +59,16 @@ export async function getPendingRecordings(): Promise<AudioRecord[]> {
   const db = await getDb();
   return db.getAll(STORE_NAME);
 }
+
+// Delete recordings older than maxAgeMs (default 24h).
+// Runs on app startup to clear any orphaned blobs from failed transcription sessions.
+export async function cleanupStaleAudio(maxAgeMs = 24 * 60 * 60 * 1000): Promise<void> {
+  const db = await getDb();
+  const all = await db.getAll(STORE_NAME);
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
+  for (const record of all) {
+    if (record.createdAt < cutoff) {
+      await db.delete(STORE_NAME, record.key);
+    }
+  }
+}

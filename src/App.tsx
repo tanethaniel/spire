@@ -4,6 +4,7 @@ import { SessionState, type CalendarEvent } from './types/session';
 import { useSession } from './hooks/useSession';
 import { useMicPermission } from './hooks/useMicPermission';
 import { supabase } from './lib/supabase';
+import { cleanupStaleAudio } from './lib/audioDb';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { SessionPage } from './pages/SessionPage';
@@ -13,6 +14,9 @@ import { MicPermission } from './components/MicPermission';
 function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Clean up any orphaned voice recordings left from failed transcription sessions
+  useEffect(() => { cleanupStaleAudio(); }, []);
 
   useEffect(() => {
     // Handle magic link callback — Supabase puts tokens in the URL hash

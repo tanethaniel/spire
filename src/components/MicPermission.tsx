@@ -24,7 +24,11 @@ export function MicPermission({ status, onRequest }: MicPermissionProps) {
               </ol>
             </>
           ) : (
-            'Spire is voice-only — we need your microphone to record your reflections. Your audio is never stored.'
+            <>
+              Spire is voice-only. Your recordings are sent to{' '}
+              <strong style={{ color: 'var(--text-secondary)' }}>OpenAI Whisper</strong>{' '}
+              for transcription, then immediately deleted from our servers. Your transcript is stored privately as your journal entry — only you can see it.
+            </>
           )}
         </div>
         {!isDenied && (
@@ -32,7 +36,7 @@ export function MicPermission({ status, onRequest }: MicPermissionProps) {
             Allow microphone
           </button>
         )}
-        <div style={styles.privacy}>Your audio is transcribed and immediately discarded.</div>
+        <div style={styles.privacy}>Audio is never stored on our servers.</div>
       </div>
     </div>
   );

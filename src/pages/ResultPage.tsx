@@ -104,7 +104,10 @@ export function ResultPage({ rounds, themes, insight, startedAt, completedAt, on
 
         {/* Transcripts */}
         <div style={styles.section}>
-          <div style={styles.sectionLabel}>Your answers</div>
+          <div style={styles.sectionLabel}>
+            Your answers
+            <span style={styles.privateBadge}>🔒 Private</span>
+          </div>
           {rounds.map((round, i) => {
             if (round.status === 'skipped' && !round.transcript) return null;
             const expanded = expandedQ === i;
@@ -231,6 +234,13 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '1px 5px',
     fontSize: 10,
     letterSpacing: '0.05em',
+  },
+  privateBadge: {
+    fontSize: 10,
+    color: 'var(--text-ghost)',
+    letterSpacing: '0.04em',
+    fontWeight: 400,
+    textTransform: 'none' as const,
   },
   themesRow: {
     display: 'flex',

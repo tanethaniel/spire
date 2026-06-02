@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { CalendarEvent } from '../types/session';
 import { extractEvents } from '../lib/api';
+import { CalendarConsent } from '../components/CalendarConsent';
 
 interface HomePageProps {
   onStart: (events: CalendarEvent[] | null) => void;
@@ -18,7 +19,21 @@ export function HomePage({ onStart }: HomePageProps) {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showCalendarConsent, setShowCalendarConsent] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleCalendarZoneClick = useCallback(() => {
+    setShowCalendarConsent(true);
+  }, []);
+
+  const handleCalendarConsentAccept = useCallback(() => {
+    setShowCalendarConsent(false);
+    fileRef.current?.click();
+  }, []);
+
+  const handleCalendarConsentDecline = useCallback(() => {
+    setShowCalendarConsent(false);
+  }, []);
 
   const handleCalendarUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,6 +72,13 @@ export function HomePage({ onStart }: HomePageProps) {
 
   return (
     <div style={styles.page}>
+      {showCalendarConsent && (
+        <CalendarConsent
+          onAccept={handleCalendarConsentAccept}
+          onDecline={handleCalendarConsentDecline}
+        />
+      )}
+
       <div style={styles.header}>
         <div style={styles.wordmark}>spire<span style={{ color: 'var(--accent-primary)' }}>.</span></div>
       </div>
@@ -90,7 +112,7 @@ export function HomePage({ onStart }: HomePageProps) {
               ...styles.calendarZone,
               ...(uploading ? { borderColor: 'var(--accent-primary)', opacity: 0.7 } : {}),
             }}
-            onClick={() => fileRef.current?.click()}
+            onClick={handleCalendarZoneClick}
           >
             <div style={styles.calIcon}>📅</div>
             <div>
