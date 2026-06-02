@@ -40,6 +40,7 @@ function App() {
 
   const {
     session,
+    micStream,
     setCalendarEvents,
     startSession,
     onTTSDone,
@@ -131,6 +132,7 @@ function App() {
       currentQuestion={session.currentQuestion}
       round={currentRound}
       state={session.state}
+      micStream={micStream}
       onStartRecording={startRecording}
       onStopRecording={stopRecording}
       onSkip={skipQuestion}

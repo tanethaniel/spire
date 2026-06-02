@@ -29,6 +29,7 @@ export function useSession() {
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const mimeTypeRef = useRef<string>(getSupportedMimeType());
   const recordStartRef = useRef<number>(0);
@@ -86,6 +87,7 @@ export function useSession() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicStream(stream);
       const mimeType = mimeTypeRef.current;
       const recorder = new MediaRecorder(stream, { mimeType });
 
@@ -95,6 +97,7 @@ export function useSession() {
 
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
+        setMicStream(null);
 
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const duration = Date.now() - recordStartRef.current;
@@ -211,6 +214,7 @@ export function useSession() {
 
   return {
     session,
+    micStream,
     setCalendarEvents,
     startSession,
     onTTSDone,

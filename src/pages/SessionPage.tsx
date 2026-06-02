@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { SessionState, type QuestionRound } from '../types/session';
 import { ProgressBar } from '../components/ProgressBar';
 import { RecordButton } from '../components/RecordButton';
+import { AudioWaveform } from '../components/AudioWaveform';
 
 interface SessionPageProps {
   currentQuestion: number;
   round: QuestionRound;
   state: SessionState;
+  micStream: MediaStream | null;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onSkip: () => void;
@@ -18,6 +20,7 @@ export function SessionPage({
   currentQuestion,
   round,
   state,
+  micStream,
   onStartRecording,
   onStopRecording,
   onSkip,
@@ -26,17 +29,22 @@ export function SessionPage({
 }: SessionPageProps) {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [showShortWarning, setShowShortWarning] = useState(false);
+  const [locked, setLocked] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const isRecording = state === SessionState.RECORDING;
   const isTranscribing = state === SessionState.BACKGROUND_TRANSCRIBING;
   const buttonDisabled = ttsPlaying || isTranscribing;
 
+  // Reset lock state when recording stops
+  useEffect(() => {
+    if (!isRecording) setLocked(false);
+  }, [isRecording]);
+
   // Speak each question using browser TTS, falling back to static MP3 if available
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;
 
-    // Try static MP3 first (ElevenLabs pre-generated), fall back to browser speech
     const audioFile = currentQuestion > 0 ? `/audio/q${currentQuestion + 1}.mp3` : null;
 
     if (audioFile) {
@@ -75,8 +83,35 @@ export function SessionPage({
   }, [onStartRecording]);
 
   const handleStop = useCallback(() => {
+    setLocked(false);
     onStopRecording();
   }, [onStopRecording]);
+
+  const handleLock = useCallback(() => {
+    setLocked(true);
+  }, []);
+
+  // Transition screen between questions
+  if (isTranscribing) {
+    return (
+      <div style={styles.page}>
+        <ProgressBar currentQuestion={currentQuestion} onBack={onBack} />
+        <div style={styles.transitionScreen}>
+          <div style={styles.transitionIcon}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <circle cx="16" cy="16" r="14" stroke="var(--accent-primary)" strokeWidth="1.5" strokeDasharray="88" strokeDashoffset="0" style={{ animation: 'spin 1.2s linear infinite', transformOrigin: 'center' }} />
+              <path d="M10 16.5L14 20.5L22 12" stroke="var(--accent-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div style={styles.transitionTitle}>Saving your answer…</div>
+          <div style={styles.transitionSub}>Transcribing in the background</div>
+          {round.transcript && (
+            <div style={styles.transitionTranscript}>{round.transcript}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.page}>
@@ -116,8 +151,6 @@ export function SessionPage({
               <div style={styles.recDot} />
               <span>Recording…</span>
             </>
-          ) : isTranscribing ? (
-            <span style={{ color: 'var(--accent-primary)' }}>✓ Saved — transcribing in background</span>
           ) : showShortWarning ? (
             <span style={{ color: 'var(--error)' }}>That was quick — hold longer to record</span>
           ) : (
@@ -127,12 +160,14 @@ export function SessionPage({
       </div>
 
       <div style={styles.recordArea}>
-        <div style={styles.recordHint}>Hold to record · Release to stop</div>
+        <AudioWaveform active={isRecording} stream={micStream} />
         <RecordButton
           disabled={buttonDisabled}
           recording={isRecording}
+          locked={locked}
           onStart={handleStart}
           onStop={handleStop}
+          onLock={handleLock}
         />
         <button onClick={onSkip} style={styles.skipQ}>
           Skip this question
@@ -249,11 +284,6 @@ const styles: Record<string, React.CSSProperties> = {
     paddingBottom: 48,
     marginTop: 'auto',
   },
-  recordHint: {
-    fontSize: 12,
-    color: 'var(--text-ghost)',
-    letterSpacing: '0.04em',
-  },
   skipQ: {
     fontSize: 13,
     color: '#3A3A48',
@@ -261,5 +291,42 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     padding: '10px 16px',
     minHeight: 44,
+  },
+  // Transition screen
+  transitionScreen: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 32px 80px',
+    gap: 12,
+  },
+  transitionIcon: {
+    marginBottom: 8,
+  },
+  transitionTitle: {
+    fontSize: 22,
+    fontWeight: 600,
+    letterSpacing: -0.3,
+    textAlign: 'center' as const,
+  },
+  transitionSub: {
+    fontSize: 15,
+    color: 'var(--text-muted)',
+    textAlign: 'center' as const,
+  },
+  transitionTranscript: {
+    marginTop: 24,
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 14,
+    padding: '14px 16px',
+    fontSize: 15,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.6,
+    width: '100%',
+    maxHeight: 160,
+    overflowY: 'auto' as const,
   },
 };
