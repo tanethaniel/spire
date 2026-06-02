@@ -55,7 +55,10 @@ export async function processEntry(
     },
     body: formData,
   });
-  if (!res.ok) throw new Error(`process-entry failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`process-entry failed: ${res.status} ${detail}`);
+  }
   return res.json();
 }
 

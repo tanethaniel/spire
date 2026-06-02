@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SessionState, type QuestionRound } from '../types/session';
 import { ProgressBar } from '../components/ProgressBar';
 import { RecordButton } from '../components/RecordButton';
@@ -30,7 +30,6 @@ export function SessionPage({
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [showShortWarning, setShowShortWarning] = useState(false);
   const [locked, setLocked] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const isRecording = state === SessionState.RECORDING;
   const isTranscribing = state === SessionState.BACKGROUND_TRANSCRIBING;
@@ -41,39 +40,58 @@ export function SessionPage({
     if (!isRecording) setLocked(false);
   }, [isRecording]);
 
-  // Speak each question using browser TTS, falling back to static MP3 if available
+  // Speak each question using the browser's built-in speech synthesis.
+  // Robust by design: a watchdog timer guarantees the record button always
+  // becomes enabled, even if speech fails to start or never fires its end event.
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;
 
-    const audioFile = currentQuestion > 0 ? `/audio/q${currentQuestion + 1}.mp3` : null;
+    let done = false;
+    const synth = window.speechSynthesis;
 
-    if (audioFile) {
-      const audio = new Audio(audioFile);
-      audioRef.current = audio;
-      audio.play().then(() => {
-        setTtsPlaying(true);
-        audio.onended = () => { setTtsPlaying(false); onTTSDone(); };
-      }).catch(() => speakWithBrowser(round.question));
-    } else {
-      speakWithBrowser(round.question);
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(watchdog);
+      window.clearTimeout(speakTimer);
+      setTtsPlaying(false);
+      onTTSDone();
+    };
+
+    setTtsPlaying(true);
+
+    // Watchdog: never let TTS leave the button stuck disabled. Estimate the
+    // spoken duration (~75ms/char) and clamp to a sane 4–12s window.
+    const estimate = Math.min(Math.max(round.question.length * 75, 4000), 12000);
+    const watchdog = window.setTimeout(finish, estimate);
+
+    // If speech synthesis is unavailable, just show the question silently.
+    if (!synth) {
+      // Give the reader a moment, then enable recording.
+      return () => { done = true; window.clearTimeout(watchdog); };
     }
 
-    function speakWithBrowser(text: string) {
-      if (!window.speechSynthesis) { onTTSDone(); return; }
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = 0.92;
-      utt.pitch = 1;
-      utt.volume = 1;
-      setTtsPlaying(true);
-      utt.onend = () => { setTtsPlaying(false); onTTSDone(); };
-      utt.onerror = () => { setTtsPlaying(false); onTTSDone(); };
-      window.speechSynthesis.speak(utt);
-    }
+    // Clear any stuck/previous utterance first.
+    synth.cancel();
+
+    const utt = new SpeechSynthesisUtterance(round.question);
+    utt.rate = 0.92;
+    utt.pitch = 1;
+    utt.volume = 1;
+    utt.onend = finish;
+    utt.onerror = finish;
+
+    // Small delay: works around a Chrome bug where cancel() immediately
+    // followed by speak() produces no audio. Also lets StrictMode's
+    // double-mount settle so we don't speak twice.
+    const speakTimer = window.setTimeout(() => {
+      if (!done) synth.speak(utt);
+    }, 130);
 
     return () => {
-      audioRef.current?.pause();
-      window.speechSynthesis?.cancel();
+      window.clearTimeout(watchdog);
+      window.clearTimeout(speakTimer);
+      synth.cancel();
     };
   }, [currentQuestion, state, onTTSDone, round.question]);
 

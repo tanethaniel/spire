@@ -118,11 +118,14 @@ export function useSession() {
         // Background transcription
         try {
           const { transcript } = await processEntry(blob, idx, mimeType);
-          updateRound(idx, { transcript, status: 'done' });
+          updateRound(idx, { transcript, status: 'done', transcriptFailed: false });
           await deleteAudio(audioKey);
-        } catch {
-          updateRound(idx, { status: 'done' });
-          // Audio preserved in IndexedDB for retry
+        } catch (err) {
+          // Surface the real failure to the console so transcription issues
+          // are diagnosable instead of silently swallowed.
+          console.error(`[transcription] Q${idx + 1} failed:`, err);
+          updateRound(idx, { status: 'done', transcriptFailed: true });
+          // Audio preserved in IndexedDB (cleaned up after 24h if not retried)
         }
 
         // Advance to next question or analyze

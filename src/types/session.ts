@@ -22,6 +22,7 @@ export interface QuestionRound {
   transcript: string | null;
   audioKey: string | null;
   status: 'pending' | 'tts_playing' | 'recording' | 'transcribing' | 'done' | 'skipped';
+  transcriptFailed?: boolean;
 }
 
 export interface SessionData {

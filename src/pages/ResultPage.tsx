@@ -119,9 +119,14 @@ export function ResultPage({ rounds, themes, insight, startedAt, completedAt, on
                 >
                   <div>
                     <div style={styles.qLabel}>Q{i + 1} · {Q_LABELS[i]}</div>
-                    <div style={styles.qPreview}>
+                    <div style={{
+                      ...styles.qPreview,
+                      ...(round.transcriptFailed ? { color: 'var(--error)' } : {}),
+                    }}>
                       {round.transcript
                         ? round.transcript.slice(0, 60) + (round.transcript.length > 60 ? '…' : '')
+                        : round.transcriptFailed
+                        ? 'Couldn\'t transcribe — check connection'
                         : '(skipped)'}
                     </div>
                   </div>
