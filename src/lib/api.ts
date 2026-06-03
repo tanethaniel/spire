@@ -35,6 +35,17 @@ export async function generateQ1Audio(events: CalendarEvent[]): Promise<ArrayBuf
   return res.arrayBuffer();
 }
 
+export async function textToSpeech(text: string): Promise<ArrayBuffer> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/text-to-speech`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`text-to-speech failed: ${res.status}`);
+  return res.arrayBuffer();
+}
+
 export async function processEntry(
   audioBlob: Blob,
   questionIndex: number,

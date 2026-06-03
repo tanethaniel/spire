@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SessionState, type QuestionRound } from '../types/session';
+import { useTTS } from '../hooks/useTTS';
 import { ProgressBar } from '../components/ProgressBar';
 import { RecordButton } from '../components/RecordButton';
 import { AudioWaveform } from '../components/AudioWaveform';
@@ -30,6 +31,8 @@ export function SessionPage({
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [showShortWarning, setShowShortWarning] = useState(false);
   const [locked, setLocked] = useState(false);
+  const { speak, cancel: cancelTTS } = useTTS();
+  const ttsTriggeredRef = useRef(-1);
 
   const isRecording = state === SessionState.RECORDING;
   const isTranscribing = state === SessionState.BACKGROUND_TRANSCRIBING;
@@ -40,53 +43,28 @@ export function SessionPage({
     if (!isRecording) setLocked(false);
   }, [isRecording]);
 
-  // Read the current question aloud using the browser's speech synthesis.
-  // This is intentionally minimal — it matches the version that worked
-  // reliably before. We do NOT force a specific voice (letting the system
-  // default speak is what worked), and we don't add delays or extra
-  // cancel/speak cycles that can leave Chrome's speech queue stuck.
-  // A watchdog guarantees the record button enables even if speech stalls.
+  // Allow TTS re-trigger if we return to TTS_PLAYING for the same question
+  useEffect(() => {
+    if (isRecording) ttsTriggeredRef.current = -1;
+  }, [isRecording]);
+
+  // Play the question audio when entering TTS_PLAYING state
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;
-
-    const synth = window.speechSynthesis;
-    if (!synth) {
-      onTTSDone();
-      return;
-    }
-
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      window.clearTimeout(watchdog);
-      setTtsPlaying(false);
-      onTTSDone();
-    };
-
-    synth.cancel();
-
-    const utt = new SpeechSynthesisUtterance(round.question);
-    utt.rate = 0.92;
-    utt.pitch = 1;
-    utt.volume = 1;
-    utt.onend = finish;
-    utt.onerror = finish;
+    if (ttsTriggeredRef.current === currentQuestion) return;
+    ttsTriggeredRef.current = currentQuestion;
 
     setTtsPlaying(true);
-    synth.speak(utt);
-
-    // Safety net: if speech never reports back (it can stall on some
-    // systems), enable the record button after a generous estimate.
-    const estimate = Math.min(Math.max(round.question.length * 90, 4000), 15000);
-    const watchdog = window.setTimeout(finish, estimate);
+    speak(round.question, currentQuestion, () => {
+      setTtsPlaying(false);
+      onTTSDone();
+    });
 
     return () => {
-      done = true;
-      window.clearTimeout(watchdog);
-      synth.cancel();
+      cancelTTS();
+      ttsTriggeredRef.current = -1;
     };
-  }, [currentQuestion, state, onTTSDone, round.question]);
+  }, [currentQuestion, state, onTTSDone, round.question, speak, cancelTTS]);
 
   const handleStart = useCallback(() => {
     setShowShortWarning(false);
