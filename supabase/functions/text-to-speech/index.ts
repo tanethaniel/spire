@@ -8,6 +8,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Warm, calm narrator for a journaling app. Both are overridable via secrets.
+const DEFAULT_VOICE = Deno.env.get('OPENAI_TTS_VOICE') || 'nova';
+const DEFAULT_MODEL = Deno.env.get('OPENAI_TTS_MODEL') || 'gpt-4o-mini-tts';
+const TONE = 'Speak in a warm, calm, gentle and unhurried tone, like a thoughtful friend guiding a quiet reflection.';
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -44,33 +49,38 @@ serve(async (req) => {
       });
     }
 
-    const elevenlabsKey = Deno.env.get('ELEVENLABS_API_KEY');
-    if (!elevenlabsKey) {
+    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openaiKey) {
+      console.error('[text-to-speech] OPENAI_API_KEY not configured');
       return new Response(JSON.stringify({ error: 'TTS not configured' }), {
         status: 503,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const voiceId = Deno.env.get('ELEVENLABS_VOICE_ID') || 'MClEFoImJXBTgLwdLI5n';
-    const ttsRes = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': elevenlabsKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: { stability: 0.75, similarity_boost: 0.75 },
-        }),
+    const payload: Record<string, unknown> = {
+      model: DEFAULT_MODEL,
+      voice: DEFAULT_VOICE,
+      input: text,
+      response_format: 'mp3',
+    };
+    // The gpt-4o-mini-tts model supports tone steering via `instructions`.
+    if (DEFAULT_MODEL.includes('gpt-4o')) {
+      payload.instructions = TONE;
+    }
+
+    const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify(payload),
+    });
 
     if (!ttsRes.ok) {
-      console.error('[text-to-speech] ElevenLabs error:', ttsRes.status);
+      const detail = await ttsRes.text().catch(() => '');
+      console.error('[text-to-speech] OpenAI error:', ttsRes.status, detail);
       return new Response(JSON.stringify({ error: 'TTS failed' }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
