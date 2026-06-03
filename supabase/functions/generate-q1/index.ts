@@ -13,7 +13,7 @@ const corsHeaders = {
 // be used for injection into downstream prompts.
 function sanitizeForSpeech(raw: unknown): string {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/[^\w\s,.'&:()\-]/g, '').trim().slice(0, 80);
+  return raw.replace(/[^\w\s,.'&:()-]/g, '').trim().slice(0, 80);
 }
 
 serve(async (req) => {

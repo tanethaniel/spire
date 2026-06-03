@@ -5,6 +5,7 @@ import { CalendarConsent } from '../components/CalendarConsent';
 
 interface HomePageProps {
   onStart: (events: CalendarEvent[] | null) => void;
+  onOpenSettings: () => void;
 }
 
 const TOPICS = [
@@ -14,7 +15,7 @@ const TOPICS = [
   { icon: '💭', label: 'On my mind', hint: 'Anything else' },
 ];
 
-export function HomePage({ onStart }: HomePageProps) {
+export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -81,6 +82,7 @@ export function HomePage({ onStart }: HomePageProps) {
 
       <div style={styles.header}>
         <div style={styles.wordmark}>spire<span style={{ color: 'var(--accent-primary)' }}>.</span></div>
+        <button style={styles.gear} onClick={onOpenSettings} aria-label="Settings">⚙</button>
       </div>
 
       <div style={styles.greeting}>
@@ -181,7 +183,7 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     width: '100%',
     maxWidth: 430,
-    minHeight: '100vh',
+    minHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
     background: 'var(--bg-base)',
@@ -196,6 +198,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 22,
     fontWeight: 700,
     letterSpacing: -0.5,
+  },
+  gear: {
+    background: 'none',
+    border: 'none',
+    fontSize: 20,
+    color: 'var(--text-muted)',
+    minHeight: 44,
+    minWidth: 44,
   },
   greeting: {
     padding: '8px 24px 24px',

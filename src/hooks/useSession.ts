@@ -165,15 +165,33 @@ export function useSession() {
     });
   }, [session.currentQuestion, updateRound]);
 
-  const runAnalysis = useCallback(async () => {
+  // `interpret` reflects the user's Interpreted/Log preference. In Log mode we
+  // never call analyze-session, so transcripts are never sent for analysis.
+  const runAnalysis = useCallback(async (interpret: boolean) => {
     const transcripts = session.rounds.map(r => r.transcript);
+    const completedAt = new Date().toISOString();
+    const durationMs = session.startedAt
+      ? new Date(completedAt).getTime() - new Date(session.startedAt).getTime()
+      : 0;
+
+    // Log mode: store the plain transcript only, no interpretation.
+    if (!interpret) {
+      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
+      await saveJournalEntry({
+        transcripts,
+        themes: null,
+        insight: null,
+        mood_score: null,
+        activity_tags: null,
+        event_context: session.calendarEvents,
+        duration_ms: durationMs,
+      });
+      trackEvent({ event: 'session_completed', duration_ms: durationMs });
+      return;
+    }
 
     try {
-      const { themes, insight } = await analyzeSession(transcripts);
-      const completedAt = new Date().toISOString();
-      const durationMs = session.startedAt
-        ? new Date(completedAt).getTime() - new Date(session.startedAt).getTime()
-        : 0;
+      const { themes, insight, mood_score, activity_tags } = await analyzeSession(transcripts);
 
       setSession(prev => ({
         ...prev,
@@ -187,6 +205,8 @@ export function useSession() {
         transcripts,
         themes,
         insight,
+        mood_score,
+        activity_tags,
         event_context: session.calendarEvents,
         duration_ms: durationMs,
       });
@@ -194,21 +214,14 @@ export function useSession() {
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
     } catch {
       // Save transcripts even if analysis fails
-      const completedAt = new Date().toISOString();
-      const durationMs = session.startedAt
-        ? new Date(completedAt).getTime() - new Date(session.startedAt).getTime()
-        : 0;
-
-      setSession(prev => ({
-        ...prev,
-        state: SessionState.RESULT,
-        completedAt,
-      }));
+      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
 
       await saveJournalEntry({
         transcripts,
         themes: null,
         insight: null,
+        mood_score: null,
+        activity_tags: null,
         event_context: session.calendarEvents,
         duration_ms: durationMs,
       });

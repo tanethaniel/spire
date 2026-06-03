@@ -20,7 +20,7 @@ function sanitizeEventTitle(raw: unknown): string {
 
 function sanitizeEventTime(raw: unknown): string {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/[^\w\s:,.\-]/g, '').trim().slice(0, 30);
+  return raw.replace(/[^\w\s:,.-]/g, '').trim().slice(0, 30);
 }
 
 serve(async (req) => {

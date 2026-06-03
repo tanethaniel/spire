@@ -7,13 +7,14 @@ interface ResultPageProps {
   insight: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  interpretationEnabled: boolean;
   onDone: () => void;
 }
 
 const THEME_COLORS = ['var(--accent-primary)', 'var(--accent-blue)', 'var(--accent-purple)'];
 const Q_LABELS = ['Context', 'Emotions', 'Memory', 'Learning', 'Self', 'Anything else'];
 
-export function ResultPage({ rounds, themes, insight, startedAt, completedAt, onDone }: ResultPageProps) {
+export function ResultPage({ rounds, themes, insight, startedAt, completedAt, interpretationEnabled, onDone }: ResultPageProps) {
   const [phase, setPhase] = useState<'analyzing' | 'content'>('analyzing');
   const [visibleThemes, setVisibleThemes] = useState(0);
   const [insightVisible, setInsightVisible] = useState(false);
@@ -50,7 +51,9 @@ export function ResultPage({ rounds, themes, insight, startedAt, completedAt, on
       {phase === 'analyzing' && (
         <div style={styles.analyzing}>
           <div style={styles.spinner} />
-          <div style={styles.analyzingText}>Reading your reflection…</div>
+          <div style={styles.analyzingText}>
+            {interpretationEnabled ? 'Reading your reflection…' : 'Saving your reflection…'}
+          </div>
         </div>
       )}
 
@@ -59,7 +62,8 @@ export function ResultPage({ rounds, themes, insight, startedAt, completedAt, on
         opacity: phase === 'content' ? 1 : 0,
         transform: phase === 'content' ? 'translateY(0)' : 'translateY(8px)',
       }}>
-        {/* Themes */}
+        {/* Themes (Interpreted mode only) */}
+        {interpretationEnabled && (
         <div style={styles.section}>
           <div style={styles.sectionLabel}>
             Themes surfaced
@@ -88,9 +92,10 @@ export function ResultPage({ rounds, themes, insight, startedAt, completedAt, on
             )}
           </div>
         </div>
+        )}
 
-        {/* Insight */}
-        {insight && (
+        {/* Insight (Interpreted mode only) */}
+        {interpretationEnabled && insight && (
           <div style={{
             ...styles.insightCard,
             opacity: insightVisible ? 1 : 0,

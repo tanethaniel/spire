@@ -1,11 +1,7 @@
-import { FormEvent, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-interface LoginPageProps {
-  onLogin: () => void;
-}
-
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);

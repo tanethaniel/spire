@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CalendarEvent } from '../types/session';
+import type { CalendarEvent, JournalEntry, UserSettings } from '../types/session';
 
 const EDGE_FUNCTION_BASE = import.meta.env.VITE_SUPABASE_URL + '/functions/v1';
 
@@ -73,9 +73,16 @@ export async function processEntry(
   return res.json();
 }
 
+export interface AnalysisResult {
+  themes: string[];
+  insight: string | null;
+  mood_score: number | null;
+  activity_tags: string[];
+}
+
 export async function analyzeSession(
   transcripts: (string | null)[],
-): Promise<{ themes: string[]; insight: string }> {
+): Promise<AnalysisResult> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/analyze-session`, {
     method: 'POST',
@@ -90,6 +97,8 @@ export async function saveJournalEntry(entry: {
   transcripts: (string | null)[];
   themes: string[] | null;
   insight: string | null;
+  mood_score: number | null;
+  activity_tags: string[] | null;
   event_context: CalendarEvent[] | null;
   duration_ms: number;
 }): Promise<void> {
@@ -101,6 +110,8 @@ export async function saveJournalEntry(entry: {
     event_context: entry.event_context,
     themes: entry.themes,
     insight: entry.insight,
+    mood_score: entry.mood_score,
+    activity_tags: entry.activity_tags,
     duration_ms: entry.duration_ms,
   };
   entry.transcripts.forEach((t, i) => {
@@ -109,4 +120,62 @@ export async function saveJournalEntry(entry: {
 
   const { error } = await supabase.from('journal_entries').insert(row);
   if (error) throw error;
+}
+
+// --- Settings (synced, server-enforced interpretation toggle) ---
+
+export async function getUserSettings(): Promise<UserSettings> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('interpretation_enabled')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+
+  // Default to Interpreted mode when no row exists yet.
+  return { interpretationEnabled: data ? data.interpretation_enabled : true };
+}
+
+export async function setUserSettings(settings: UserSettings): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.from('user_settings').upsert({
+    user_id: user.id,
+    interpretation_enabled: settings.interpretationEnabled,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+// --- History (past entries for History + Insights views) ---
+
+export async function fetchJournalEntries(): Promise<JournalEntry[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('journal_entries')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  return (data ?? []).map((row): JournalEntry => ({
+    id: row.id,
+    createdAt: row.created_at,
+    transcripts: [
+      row.q1_transcript, row.q2_transcript, row.q3_transcript,
+      row.q4_transcript, row.q5_transcript, row.q6_transcript,
+    ],
+    themes: row.themes,
+    insight: row.insight,
+    moodScore: row.mood_score ?? null,
+    activityTags: row.activity_tags ?? null,
+    eventContext: row.event_context,
+    durationMs: row.duration_ms,
+  }));
 }

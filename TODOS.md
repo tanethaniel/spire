@@ -60,3 +60,27 @@ If either mode fails: investigate `MediaRecorder.onerror` handler and test `audi
 **Depends on:** MVP build complete, Vercel deploy live.
 
 **Build in:** Final gate before first tester onboarding.
+
+---
+
+## TODO-4: Quality eval for mood + activity-tag extraction
+
+**What:** Add an eval suite for the new structured signals returned by `analyze-session` (`mood_score` -2..+2 and `activity_tags`). Feed a set of fixed sample transcripts and assert the model returns sensible, stable mood scores and normalized tags.
+
+**Why:** The correlation tips ("better moods on gym days") are only as good as the per-entry mood/tag extraction. A drifting prompt or model update could silently degrade tag normalization (e.g. "gym" vs "the gym" vs "working out") and break correlations without any error surfacing.
+
+**Context:** Prompt lives in `supabase/functions/analyze-session/index.ts`. Tags are correlated in `src/lib/correlations.ts` (already unit-tested for the math). The gap is extraction quality, which needs an LLM eval, not a unit test. Consider a small fixture of 8-10 transcripts with expected mood ranges and expected tag sets, run against the live function.
+
+**Build in:** Before tips are heavily promoted to users.
+
+---
+
+## TODO-5: Replace full-reload on session Done with in-app state reset
+
+**What:** `handleDone`/`handleBack` in `src/App.tsx` currently call `window.location.reload()` to return Home and refresh history. Replace with an in-app session reset + `useEntries.refresh()` so the transition is instant and preserves PWA state.
+
+**Why:** A full reload re-downloads the bundle, re-runs auth, and flashes the loading screen — janky on mobile and wasteful offline. We already have `refresh()` wired in `useEntries`; we just need a `resetSession()` in `useSession`.
+
+**Context:** `useSession` has no reset today. Add one that returns state to IDLE with fresh rounds, call it from `handleDone`, then `refresh()` to pull the just-saved entry into History.
+
+**Build in:** Next polish pass.
