@@ -40,84 +40,50 @@ export function SessionPage({
     if (!isRecording) setLocked(false);
   }, [isRecording]);
 
-  // Speak each question using the browser's built-in speech synthesis.
-  // Robust by design: a watchdog timer guarantees the record button always
-  // becomes enabled, even if speech fails to start or never fires its end event.
+  // Read the current question aloud using the browser's speech synthesis.
+  // This is intentionally minimal — it matches the version that worked
+  // reliably before. We do NOT force a specific voice (letting the system
+  // default speak is what worked), and we don't add delays or extra
+  // cancel/speak cycles that can leave Chrome's speech queue stuck.
+  // A watchdog guarantees the record button enables even if speech stalls.
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;
 
-    let done = false;
-    let watchdog = 0;
-    let speakTimer = 0;
     const synth = window.speechSynthesis;
+    if (!synth) {
+      onTTSDone();
+      return;
+    }
 
+    let done = false;
     const finish = () => {
       if (done) return;
       done = true;
       window.clearTimeout(watchdog);
-      window.clearTimeout(speakTimer);
       setTtsPlaying(false);
       onTTSDone();
     };
 
+    synth.cancel();
+
+    const utt = new SpeechSynthesisUtterance(round.question);
+    utt.rate = 0.92;
+    utt.pitch = 1;
+    utt.volume = 1;
+    utt.onend = finish;
+    utt.onerror = finish;
+
     setTtsPlaying(true);
+    synth.speak(utt);
 
-    // Watchdog: never let TTS leave the button stuck disabled. Estimate the
-    // spoken duration (~75ms/char) and clamp to a sane 4–12s window.
-    const estimate = Math.min(Math.max(round.question.length * 75, 4000), 12000);
-    watchdog = window.setTimeout(finish, estimate);
-
-    // If speech synthesis is unavailable, just show the question silently.
-    if (!synth) {
-      return () => { done = true; window.clearTimeout(watchdog); };
-    }
-
-    const speak = () => {
-      if (done) return;
-      synth.cancel(); // clear any stuck/previous utterance
-      const utt = new SpeechSynthesisUtterance(round.question);
-      utt.rate = 0.92;
-      utt.pitch = 1;
-      utt.volume = 1;
-      // Pick an English voice explicitly — speak() is silent on some systems
-      // when no voice is selected and the default hasn't initialized.
-      const voices = synth.getVoices();
-      const enVoice =
-        voices.find(v => v.lang.startsWith('en') && v.default) ||
-        voices.find(v => v.lang.startsWith('en')) ||
-        voices[0];
-      if (enVoice) utt.voice = enVoice;
-      utt.onend = finish;
-      utt.onerror = finish;
-      synth.speak(utt);
-    };
-
-    // Voices often aren't loaded on first use — speaking before they load is
-    // silent. If they're ready, speak after a short delay (also works around a
-    // Chrome cancel()+speak() silence bug and lets StrictMode settle).
-    // Otherwise wait for the voiceschanged event, with a timed fallback.
-    if (synth.getVoices().length > 0) {
-      speakTimer = window.setTimeout(speak, 130);
-      return () => {
-        done = true;
-        window.clearTimeout(watchdog);
-        window.clearTimeout(speakTimer);
-        synth.cancel();
-      };
-    }
-
-    const onVoices = () => {
-      window.clearTimeout(speakTimer);
-      speakTimer = window.setTimeout(speak, 60);
-    };
-    synth.addEventListener('voiceschanged', onVoices, { once: true });
-    speakTimer = window.setTimeout(speak, 300); // fallback if event never fires
+    // Safety net: if speech never reports back (it can stall on some
+    // systems), enable the record button after a generous estimate.
+    const estimate = Math.min(Math.max(round.question.length * 90, 4000), 15000);
+    const watchdog = window.setTimeout(finish, estimate);
 
     return () => {
       done = true;
       window.clearTimeout(watchdog);
-      window.clearTimeout(speakTimer);
-      synth.removeEventListener('voiceschanged', onVoices);
       synth.cancel();
     };
   }, [currentQuestion, state, onTTSDone, round.question]);
