@@ -27,10 +27,12 @@ function App() {
   useEffect(() => { cleanupStaleAudio(); }, []);
 
   useEffect(() => {
-    // Handle magic link callback — Supabase puts tokens in the URL hash
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthSession(session);
       setAuthLoading(false);
+      if (session?.provider_token) {
+        localStorage.setItem('google_provider_token', session.provider_token);
+      }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
       }
@@ -38,6 +40,12 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthSession(session);
+      if (session?.provider_token) {
+        localStorage.setItem('google_provider_token', session.provider_token);
+      }
+      if (!session) {
+        localStorage.removeItem('google_provider_token');
+      }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
       }

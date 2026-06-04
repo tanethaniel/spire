@@ -27,7 +27,7 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
     body: JSON.stringify({
       timeMin,
       timeMax,
-      provider_token: session.provider_token ?? null,
+      provider_token: session.provider_token ?? localStorage.getItem('google_provider_token') ?? null,
     }),
   });
   if (!res.ok) throw new Error(`fetch-calendar failed: ${res.status}`);
