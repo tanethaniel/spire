@@ -173,7 +173,6 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
         >
           <span>▶</span> Start reflecting
         </button>
-        <div style={styles.ctaSub}>6 questions · ~7 minutes · voice only</div>
       </div>
     </div>
   );

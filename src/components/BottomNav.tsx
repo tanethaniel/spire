@@ -8,8 +8,8 @@ interface BottomNavProps {
 
 const ITEMS: { view: AppView; label: string; icon: string }[] = [
   { view: 'home', label: 'Reflect', icon: '◉' },
-  { view: 'history', label: 'History', icon: '☰' },
-  { view: 'insights', label: 'Insights', icon: '✦' },
+  { view: 'insights', label: 'Review', icon: '✦' },
+  { view: 'history', label: 'Receipts', icon: '☰' },
 ];
 
 export function BottomNav({ view, onChange, showInsights }: BottomNavProps) {
