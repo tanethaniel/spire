@@ -28,10 +28,12 @@ function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[auth] getSession provider_token:', session?.provider_token ? 'present' : 'missing');
       setAuthSession(session);
       setAuthLoading(false);
       if (session?.provider_token) {
         localStorage.setItem('google_provider_token', session.provider_token);
+        console.log('[auth] Saved provider_token to localStorage');
       }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
