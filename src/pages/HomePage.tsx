@@ -30,6 +30,7 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
           setCalendarError(null);
         }
       } catch (err) {
+        console.error('[calendar]', err);
         if (!cancelled) {
           setCalendarError(err instanceof Error ? err.message : 'calendar_unavailable');
           setCalendarEvents(null);
