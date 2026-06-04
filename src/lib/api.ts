@@ -16,30 +16,49 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
+  const providerToken = session.provider_token ?? localStorage.getItem('google_provider_token') ?? null;
+  if (!providerToken) throw new Error('calendar_scope_missing');
+
   const now = new Date();
   const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-  const providerToken = session.provider_token ?? localStorage.getItem('google_provider_token') ?? null;
-  const refreshToken = localStorage.getItem('google_refresh_token') ?? null;
-  console.log('[calendar] access token:', providerToken ? 'present' : 'MISSING');
-  console.log('[calendar] refresh token:', refreshToken ? 'present' : 'MISSING');
+  const calUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+  calUrl.searchParams.set('timeMin', timeMin);
+  calUrl.searchParams.set('timeMax', timeMax);
+  calUrl.searchParams.set('singleEvents', 'true');
+  calUrl.searchParams.set('orderBy', 'startTime');
+  calUrl.searchParams.set('maxResults', '20');
 
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/fetch-calendar`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      timeMin,
-      timeMax,
-      provider_token: providerToken,
-      refresh_token: refreshToken,
-    }),
+  const res = await fetch(calUrl.toString(), {
+    headers: { Authorization: `Bearer ${providerToken}` },
   });
-  if (!res.ok) throw new Error(`fetch-calendar failed: ${res.status}`);
+
+  if (res.status === 401 || res.status === 403) {
+    localStorage.removeItem('google_provider_token');
+    throw new Error('token_expired');
+  }
+  if (!res.ok) throw new Error(`calendar API failed: ${res.status}`);
+
   const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.events;
+  const items: { summary?: string; start?: { dateTime?: string; date?: string } }[] = data.items ?? [];
+
+  return items
+    .map(item => ({
+      title: (item.summary ?? '').replace(/[^\w\s,.'&:()\-@]/g, '').trim().slice(0, 100),
+      time: formatEventTime(item.start),
+    }))
+    .filter(e => e.title.length > 0);
+}
+
+function formatEventTime(start?: { dateTime?: string; date?: string }): string {
+  const dt = start?.dateTime || start?.date || '';
+  if (!dt) return '';
+  try {
+    return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  } catch {
+    return '';
+  }
 }
 
 export async function generateQ1Audio(events: CalendarEvent[]): Promise<ArrayBuffer> {
