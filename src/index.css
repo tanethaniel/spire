@@ -1,17 +1,18 @@
 :root {
-  --bg-base: #0A0A0F;
-  --bg-surface: #0F0F18;
-  --bg-elevated: #141420;
-  --border-subtle: #1E1E2A;
-  --accent-primary: #C8A97A;
-  --accent-hover: #D4B988;
-  --accent-blue: #7A9AC8;
-  --accent-purple: #A87A9A;
-  --text-primary: #F0EEE8;
-  --text-secondary: #8B8A85;
-  --text-muted: #5A5958;
-  --text-ghost: #5A5958;
-  --error: #D4756A;
+  --bg-base: #F2E8DE;
+  --bg-surface: rgba(255, 255, 255, 0.42);
+  --bg-elevated: rgba(255, 255, 255, 0.55);
+  --border-subtle: rgba(255, 255, 255, 0.45);
+  --border-glass: rgba(255, 255, 255, 0.35);
+  --accent-primary: #D4917A;
+  --accent-hover: #E0A18E;
+  --accent-blue: #7AADCC;
+  --accent-purple: #B08AA0;
+  --text-primary: #2A2A38;
+  --text-secondary: #4A4A58;
+  --text-muted: #7A7A88;
+  --text-ghost: #9A9AA5;
+  --error: #C85A4A;
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
@@ -31,7 +32,8 @@ html, body, #root {
 
 body {
   font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
-  background: var(--bg-base);
+  background: linear-gradient(145deg, #F5E6D3 0%, #EDD8C4 25%, #E8D0B8 45%, #DDDDD4 65%, #C8D8D4 85%, #BDD4D4 100%);
+  background-attachment: fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

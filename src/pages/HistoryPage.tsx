@@ -91,7 +91,7 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
 const styles: Record<string, React.CSSProperties> = {
   page: {
     width: '100%', maxWidth: 430, minHeight: '100%', height: '100%',
-    display: 'flex', flexDirection: 'column', background: 'var(--bg-base)',
+    display: 'flex', flexDirection: 'column',
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -112,7 +112,10 @@ const styles: Record<string, React.CSSProperties> = {
   emptyTitle: { fontSize: 17, fontWeight: 600, color: 'var(--text-secondary)' },
   emptySub: { fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 280 },
   card: {
-    background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+    background: 'var(--bg-surface)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-glass)',
     borderRadius: 16, marginBottom: 10, overflow: 'hidden',
   },
   cardHead: { display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer' },
@@ -121,11 +124,11 @@ const styles: Record<string, React.CSSProperties> = {
   meta: { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 },
   themes: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   themeChip: {
-    fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-elevated)',
-    border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '3px 9px',
+    fontSize: 12, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.35)',
+    border: '1px solid var(--border-glass)', borderRadius: 12, padding: '3px 9px',
   },
   chevron: { fontSize: 14, color: 'var(--text-ghost)', transition: 'transform 0.2s', marginLeft: 8 },
-  cardBody: { padding: '0 16px 14px', borderTop: '1px solid var(--border-subtle)' },
+  cardBody: { padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,0.2)' },
   insight: {
     fontSize: 14, fontStyle: 'italic', color: 'var(--accent-primary)',
     paddingTop: 12, marginBottom: 4, lineHeight: 1.5,

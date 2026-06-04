@@ -102,7 +102,7 @@ function App() {
 
   if (authLoading) {
     return (
-      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.5 }}>
           spire<span style={{ color: 'var(--accent-primary)' }}>.</span>
         </div>
@@ -204,7 +204,6 @@ const shell: Record<string, React.CSSProperties> = {
     height: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    background: 'var(--bg-base)',
   },
   viewport: {
     flex: 1,

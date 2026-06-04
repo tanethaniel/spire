@@ -186,7 +186,6 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
-    background: 'var(--bg-base)',
   },
   header: {
     display: 'flex',
@@ -234,13 +233,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   calendarZone: {
     margin: '0 24px 8px',
-    border: '1.5px dashed #2A2A38',
+    border: '1.5px dashed rgba(255,255,255,0.5)',
     borderRadius: 16,
     padding: 20,
     display: 'flex',
     alignItems: 'center',
     gap: 14,
     background: 'var(--bg-surface)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
     cursor: 'pointer',
     transition: 'border-color 0.15s, background 0.15s',
   },
@@ -248,7 +249,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 44,
     height: 44,
     borderRadius: 12,
-    background: '#1A1A26',
+    background: 'rgba(255,255,255,0.4)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -268,7 +269,9 @@ const styles: Record<string, React.CSSProperties> = {
   eventsCard: {
     margin: '0 24px 16px',
     background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-glass)',
     borderRadius: 16,
     padding: 16,
     display: 'flex',
@@ -306,7 +309,7 @@ const styles: Record<string, React.CSSProperties> = {
   dividerLine: {
     flex: 1,
     height: 1,
-    background: 'var(--border-subtle)',
+    background: 'rgba(255,255,255,0.4)',
   },
   dividerText: {
     fontSize: 12,
@@ -322,7 +325,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pill: {
     background: 'var(--bg-elevated)',
-    border: '1.5px solid var(--border-subtle)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    border: '1.5px solid var(--border-glass)',
     borderRadius: 14,
     padding: '16px 14px',
     display: 'flex',
@@ -333,7 +338,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pillSelected: {
     borderColor: 'var(--accent-primary)',
-    background: '#1A1A24',
+    background: 'rgba(212,145,122,0.12)',
   },
   ctaArea: {
     padding: '0 24px',
@@ -344,7 +349,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: 18,
     background: 'var(--accent-primary)',
-    color: 'var(--bg-base)',
+    color: '#fff',
     border: 'none',
     borderRadius: 18,
     fontSize: 17,
@@ -355,6 +360,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
     transition: 'all 0.15s',
+    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
   },
   ctaSub: {
     textAlign: 'center' as const,

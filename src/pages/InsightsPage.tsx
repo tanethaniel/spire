@@ -10,7 +10,7 @@ interface InsightsPageProps {
 
 const HEATMAP_DAYS = 35; // last 5 weeks
 const MOOD_COLOR: Record<number, string> = {
-  [-2]: '#5A3A3A', [-1]: '#6B4A42', 0: '#3A3A48', 1: '#7A6A4A', 2: 'var(--accent-primary)',
+  [-2]: '#C88A7A', [-1]: '#CCAA88', 0: 'rgba(255,255,255,0.35)', 1: '#B8C498', 2: 'var(--accent-primary)',
 };
 
 function dayKey(d: Date): string {
@@ -96,7 +96,7 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
                   style={{
                     ...styles.cell,
                     background: !c.has
-                      ? 'var(--bg-surface)'
+                      ? 'rgba(255,255,255,0.2)'
                       : c.mood !== null
                       ? MOOD_COLOR[c.mood]
                       : 'var(--accent-primary)',
@@ -135,7 +135,7 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
                 <div key={tip.tag} style={styles.tipCard}>
                   <div style={styles.tipGradient} />
                   <div style={styles.tipMessage}>{tip.message}</div>
-                  <div style={styles.tipMeta}>Across {tip.dayCount} days with “{tip.tag}”</div>
+                  <div style={styles.tipMeta}>Across {tip.dayCount} days with "{tip.tag}"</div>
                 </div>
               ))
             )}
@@ -149,7 +149,7 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
 const styles: Record<string, React.CSSProperties> = {
   page: {
     width: '100%', maxWidth: 430, minHeight: '100%', height: '100%',
-    display: 'flex', flexDirection: 'column', background: 'var(--bg-base)',
+    display: 'flex', flexDirection: 'column',
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -168,7 +168,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statsRow: { display: 'flex', gap: 10, marginBottom: 20 },
   stat: {
-    flex: 1, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+    flex: 1, background: 'var(--bg-surface)',
+    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-glass)',
     borderRadius: 14, padding: '14px 8px', textAlign: 'center',
   },
   statNum: { fontSize: 26, fontWeight: 700, color: 'var(--accent-primary)', letterSpacing: -0.5 },
@@ -176,24 +178,27 @@ const styles: Record<string, React.CSSProperties> = {
   heatmap: {
     display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5,
   },
-  cell: { aspectRatio: '1', borderRadius: 4 },
+  cell: { aspectRatio: '1', borderRadius: 6 },
   heatmapLegend: { fontSize: 11, color: 'var(--text-ghost)', marginTop: 8 },
   lockedCard: {
-    background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+    background: 'var(--bg-surface)',
+    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-glass)',
     borderRadius: 16, padding: 20, textAlign: 'center',
   },
   lockIcon: { fontSize: 24, color: 'var(--accent-primary)', marginBottom: 8 },
   lockTitle: { fontSize: 16, fontWeight: 600, marginBottom: 6 },
   lockSub: { fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 14 },
   progressTrack: {
-    height: 6, borderRadius: 3, background: 'var(--bg-elevated)', overflow: 'hidden',
+    height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.25)', overflow: 'hidden',
   },
   progressFill: { height: '100%', background: 'var(--accent-primary)', transition: 'width 0.3s' },
   progressText: { fontSize: 12, color: 'var(--text-ghost)', marginTop: 8 },
   tipCard: {
     position: 'relative', overflow: 'hidden',
-    background: 'linear-gradient(135deg, var(--bg-elevated) 0%, #1A1426 100%)',
-    border: '1px solid rgba(200,169,122,0.13)', borderRadius: 16,
+    background: 'rgba(255,255,255,0.35)',
+    backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid rgba(212,145,122,0.25)', borderRadius: 16,
     padding: 18, marginBottom: 10,
   },
   tipGradient: {

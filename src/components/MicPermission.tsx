@@ -26,7 +26,7 @@ export function MicPermission({ status, onRequest }: MicPermissionProps) {
           ) : (
             <>
               Spire is voice-only. Your recordings are sent to{' '}
-              <strong style={{ color: 'var(--text-secondary)' }}>OpenAI Whisper</strong>{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>OpenAI Whisper</strong>{' '}
               for transcription, then immediately deleted from our servers. Your transcript is stored privately as your journal entry — only you can see it.
             </>
           )}
@@ -46,7 +46,9 @@ const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(10,10,15,0.92)',
+    background: 'rgba(0,0,0,0.25)',
+    backdropFilter: 'blur(6px)',
+    WebkitBackdropFilter: 'blur(6px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -54,8 +56,10 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 100,
   },
   card: {
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
+    background: 'rgba(255,255,255,0.75)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(255,255,255,0.5)',
     borderRadius: 24,
     padding: 32,
     maxWidth: 380,
@@ -78,12 +82,13 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: 16,
     background: 'var(--accent-primary)',
-    color: 'var(--bg-base)',
+    color: '#fff',
     border: 'none',
     borderRadius: 16,
     fontSize: 16,
     fontWeight: 600,
     marginBottom: 16,
+    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
   },
   privacy: {
     fontSize: 12,

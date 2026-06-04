@@ -174,7 +174,6 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    background: 'var(--bg-base)',
   },
   header: {
     padding: '20px 24px 16px',
@@ -209,7 +208,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 64,
     height: 64,
     borderRadius: '50%',
-    border: '2px solid #1A1A26',
+    border: '2px solid rgba(255,255,255,0.3)',
     borderTopColor: 'var(--accent-primary)',
     animation: 'spin 1s linear infinite',
   },
@@ -238,7 +237,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
   },
   newBadge: {
-    background: 'rgba(200,169,122,0.13)',
+    background: 'rgba(212,145,122,0.15)',
     color: 'var(--accent-primary)',
     borderRadius: 4,
     padding: '1px 5px',
@@ -259,7 +258,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   themeChip: {
     background: 'var(--bg-elevated)',
-    border: '1.5px solid var(--border-subtle)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    border: '1.5px solid var(--border-glass)',
     borderRadius: 20,
     padding: '8px 14px',
     fontSize: 14,
@@ -270,8 +271,10 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'opacity 0.3s, transform 0.3s',
   },
   insightCard: {
-    background: 'linear-gradient(135deg, var(--bg-elevated) 0%, #1A1426 100%)',
-    border: '1px solid rgba(200,169,122,0.13)',
+    background: 'rgba(255,255,255,0.35)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid rgba(212,145,122,0.25)',
     borderRadius: 16,
     padding: 18,
     marginBottom: 24,
@@ -302,7 +305,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   transcriptCard: {
     background: 'var(--bg-surface)',
-    border: '1px solid var(--border-subtle)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-glass)',
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 10,
@@ -337,7 +342,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   transcriptBody: {
     padding: '0 16px 14px',
-    borderTop: '1px solid var(--border-subtle)',
+    borderTop: '1px solid rgba(255,255,255,0.2)',
   },
   transcriptText: {
     fontSize: 15,
@@ -355,7 +360,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: 18,
     background: 'var(--accent-primary)',
-    color: 'var(--bg-base)',
+    color: '#fff',
     border: 'none',
     borderRadius: 18,
     fontSize: 17,
@@ -366,6 +371,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
     transition: 'all 0.15s',
+    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
   },
   streakNote: {
     textAlign: 'center' as const,
