@@ -22,23 +22,31 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let retries = 0;
+    const attempt = async () => {
       try {
         const events = await fetchCalendarEvents();
         if (!cancelled) {
           setCalendarEvents(events.length > 0 ? events : null);
           setCalendarError(null);
+          setCalendarLoading(false);
         }
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'calendar_unavailable';
+        if (msg === 'calendar_scope_missing' && retries < 3 && !cancelled) {
+          retries++;
+          setTimeout(attempt, 500 * retries);
+          return;
+        }
         console.error('[calendar]', err);
         if (!cancelled) {
-          setCalendarError(err instanceof Error ? err.message : 'calendar_unavailable');
+          setCalendarError(msg);
           setCalendarEvents(null);
+          setCalendarLoading(false);
         }
-      } finally {
-        if (!cancelled) setCalendarLoading(false);
       }
-    })();
+    };
+    attempt();
     return () => { cancelled = true; };
   }, []);
 

@@ -28,8 +28,6 @@ function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthSession(session);
-      setAuthLoading(false);
       if (session?.provider_token) {
         localStorage.setItem('google_provider_token', session.provider_token);
       }
@@ -39,10 +37,11 @@ function App() {
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
       }
+      setAuthSession(session);
+      setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthSession(session);
       if (session?.provider_token) {
         localStorage.setItem('google_provider_token', session.provider_token);
       }
@@ -53,6 +52,7 @@ function App() {
         localStorage.removeItem('google_provider_token');
         localStorage.removeItem('google_refresh_token');
       }
+      setAuthSession(session);
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
       }
