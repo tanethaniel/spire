@@ -12,15 +12,27 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export async function extractEvents(imageBase64: string): Promise<CalendarEvent[]> {
+export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const now = new Date();
+  const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
   const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/extract-events`, {
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/fetch-calendar`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ image: imageBase64 }),
+    body: JSON.stringify({
+      timeMin,
+      timeMax,
+      provider_token: session.provider_token ?? null,
+    }),
   });
-  if (!res.ok) throw new Error(`extract-events failed: ${res.status}`);
+  if (!res.ok) throw new Error(`fetch-calendar failed: ${res.status}`);
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   return data.events;
 }
 

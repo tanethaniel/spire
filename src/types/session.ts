@@ -2,7 +2,6 @@
 // the previous string enum: SessionState.IDLE is the value, SessionState is the type.
 export const SessionState = {
   IDLE: 'IDLE',
-  CALENDAR_UPLOAD: 'CALENDAR_UPLOAD',
   GENERATING_Q1: 'GENERATING_Q1',
   TTS_PLAYING: 'TTS_PLAYING',
   RECORDING: 'RECORDING',

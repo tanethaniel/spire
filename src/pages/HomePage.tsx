@@ -1,7 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CalendarEvent } from '../types/session';
-import { extractEvents } from '../lib/api';
-import { CalendarConsent } from '../components/CalendarConsent';
+import { fetchCalendarEvents } from '../lib/api';
 
 interface HomePageProps {
   onStart: (events: CalendarEvent[] | null) => void;
@@ -18,46 +17,42 @@ const TOPICS = [
 export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [showCalendarConsent, setShowCalendarConsent] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
 
-  const handleCalendarZoneClick = useCallback(() => {
-    setShowCalendarConsent(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const events = await fetchCalendarEvents();
+        if (!cancelled) {
+          setCalendarEvents(events.length > 0 ? events : null);
+          setCalendarError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setCalendarError(err instanceof Error ? err.message : 'calendar_unavailable');
+          setCalendarEvents(null);
+        }
+      } finally {
+        if (!cancelled) setCalendarLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleCalendarConsentAccept = useCallback(() => {
-    setShowCalendarConsent(false);
-    fileRef.current?.click();
-  }, []);
-
-  const handleCalendarConsentDecline = useCallback(() => {
-    setShowCalendarConsent(false);
-  }, []);
-
-  const handleCalendarUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    setUploadError(null);
-
-    try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      const events = await extractEvents(base64);
-      setCalendarEvents(events);
-    } catch {
-      setUploadError('Couldn\'t read your calendar. You can skip this step.');
-    } finally {
-      setUploading(false);
-    }
+  const handleRetryCalendar = useCallback(() => {
+    setCalendarLoading(true);
+    setCalendarError(null);
+    fetchCalendarEvents()
+      .then(events => {
+        setCalendarEvents(events.length > 0 ? events : null);
+      })
+      .catch(() => {
+        setCalendarError('calendar_unavailable');
+        setCalendarEvents(null);
+      })
+      .finally(() => setCalendarLoading(false));
   }, []);
 
   const getTimeGreeting = () => {
@@ -73,13 +68,6 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
 
   return (
     <div style={styles.page}>
-      {showCalendarConsent && (
-        <CalendarConsent
-          onAccept={handleCalendarConsentAccept}
-          onDecline={handleCalendarConsentDecline}
-        />
-      )}
-
       <div style={styles.header}>
         <div style={styles.wordmark}>spire<span style={{ color: 'var(--accent-primary)' }}>.</span></div>
         <button style={styles.gear} onClick={onOpenSettings} aria-label="Settings">⚙</button>
@@ -92,12 +80,20 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
 
       <div style={styles.sectionLabel}>Today's context</div>
 
-      {calendarEvents ? (
+      {calendarLoading ? (
+        <div style={styles.calendarZone}>
+          <div style={styles.calIcon}>📅</div>
+          <div>
+            <div style={styles.calTitle}>Loading today's calendar…</div>
+            <div style={styles.calSub}>Fetching your Google Calendar</div>
+          </div>
+        </div>
+      ) : calendarEvents ? (
         <div style={styles.eventsCard}>
           <div style={styles.eventsHeader}>
             <span style={{ fontSize: 14 }}>📅</span>
             <span style={{ fontSize: 13, color: 'var(--accent-primary)' }}>
-              {calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''} found
+              {calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''} today
             </span>
           </div>
           {calendarEvents.map((ev, i) => (
@@ -107,40 +103,22 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
             </div>
           ))}
         </div>
-      ) : (
-        <>
-          <div
-            style={{
-              ...styles.calendarZone,
-              ...(uploading ? { borderColor: 'var(--accent-primary)', opacity: 0.7 } : {}),
-            }}
-            onClick={handleCalendarZoneClick}
-          >
-            <div style={styles.calIcon}>📅</div>
-            <div>
-              <div style={styles.calTitle}>
-                {uploading ? 'Reading your calendar…' : 'Add today\'s calendar'}
-              </div>
-              <div style={styles.calSub}>Screenshot → better prompts</div>
-            </div>
-            <span style={{ color: 'var(--text-ghost)', fontSize: 18 }}>›</span>
+      ) : calendarError ? (
+        <div style={styles.calendarZone} onClick={handleRetryCalendar}>
+          <div style={styles.calIcon}>📅</div>
+          <div>
+            <div style={styles.calTitle}>Couldn't load calendar</div>
+            <div style={styles.calSub}>Tap to retry</div>
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleCalendarUpload}
-          />
-          {uploadError && (
-            <div style={{ padding: '0 24px', fontSize: 13, color: 'var(--error)', marginTop: -12, marginBottom: 8 }}>
-              {uploadError}
-            </div>
-          )}
-          <button onClick={() => onStart(null)} style={styles.skipLink}>
-            Skip — reflect without calendar
-          </button>
-        </>
+        </div>
+      ) : (
+        <div style={styles.calendarZone}>
+          <div style={styles.calIcon}>📅</div>
+          <div>
+            <div style={styles.calTitle}>No events today</div>
+            <div style={styles.calSub}>Your calendar is clear</div>
+          </div>
+        </div>
       )}
 
       <div style={styles.divider}>
@@ -231,8 +209,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
   },
   calendarZone: {
-    margin: '0 24px 8px',
-    border: '1.5px dashed rgba(255,255,255,0.5)',
+    margin: '0 24px 16px',
     borderRadius: 16,
     padding: 20,
     display: 'flex',
@@ -241,6 +218,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--bg-surface)',
     backdropFilter: 'blur(10px)',
     WebkitBackdropFilter: 'blur(10px)',
+    border: '1px solid var(--border-glass)',
     cursor: 'pointer',
     transition: 'border-color 0.15s, background 0.15s',
   },
@@ -288,16 +266,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 10,
     paddingLeft: 4,
-  },
-  skipLink: {
-    fontSize: 13,
-    color: 'var(--text-ghost)',
-    background: 'none',
-    border: 'none',
-    textAlign: 'center' as const,
-    display: 'block',
-    width: '100%',
-    padding: '8px 24px 16px',
   },
   divider: {
     display: 'flex',
@@ -360,11 +328,5 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     transition: 'all 0.15s',
     boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
-  },
-  ctaSub: {
-    textAlign: 'center' as const,
-    fontSize: 12,
-    color: 'var(--text-ghost)',
-    marginTop: 10,
   },
 };

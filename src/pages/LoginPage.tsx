@@ -1,30 +1,29 @@
-import { type FormEvent, useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleGoogleSignIn = async () => {
     setError(null);
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email,
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
       options: {
-        emailRedirectTo: window.location.origin,
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/calendar.events.readonly',
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     });
 
-    setLoading(false);
-
     if (authError) {
       setError(authError.message);
-    } else {
-      setSent(true);
+      setLoading(false);
     }
   };
 
@@ -34,35 +33,29 @@ export function LoginPage() {
         <div style={styles.wordmark}>spire<span style={{ color: 'var(--accent-primary)' }}>.</span></div>
         <p style={styles.tagline}>Voice-first daily reflection</p>
 
-        {sent ? (
-          <div style={styles.sentCard}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>✉️</div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Check your email</div>
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              We sent a magic link to <strong style={{ color: 'var(--text-secondary)' }}>{email}</strong>.
-              Click it to sign in.
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              style={styles.input}
-              autoFocus
-            />
-            {error && (
-              <div style={{ fontSize: 13, color: 'var(--error)', marginTop: -8 }}>{error}</div>
-            )}
-            <button type="submit" disabled={loading} style={styles.button}>
-              {loading ? 'Sending…' : 'Send magic link'}
-            </button>
-            <p style={styles.privacy}>No password needed. Just you and your reflections.</p>
-          </form>
+        <button
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          style={styles.googleBtn}
+        >
+          <svg width="20" height="20" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.02 24.02 0 0 0 0 21.56l7.98-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          {loading ? 'Signing in…' : 'Continue with Google'}
+        </button>
+
+        {error && (
+          <div style={{ fontSize: 13, color: 'var(--error)', marginTop: 12 }}>{error}</div>
         )}
+
+        <p style={styles.privacy}>
+          Sign in to connect your calendar and start reflecting.
+          <br />
+          Your journal entries are private — only you can see them.
+        </p>
       </div>
     </div>
   );
@@ -93,48 +86,28 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-muted)',
     marginBottom: 40,
   },
-  form: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 16,
-  },
-  input: {
+  googleBtn: {
     width: '100%',
-    padding: '16px 18px',
-    background: 'var(--bg-surface)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    border: '1.5px solid var(--border-glass)',
-    borderRadius: 14,
-    color: 'var(--text-primary)',
+    padding: 16,
+    background: 'rgba(255,255,255,0.75)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255,255,255,0.5)',
+    borderRadius: 16,
     fontSize: 16,
-    fontFamily: 'inherit',
-    outline: 'none',
-    transition: 'border-color 0.15s',
-  },
-  button: {
-    width: '100%',
-    padding: 18,
-    background: 'var(--accent-primary)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 18,
-    fontSize: 17,
     fontWeight: 600,
-    letterSpacing: -0.2,
+    color: 'var(--text-primary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    cursor: 'pointer',
     transition: 'all 0.15s',
   },
   privacy: {
     fontSize: 12,
     color: 'var(--text-ghost)',
-    marginTop: 4,
-  },
-  sentCard: {
-    background: 'var(--bg-surface)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid var(--border-glass)',
-    borderRadius: 20,
-    padding: 32,
+    marginTop: 20,
+    lineHeight: 1.6,
   },
 };
