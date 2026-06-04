@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 interface SettingsSheetProps {
   interpretationEnabled: boolean;
   onToggle: (next: boolean) => void;
@@ -45,6 +47,16 @@ export function SettingsSheet({ interpretationEnabled, onToggle, onClose }: Sett
         </div>
 
         <button style={styles.done} onClick={onClose}>Done</button>
+
+        <button
+          style={styles.signOut}
+          onClick={() => {
+            localStorage.removeItem('google_provider_token');
+            supabase.auth.signOut();
+          }}
+        >
+          Sign out
+        </button>
       </div>
     </div>
   );
@@ -153,5 +165,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16,
     fontWeight: 600,
     boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
+  },
+  signOut: {
+    width: '100%',
+    padding: 14,
+    background: 'none',
+    border: 'none',
+    fontSize: 14,
+    fontWeight: 500,
+    color: 'var(--text-muted)',
+    marginTop: 8,
+    cursor: 'pointer',
   },
 };
