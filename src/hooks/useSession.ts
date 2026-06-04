@@ -228,6 +228,19 @@ export function useSession() {
     }
   }, [session.rounds, session.startedAt, session.calendarEvents]);
 
+  const resetSession = useCallback(() => {
+    setSession({
+      state: SessionState.IDLE,
+      currentQuestion: 0,
+      rounds: createInitialRounds(),
+      calendarEvents: null,
+      themes: null,
+      insight: null,
+      startedAt: null,
+      completedAt: null,
+    });
+  }, []);
+
   return {
     session,
     micStream,
@@ -238,5 +251,6 @@ export function useSession() {
     stopRecording,
     skipQuestion,
     runAnalysis,
+    resetSession,
   };
 }

@@ -50,7 +50,7 @@ function App() {
   const { status: micStatus, requestMic } = useMicPermission();
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled } = useSettings(authed);
-  const { entries, loading: entriesLoading, error: entriesError } = useEntries(authed);
+  const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
 
   const {
     session,
@@ -62,6 +62,7 @@ function App() {
     stopRecording,
     skipQuestion,
     runAnalysis,
+    resetSession,
   } = useSession();
 
   const handleStart = useCallback(async (events: CalendarEvent[] | null) => {
@@ -79,13 +80,15 @@ function App() {
   }, [setCalendarEvents, startSession, micStatus, requestMic]);
 
   const handleDone = useCallback(() => {
-    // Full reload returns to Home and re-fetches history with the new entry.
-    window.location.reload();
-  }, []);
+    resetSession();
+    refreshEntries();
+    setView('home');
+  }, [resetSession, refreshEntries]);
 
   const handleBack = useCallback(() => {
-    window.location.reload();
-  }, []);
+    resetSession();
+    setView('home');
+  }, [resetSession]);
 
   // Insights is hidden in Log mode; fall back to Home without storing a bad view.
   const effectiveView: AppView =
