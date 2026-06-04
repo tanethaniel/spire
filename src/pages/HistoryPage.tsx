@@ -33,14 +33,14 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
           <div style={styles.empty}>Loading your reflections…</div>
         ) : error ? (
           <div style={styles.empty}>Couldn't load your history. Check your connection.</div>
-        ) : entries.length === 0 ? (
+        ) : entries.filter(e => e.transcripts.some(Boolean)).length === 0 ? (
           <div style={styles.empty}>
             <div style={styles.emptyIcon}>☰</div>
             <div style={styles.emptyTitle}>No reflections yet</div>
             <div style={styles.emptySub}>Your past entries will appear here once you complete your first session.</div>
           </div>
         ) : (
-          entries.map(entry => {
+          entries.filter(e => e.transcripts.some(Boolean)).map(entry => {
             const isOpen = expanded === entry.id;
             const answered = entry.transcripts.filter(Boolean).length;
             const showMood = interpretationEnabled && entry.moodScore !== null;
