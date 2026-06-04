@@ -41,24 +41,35 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
   if (!res.ok) throw new Error(`calendar API failed: ${res.status}`);
 
   const data = await res.json();
-  const items: { summary?: string; start?: { dateTime?: string; date?: string } }[] = data.items ?? [];
+  const items: { summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }[] = data.items ?? [];
 
   return items
     .map(item => ({
       title: (item.summary ?? '').replace(/[^\w\s,.'&:()\-@]/g, '').trim().slice(0, 100),
-      time: formatEventTime(item.start),
+      time: formatTimeRange(item.start, item.end),
     }))
     .filter(e => e.title.length > 0);
 }
 
-function formatEventTime(start?: { dateTime?: string; date?: string }): string {
-  const dt = start?.dateTime || start?.date || '';
-  if (!dt) return '';
+function formatTime(dt: string): string {
   try {
     return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   } catch {
     return '';
   }
+}
+
+function formatTimeRange(
+  start?: { dateTime?: string; date?: string },
+  end?: { dateTime?: string; date?: string },
+): string {
+  const startDt = start?.dateTime || start?.date || '';
+  const endDt = end?.dateTime || end?.date || '';
+  if (!startDt) return '';
+  const s = formatTime(startDt);
+  const e = formatTime(endDt);
+  if (!e || s === e) return s;
+  return `${s} – ${e}`;
 }
 
 export async function generateQ1Audio(events: CalendarEvent[]): Promise<ArrayBuffer> {

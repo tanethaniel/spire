@@ -79,48 +79,54 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
         <div style={styles.greetingText}>What's been on your mind today?</div>
       </div>
 
-      <div style={styles.sectionLabel}>Today's context</div>
-
-      {calendarLoading ? (
-        <div style={styles.calendarZone}>
-          <div style={styles.calIcon}>📅</div>
-          <div>
-            <div style={styles.calTitle}>Loading today's calendar…</div>
-            <div style={styles.calSub}>Fetching your Google Calendar</div>
-          </div>
-        </div>
-      ) : calendarEvents ? (
-        <div style={styles.eventsCard}>
-          <div style={styles.eventsHeader}>
-            <span style={{ fontSize: 14 }}>📅</span>
-            <span style={{ fontSize: 13, color: 'var(--accent-primary)' }}>
-              {calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''} today
+      <div style={styles.calendarSection}>
+        <div style={styles.calendarHeader}>
+          <span style={styles.sectionLabel}>Today's schedule</span>
+          {calendarEvents && (
+            <span style={styles.eventCount}>
+              {calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''}
             </span>
-          </div>
-          {calendarEvents.map((ev, i) => (
-            <div key={i} style={styles.eventItem}>
-              <span style={{ color: 'var(--text-muted)', fontSize: 12, minWidth: 48 }}>{ev.time}</span>
-              <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{ev.title}</span>
+          )}
+        </div>
+
+        {calendarLoading ? (
+          <div style={styles.calendarZone}>
+            <div style={styles.calIcon}>📅</div>
+            <div>
+              <div style={styles.calTitle}>Loading today's calendar…</div>
+              <div style={styles.calSub}>Fetching your Google Calendar</div>
             </div>
-          ))}
-        </div>
-      ) : calendarError ? (
-        <div style={styles.calendarZone} onClick={handleRetryCalendar}>
-          <div style={styles.calIcon}>📅</div>
-          <div>
-            <div style={styles.calTitle}>Couldn't load calendar</div>
-            <div style={styles.calSub}>Tap to retry</div>
           </div>
-        </div>
-      ) : (
-        <div style={styles.calendarZone}>
-          <div style={styles.calIcon}>📅</div>
-          <div>
-            <div style={styles.calTitle}>No events today</div>
-            <div style={styles.calSub}>Your calendar is clear</div>
+        ) : calendarEvents ? (
+          <div style={styles.eventsScroll}>
+            {calendarEvents.map((ev, i) => (
+              <div key={i} style={styles.eventBlock}>
+                <div style={styles.eventBlockLeft} />
+                <div style={styles.eventBlockContent}>
+                  <div style={styles.eventBlockTitle}>{ev.title}</div>
+                  <div style={styles.eventBlockTime}>{ev.time}</div>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        ) : calendarError ? (
+          <div style={styles.calendarZone} onClick={handleRetryCalendar}>
+            <div style={styles.calIcon}>📅</div>
+            <div>
+              <div style={styles.calTitle}>Couldn't load calendar</div>
+              <div style={styles.calSub}>Tap to retry</div>
+            </div>
+          </div>
+        ) : (
+          <div style={styles.calendarZone}>
+            <div style={styles.calIcon}>📅</div>
+            <div>
+              <div style={styles.calTitle}>No events today</div>
+              <div style={styles.calSub}>Your calendar is clear</div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div style={styles.divider}>
         <div style={styles.dividerLine} />
@@ -161,15 +167,17 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     width: '100%',
     maxWidth: 430,
-    minHeight: '100%',
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
+    overflow: 'hidden',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '20px 24px 8px',
+    flexShrink: 0,
   },
   wordmark: {
     fontSize: 22,
@@ -185,7 +193,8 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 44,
   },
   greeting: {
-    padding: '8px 24px 24px',
+    padding: '8px 24px 20px',
+    flexShrink: 0,
   },
   greetingTime: {
     fontSize: 13,
@@ -200,17 +209,34 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: -0.5,
     lineHeight: 1.2,
   },
+  calendarSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    minHeight: 0,
+    padding: '0 24px',
+    marginBottom: 12,
+  },
+  calendarHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    flexShrink: 0,
+  },
   sectionLabel: {
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.1em',
     textTransform: 'uppercase' as const,
     color: 'var(--text-muted)',
-    padding: '0 24px',
-    marginBottom: 12,
+  },
+  eventCount: {
+    fontSize: 12,
+    color: 'var(--text-ghost)',
+    fontWeight: 500,
   },
   calendarZone: {
-    margin: '0 24px 16px',
     borderRadius: 16,
     padding: 20,
     display: 'flex',
@@ -244,35 +270,54 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: 'var(--text-muted)',
   },
-  eventsCard: {
-    margin: '0 24px 16px',
-    background: 'var(--bg-surface)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    border: '1px solid var(--border-glass)',
-    borderRadius: 16,
-    padding: 16,
+  eventsScroll: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 6,
+    paddingRight: 2,
   },
-  eventsHeader: {
+  eventBlock: {
     display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
+    borderRadius: 10,
+    background: 'rgba(212,145,122,0.13)',
+    overflow: 'hidden',
+    flexShrink: 0,
   },
-  eventItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    paddingLeft: 4,
+  eventBlockLeft: {
+    width: 4,
+    background: 'var(--accent-primary)',
+    borderRadius: '4px 0 0 4px',
+    flexShrink: 0,
+  },
+  eventBlockContent: {
+    flex: 1,
+    padding: '10px 12px',
+    minWidth: 0,
+  },
+  eventBlockTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--text-primary)',
+    lineHeight: 1.3,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  eventBlockTime: {
+    fontSize: 12,
+    color: 'var(--text-muted)',
+    marginTop: 2,
   },
   divider: {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
-    margin: '0 24px 20px',
+    padding: '0 24px',
+    margin: '0 0 16px',
+    flexShrink: 0,
   },
   dividerLine: {
     flex: 1,
@@ -289,7 +334,8 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: '1fr 1fr',
     gap: 10,
     padding: '0 24px',
-    marginBottom: 32,
+    marginBottom: 20,
+    flexShrink: 0,
   },
   pill: {
     background: 'var(--bg-elevated)',
@@ -310,8 +356,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   ctaArea: {
     padding: '0 24px',
-    marginTop: 'auto',
-    paddingBottom: 40,
+    paddingBottom: 24,
+    flexShrink: 0,
   },
   ctaButton: {
     width: '100%',
