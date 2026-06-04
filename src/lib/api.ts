@@ -21,9 +21,7 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
   const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
   const providerToken = session.provider_token ?? localStorage.getItem('google_provider_token') ?? null;
-  console.log('[calendar] session.provider_token:', session.provider_token ? 'present' : 'missing');
-  console.log('[calendar] localStorage token:', localStorage.getItem('google_provider_token') ? 'present' : 'missing');
-  console.log('[calendar] token being sent:', providerToken ? 'present' : 'NULL');
+  const refreshToken = localStorage.getItem('google_refresh_token') ?? null;
 
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/fetch-calendar`, {
@@ -33,11 +31,11 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
       timeMin,
       timeMax,
       provider_token: providerToken,
+      refresh_token: refreshToken,
     }),
   });
   if (!res.ok) throw new Error(`fetch-calendar failed: ${res.status}`);
   const data = await res.json();
-  console.log('[calendar] response:', JSON.stringify(data));
   if (data.error) throw new Error(data.error);
   return data.events;
 }

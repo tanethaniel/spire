@@ -110,9 +110,34 @@ serve(async (req) => {
     calUrl.searchParams.set('orderBy', 'startTime');
     calUrl.searchParams.set('maxResults', '20');
 
-    const calRes = await fetch(calUrl.toString(), {
+    let calRes = await fetch(calUrl.toString(), {
       headers: { Authorization: `Bearer ${googleAccessToken}` },
     });
+
+    // If token expired, try refreshing it
+    if ((calRes.status === 401 || calRes.status === 403) && body.refresh_token) {
+      const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
+      const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+      if (clientId && clientSecret) {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            refresh_token: body.refresh_token,
+            grant_type: 'refresh_token',
+          }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          googleAccessToken = tokenData.access_token;
+          calRes = await fetch(calUrl.toString(), {
+            headers: { Authorization: `Bearer ${googleAccessToken}` },
+          });
+        }
+      }
+    }
 
     if (calRes.status === 401 || calRes.status === 403) {
       return new Response(JSON.stringify({ events: [], error: 'token_expired' }), {

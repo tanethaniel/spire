@@ -28,12 +28,13 @@ function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[auth] getSession provider_token:', session?.provider_token ? 'present' : 'missing');
       setAuthSession(session);
       setAuthLoading(false);
       if (session?.provider_token) {
         localStorage.setItem('google_provider_token', session.provider_token);
-        console.log('[auth] Saved provider_token to localStorage');
+      }
+      if (session?.provider_refresh_token) {
+        localStorage.setItem('google_refresh_token', session.provider_refresh_token);
       }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
@@ -45,8 +46,12 @@ function App() {
       if (session?.provider_token) {
         localStorage.setItem('google_provider_token', session.provider_token);
       }
+      if (session?.provider_refresh_token) {
+        localStorage.setItem('google_refresh_token', session.provider_refresh_token);
+      }
       if (!session) {
         localStorage.removeItem('google_provider_token');
+        localStorage.removeItem('google_refresh_token');
       }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
