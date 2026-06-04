@@ -22,6 +22,8 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
 
   const providerToken = session.provider_token ?? localStorage.getItem('google_provider_token') ?? null;
   const refreshToken = localStorage.getItem('google_refresh_token') ?? null;
+  console.log('[calendar] access token:', providerToken ? 'present' : 'MISSING');
+  console.log('[calendar] refresh token:', refreshToken ? 'present' : 'MISSING');
 
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/fetch-calendar`, {
