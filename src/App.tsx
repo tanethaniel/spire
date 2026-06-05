@@ -26,6 +26,18 @@ function App() {
   // Clean up any orphaned voice recordings left from failed transcription sessions
   useEffect(() => { cleanupStaleAudio(); }, []);
 
+  // Extract Google provider_token from the OAuth redirect hash before Supabase
+  // consumes it. Supabase doesn't always surface it via getSession/onAuthStateChange.
+  useEffect(() => {
+    if (window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const pt = params.get('provider_token');
+      if (pt) localStorage.setItem('google_provider_token', pt);
+      const prt = params.get('provider_refresh_token');
+      if (prt) localStorage.setItem('google_refresh_token', prt);
+    }
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.provider_token) {
