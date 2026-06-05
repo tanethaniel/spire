@@ -33,6 +33,7 @@ export function useSession() {
   const chunksRef = useRef<Blob[]>([]);
   const mimeTypeRef = useRef<string>(getSupportedMimeType());
   const recordStartRef = useRef<number>(0);
+  const analysisRanRef = useRef(false);
 
   const updateRound = useCallback((index: number, updates: Partial<QuestionRound>) => {
     setSession(prev => ({
@@ -128,9 +129,11 @@ export function useSession() {
           // Audio preserved in IndexedDB (cleaned up after 24h if not retried)
         }
 
-        // Advance to next question or analyze
+        // Advance only if this question is still the active one.
+        // A late-finishing background transcription must not move the pointer.
         setSession(prev => {
-          const next = prev.currentQuestion + 1;
+          if (prev.currentQuestion !== idx) return prev;
+          const next = idx + 1;
           if (next >= QUESTIONS.length) {
             return { ...prev, state: SessionState.ANALYZING, currentQuestion: next };
           }
@@ -167,14 +170,31 @@ export function useSession() {
 
   // `interpret` reflects the user's Interpreted/Log preference. In Log mode we
   // never call analyze-session, so transcripts are never sent for analysis.
+  //
+  // Reads transcripts via functional setState to avoid stale closure data.
+  // The analysisRanRef guard prevents the effect from firing twice when the
+  // runAnalysis reference changes mid-flight (background transcription updates
+  // session.rounds, which recreates the callback and re-triggers the effect).
   const runAnalysis = useCallback(async (interpret: boolean) => {
-    const transcripts = session.rounds.map(r => r.transcript);
+    if (analysisRanRef.current) return;
+    analysisRanRef.current = true;
+
+    // Snapshot transcripts and calendar context from current state
+    let transcripts: (string | null)[] = [];
+    let calendarEvents: CalendarEvent[] | null = null;
+    let startedAt: string | null = null;
+    setSession(prev => {
+      transcripts = prev.rounds.map(r => r.transcript);
+      calendarEvents = prev.calendarEvents;
+      startedAt = prev.startedAt;
+      return prev;
+    });
+
     const completedAt = new Date().toISOString();
-    const durationMs = session.startedAt
-      ? new Date(completedAt).getTime() - new Date(session.startedAt).getTime()
+    const durationMs = startedAt
+      ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
       : 0;
 
-    // Log mode: store the plain transcript only, no interpretation.
     if (!interpret) {
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
       await saveJournalEntry({
@@ -183,7 +203,7 @@ export function useSession() {
         insight: null,
         mood_score: null,
         activity_tags: null,
-        event_context: session.calendarEvents,
+        event_context: calendarEvents,
         duration_ms: durationMs,
       });
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
@@ -207,13 +227,12 @@ export function useSession() {
         insight,
         mood_score,
         activity_tags,
-        event_context: session.calendarEvents,
+        event_context: calendarEvents,
         duration_ms: durationMs,
       });
 
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
     } catch {
-      // Save transcripts even if analysis fails
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
 
       await saveJournalEntry({
@@ -222,13 +241,14 @@ export function useSession() {
         insight: null,
         mood_score: null,
         activity_tags: null,
-        event_context: session.calendarEvents,
+        event_context: calendarEvents,
         duration_ms: durationMs,
       });
     }
-  }, [session.rounds, session.startedAt, session.calendarEvents]);
+  }, []);
 
   const resetSession = useCallback(() => {
+    analysisRanRef.current = false;
     setSession({
       state: SessionState.IDLE,
       currentQuestion: 0,

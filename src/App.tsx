@@ -125,7 +125,7 @@ function App() {
     if (session.state === SessionState.ANALYZING) {
       runAnalysis(interpretationEnabled);
     }
-  }, [session.state, runAnalysis, interpretationEnabled]);
+  }, [session.state, interpretationEnabled, runAnalysis]);
 
   if (authLoading) {
     return (
@@ -164,6 +164,7 @@ function App() {
         round={currentRound}
         state={session.state}
         micStream={micStream}
+        calendarEvents={session.calendarEvents}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
         onSkip={skipQuestion}

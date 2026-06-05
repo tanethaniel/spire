@@ -276,6 +276,28 @@ function buildQ1(events: CalendarEvent[]): string {
   return Q1_TEMPLATES[templateIdx](summary, timeframe);
 }
 
+const CATEGORY_CHIP_LABELS: Record<EventCategory, string> = {
+  meetings: 'Work & Meetings',
+  social: 'Social',
+  health: 'Health & Fitness',
+  personal: 'Personal Errands',
+  focus: 'Focus Time',
+  other: 'Other',
+};
+
+export function getQ1Categories(events: CalendarEvent[] | null): string[] {
+  if (!events || events.length === 0) return [];
+  const counts: Record<EventCategory, number> = {
+    meetings: 0, social: 0, health: 0, personal: 0, focus: 0, other: 0,
+  };
+  for (const ev of events) counts[categorizeEvent(ev.title)]++;
+
+  return (Object.entries(counts) as [EventCategory, number][])
+    .filter(([cat, n]) => n > 0 && cat !== 'other')
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat]) => CATEGORY_CHIP_LABELS[cat]);
+}
+
 // Sanitize event titles before using in question text — calendar data is untrusted
 function sanitizeTitle(raw: string): string {
   return raw.replace(/[^\w\s,.'&:()-]/g, '').trim().slice(0, 80);

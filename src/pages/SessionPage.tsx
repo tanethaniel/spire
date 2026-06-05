@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SessionState, type QuestionRound } from '../types/session';
+import { SessionState, type CalendarEvent, type QuestionRound, getQ1Categories } from '../types/session';
 import { useTTS } from '../hooks/useTTS';
 import { ProgressBar } from '../components/ProgressBar';
 import { RecordButton } from '../components/RecordButton';
@@ -10,6 +10,7 @@ interface SessionPageProps {
   round: QuestionRound;
   state: SessionState;
   micStream: MediaStream | null;
+  calendarEvents: CalendarEvent[] | null;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onSkip: () => void;
@@ -22,6 +23,7 @@ export function SessionPage({
   round,
   state,
   micStream,
+  calendarEvents,
   onStartRecording,
   onStopRecording,
   onSkip,
@@ -121,6 +123,19 @@ export function SessionPage({
         <div style={styles.qNumber}>Q{currentQuestion + 1}</div>
         <div style={styles.qText}>{round.question}</div>
         <div style={styles.qSub}>{round.subPrompt}</div>
+
+        {currentQuestion === 0 && (() => {
+          const cats = getQ1Categories(calendarEvents);
+          if (cats.length === 0) return null;
+          return (
+            <div style={styles.categoryChips}>
+              <span style={styles.includesLabel}>Includes:</span>
+              {cats.map((label, i) => (
+                <span key={i} style={styles.categoryChip}>{label}</span>
+              ))}
+            </div>
+          );
+        })()}
 
         <div style={styles.transcriptArea}>
           <div style={{
@@ -225,7 +240,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     color: 'var(--text-muted)',
     lineHeight: 1.5,
-    marginBottom: 24,
+    marginBottom: 12,
+  },
+  categoryChips: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  includesLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--text-ghost)',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    marginRight: 2,
+  },
+  categoryChip: {
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    background: 'rgba(255,255,255,0.35)',
+    border: '1px solid var(--border-glass)',
+    borderRadius: 12,
+    padding: '3px 10px',
   },
   transcriptArea: {
     background: 'var(--bg-surface)',
