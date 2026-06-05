@@ -16,8 +16,11 @@ interface DaySignal {
 }
 
 function dayKey(createdAt: string): string {
-  // Date portion only, so multiple sessions on one day collapse to one day.
-  return new Date(createdAt).toISOString().slice(0, 10);
+  const d = new Date(createdAt);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function buildDayMap(entries: JournalEntry[]): Map<string, DaySignal> {
