@@ -30,6 +30,7 @@ export interface QuestionRound {
 
 export interface SessionData {
   state: SessionState;
+  sessionId: string | null;
   currentQuestion: number;
   rounds: QuestionRound[];
   calendarEvents: CalendarEvent[] | null;

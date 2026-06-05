@@ -7,6 +7,7 @@ interface HistoryPageProps {
   error: boolean;
   interpretationEnabled: boolean;
   onOpenSettings: () => void;
+  onDeleteEntry: (id: string) => void;
 }
 
 const Q_LABELS = ['Context', 'Emotions', 'Memory', 'Learning', 'Self', 'Anything else'];
@@ -17,8 +18,9 @@ function formatDate(iso: string): string {
   });
 }
 
-export function HistoryPage({ entries, loading, error, interpretationEnabled, onOpenSettings }: HistoryPageProps) {
+export function HistoryPage({ entries, loading, error, interpretationEnabled, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   return (
     <div style={styles.page}>
@@ -74,6 +76,32 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
                         </div>
                       ) : null,
                     )}
+                    <div style={styles.deleteArea}>
+                      {confirmDelete === entry.id ? (
+                        <div style={styles.confirmRow}>
+                          <span style={styles.confirmText}>Delete this entry?</span>
+                          <button
+                            style={styles.confirmYes}
+                            onClick={() => { onDeleteEntry(entry.id); setConfirmDelete(null); setExpanded(null); }}
+                          >
+                            Delete
+                          </button>
+                          <button
+                            style={styles.confirmNo}
+                            onClick={() => setConfirmDelete(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          style={styles.deleteBtn}
+                          onClick={() => setConfirmDelete(entry.id)}
+                        >
+                          Delete entry
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -135,4 +163,25 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4,
   },
   answerText: { fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 },
+  deleteArea: {
+    paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 12,
+  },
+  deleteBtn: {
+    background: 'none', border: 'none', fontSize: 13, color: 'var(--text-ghost)',
+    padding: '8px 0', cursor: 'pointer',
+  },
+  confirmRow: {
+    display: 'flex', alignItems: 'center', gap: 10,
+  },
+  confirmText: {
+    fontSize: 13, color: 'var(--text-secondary)', flex: 1,
+  },
+  confirmYes: {
+    background: 'var(--error)', color: '#fff', border: 'none', borderRadius: 8,
+    padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  },
+  confirmNo: {
+    background: 'none', border: '1px solid var(--border-glass)', borderRadius: 8,
+    padding: '6px 14px', fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer',
+  },
 };

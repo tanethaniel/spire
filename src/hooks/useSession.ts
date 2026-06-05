@@ -19,6 +19,7 @@ function createInitialRounds(): QuestionRound[] {
 export function useSession() {
   const [session, setSession] = useState<SessionData>({
     state: SessionState.IDLE,
+    sessionId: null,
     currentQuestion: 0,
     rounds: createInitialRounds(),
     calendarEvents: null,
@@ -40,9 +41,11 @@ export function useSession() {
   const roundsRef = useRef(session.rounds);
   const startedAtRef = useRef(session.startedAt);
   const calendarEventsRef = useRef(session.calendarEvents);
+  const sessionIdRef = useRef(session.sessionId);
   roundsRef.current = session.rounds;
   startedAtRef.current = session.startedAt;
   calendarEventsRef.current = session.calendarEvents;
+  sessionIdRef.current = session.sessionId;
 
   const updateRound = useCallback((index: number, updates: Partial<QuestionRound>) => {
     setSession(prev => ({
@@ -67,6 +70,7 @@ export function useSession() {
     setSession(prev => ({
       ...prev,
       state: SessionState.TTS_PLAYING,
+      sessionId: crypto.randomUUID(),
       startedAt: new Date().toISOString(),
       currentQuestion: 0,
     }));
@@ -190,6 +194,7 @@ export function useSession() {
     const transcripts = roundsRef.current.map(r => r.transcript);
     const calendarEvents = calendarEventsRef.current;
     const startedAt = startedAtRef.current;
+    const sessionId = sessionIdRef.current ?? crypto.randomUUID();
     const completedAt = new Date().toISOString();
     const durationMs = startedAt
       ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
@@ -198,6 +203,7 @@ export function useSession() {
     if (!interpret) {
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
       await saveJournalEntry({
+        sessionId,
         transcripts,
         themes: null,
         insight: null,
@@ -222,6 +228,7 @@ export function useSession() {
       }));
 
       await saveJournalEntry({
+        sessionId,
         transcripts,
         themes,
         insight,
@@ -236,6 +243,7 @@ export function useSession() {
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
 
       await saveJournalEntry({
+        sessionId,
         transcripts,
         themes: null,
         insight: null,
@@ -251,6 +259,7 @@ export function useSession() {
     analysisRanRef.current = false;
     setSession({
       state: SessionState.IDLE,
+      sessionId: null,
       currentQuestion: 0,
       rounds: createInitialRounds(),
       calendarEvents: null,

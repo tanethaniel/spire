@@ -43,6 +43,21 @@ serve(async (req) => {
       });
     }
 
+    // Rate limit: max 15 TTS calls per user per day
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('user_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('event', 'question_started')
+      .gte('created_at', todayStart.toISOString());
+    if ((count ?? 0) >= 15) {
+      return new Response(JSON.stringify({ error: 'Daily TTS limit reached' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const body = await req.json();
     const events = body?.events;
 

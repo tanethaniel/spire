@@ -6,6 +6,7 @@ import { useMicPermission } from './hooks/useMicPermission';
 import { useSettings } from './hooks/useSettings';
 import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
+import { deleteJournalEntry } from './lib/api';
 import { cleanupStaleAudio } from './lib/audioDb';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
@@ -26,25 +27,21 @@ function App() {
   // Clean up any orphaned voice recordings left from failed transcription sessions
   useEffect(() => { cleanupStaleAudio(); }, []);
 
-  // Extract Google provider_token from the OAuth redirect hash before Supabase
-  // consumes it. Supabase doesn't always surface it via getSession/onAuthStateChange.
+  // Extract Google refresh token from the OAuth redirect hash. The access token
+  // is handled by Supabase's session; the refresh token is stored in sessionStorage
+  // (tab-scoped, cleared on close) so the edge function can refresh expired tokens.
   useEffect(() => {
     if (window.location.hash) {
       const params = new URLSearchParams(window.location.hash.substring(1));
-      const pt = params.get('provider_token');
-      if (pt) localStorage.setItem('google_provider_token', pt);
       const prt = params.get('provider_refresh_token');
-      if (prt) localStorage.setItem('google_refresh_token', prt);
+      if (prt) sessionStorage.setItem('google_refresh_token', prt);
     }
   }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.provider_token) {
-        localStorage.setItem('google_provider_token', session.provider_token);
-      }
       if (session?.provider_refresh_token) {
-        localStorage.setItem('google_refresh_token', session.provider_refresh_token);
+        sessionStorage.setItem('google_refresh_token', session.provider_refresh_token);
       }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
@@ -54,15 +51,11 @@ function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.provider_token) {
-        localStorage.setItem('google_provider_token', session.provider_token);
-      }
       if (session?.provider_refresh_token) {
-        localStorage.setItem('google_refresh_token', session.provider_refresh_token);
+        sessionStorage.setItem('google_refresh_token', session.provider_refresh_token);
       }
       if (!session) {
-        localStorage.removeItem('google_provider_token');
-        localStorage.removeItem('google_refresh_token');
+        sessionStorage.removeItem('google_refresh_token');
       }
       setAuthSession(session);
       if (window.location.hash) {
@@ -116,6 +109,11 @@ function App() {
     resetSession();
     setView('home');
   }, [resetSession]);
+
+  const handleDeleteEntry = useCallback(async (id: string) => {
+    await deleteJournalEntry(id);
+    refreshEntries();
+  }, [refreshEntries]);
 
   // Insights is hidden in Log mode; fall back to Home without storing a bad view.
   const effectiveView: AppView =
@@ -209,6 +207,7 @@ function App() {
               error={entriesError}
               interpretationEnabled={interpretationEnabled}
               onOpenSettings={() => setSettingsOpen(true)}
+              onDeleteEntry={handleDeleteEntry}
             />
           )}
           {effectiveView === 'insights' && (

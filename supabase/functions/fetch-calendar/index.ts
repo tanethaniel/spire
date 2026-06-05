@@ -13,17 +13,24 @@ function sanitizeEventTitle(raw: unknown): string {
   return raw.replace(/[^\w\s,.'&:()\-@]/g, '').trim().slice(0, 100);
 }
 
-function formatEventTime(event: Record<string, unknown>): string {
-  const start = event.start as Record<string, string> | undefined;
-  if (!start) return '';
-  const dt = start.dateTime || start.date || '';
-  if (!dt) return '';
+function formatTime(dt: string): string {
   try {
-    const d = new Date(dt);
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   } catch {
     return '';
   }
+}
+
+function formatEventTime(event: Record<string, unknown>): string {
+  const start = event.start as Record<string, string> | undefined;
+  const end = event.end as Record<string, string> | undefined;
+  const startDt = start?.dateTime || start?.date || '';
+  const endDt = end?.dateTime || end?.date || '';
+  if (!startDt) return '';
+  const s = formatTime(startDt);
+  const e = formatTime(endDt);
+  if (!e || s === e) return s;
+  return `${s} – ${e}`;
 }
 
 serve(async (req) => {

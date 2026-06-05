@@ -12,6 +12,7 @@ const corsHeaders = {
 const DEFAULT_VOICE = Deno.env.get('OPENAI_TTS_VOICE') || 'nova';
 const DEFAULT_MODEL = Deno.env.get('OPENAI_TTS_MODEL') || 'gpt-4o-mini-tts';
 const TONE = 'Speak in a warm, calm, gentle and unhurried tone, like a thoughtful friend guiding a quiet reflection.';
+const MAX_TTS_PER_DAY = 15;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -36,6 +37,21 @@ serve(async (req) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Rate limit: max TTS calls per user per day
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from('user_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('event', 'question_started')
+      .gte('created_at', todayStart.toISOString());
+    if ((count ?? 0) >= MAX_TTS_PER_DAY) {
+      return new Response(JSON.stringify({ error: 'Daily TTS limit reached' }), {
+        status: 429,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

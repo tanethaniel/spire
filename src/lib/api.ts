@@ -12,75 +12,37 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
+// Calendar events are fetched server-side via the fetch-calendar edge function.
+// The Google provider token never persists in browser storage.
 export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
-
-  const providerToken = session.provider_token ?? localStorage.getItem('google_provider_token') ?? null;
-  if (!providerToken) throw new Error('calendar_scope_missing');
 
   const now = new Date();
   const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-  const calUrl = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-  calUrl.searchParams.set('timeMin', timeMin);
-  calUrl.searchParams.set('timeMax', timeMax);
-  calUrl.searchParams.set('singleEvents', 'true');
-  calUrl.searchParams.set('orderBy', 'startTime');
-  calUrl.searchParams.set('maxResults', '20');
-
-  const res = await fetch(calUrl.toString(), {
-    headers: { Authorization: `Bearer ${providerToken}` },
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/fetch-calendar`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      timeMin,
+      timeMax,
+      provider_token: session.provider_token ?? null,
+      refresh_token: sessionStorage.getItem('google_refresh_token') ?? null,
+    }),
   });
 
-  if (res.status === 401 || res.status === 403) {
-    localStorage.removeItem('google_provider_token');
-    throw new Error('token_expired');
-  }
   if (!res.ok) throw new Error(`calendar API failed: ${res.status}`);
 
   const data = await res.json();
-  const items: { summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }[] = data.items ?? [];
-
-  return items
-    .map(item => ({
-      title: (item.summary ?? '').replace(/[^\w\s,.'&:()\-@]/g, '').trim().slice(0, 100),
-      time: formatTimeRange(item.start, item.end),
-    }))
-    .filter(e => e.title.length > 0);
-}
-
-function formatTime(dt: string): string {
-  try {
-    return new Date(dt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  } catch {
-    return '';
+  if (data.error === 'token_expired' || data.error === 'calendar_scope_missing') {
+    throw new Error(data.error);
   }
-}
-
-function formatTimeRange(
-  start?: { dateTime?: string; date?: string },
-  end?: { dateTime?: string; date?: string },
-): string {
-  const startDt = start?.dateTime || start?.date || '';
-  const endDt = end?.dateTime || end?.date || '';
-  if (!startDt) return '';
-  const s = formatTime(startDt);
-  const e = formatTime(endDt);
-  if (!e || s === e) return s;
-  return `${s} – ${e}`;
-}
-
-export async function generateQ1Audio(events: CalendarEvent[]): Promise<ArrayBuffer> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-q1`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ events }),
-  });
-  if (!res.ok) throw new Error(`generate-q1 failed: ${res.status}`);
-  return res.arrayBuffer();
+  return data.events ?? [];
 }
 
 export async function textToSpeech(text: string): Promise<ArrayBuffer> {
@@ -142,6 +104,7 @@ export async function analyzeSession(
 }
 
 export async function saveJournalEntry(entry: {
+  sessionId: string;
   transcripts: (string | null)[];
   themes: string[] | null;
   insight: string | null;
@@ -153,18 +116,17 @@ export async function saveJournalEntry(entry: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Dedup: skip if an entry was already created in the last 60 seconds.
-  // Guards against double-saves from effect re-fires or StrictMode.
-  const cutoff = new Date(Date.now() - 60_000).toISOString();
+  // Dedup on session UUID: skip if this session was already saved.
   const { count } = await supabase
     .from('journal_entries')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
-    .gte('created_at', cutoff);
+    .eq('session_id', entry.sessionId);
   if ((count ?? 0) > 0) return;
 
   const row: Record<string, unknown> = {
     user_id: user.id,
+    session_id: entry.sessionId,
     event_context: entry.event_context,
     themes: entry.themes,
     insight: entry.insight,
@@ -177,6 +139,18 @@ export async function saveJournalEntry(entry: {
   });
 
   const { error } = await supabase.from('journal_entries').insert(row);
+  if (error) throw error;
+}
+
+export async function deleteJournalEntry(id: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('journal_entries')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id);
   if (error) throw error;
 }
 
