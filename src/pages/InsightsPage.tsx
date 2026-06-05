@@ -8,9 +8,17 @@ interface InsightsPageProps {
   onOpenSettings: () => void;
 }
 
-const HEATMAP_DAYS = 35; // last 5 weeks
-const MOOD_COLOR: Record<number, string> = {
-  [-2]: '#C88A7A', [-1]: '#CCAA88', 0: 'rgba(255,255,255,0.35)', 1: '#B8C498', 2: 'var(--accent-primary)',
+const HEATMAP_WEEKS = 5;
+const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+// 6 shades: 1/6 answered = warm yellow → 6/6 = deep green
+const COMPLETENESS_COLOR: Record<number, string> = {
+  1: '#E8C840',
+  2: '#C8D040',
+  3: '#98C84C',
+  4: '#68B858',
+  5: '#40A848',
+  6: '#2E8B3E',
 };
 
 function dayKey(d: Date): string {
@@ -35,14 +43,12 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
-  // Average mood per day for the heatmap coloring.
-  const moodByDay = new Map<string, { sum: number; count: number }>();
+  // Best completeness score per day (how many of 6 questions were answered).
+  const completenessByDay = new Map<string, number>();
   for (const e of answered) {
-    if (e.moodScore === null) continue;
     const k = dayKey(new Date(e.createdAt));
-    const cur = moodByDay.get(k) ?? { sum: 0, count: 0 };
-    cur.sum += e.moodScore; cur.count += 1;
-    moodByDay.set(k, cur);
+    const score = e.transcripts.filter(Boolean).length;
+    completenessByDay.set(k, Math.max(completenessByDay.get(k) ?? 0, score));
   }
 
   const streak = currentStreak(entryDayKeys);
@@ -50,14 +56,23 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
   const unlocked = tipsUnlocked(answered);
   const tips = unlocked ? computeCorrelations(answered) : [];
 
-  // Build heatmap cells oldest → newest.
-  const cells: { key: string; has: boolean; mood: number | null }[] = [];
-  for (let i = HEATMAP_DAYS - 1; i >= 0; i--) {
+  // Build heatmap cells aligned to Monday start.
+  const today = new Date();
+  const todayDow = (today.getDay() + 6) % 7; // 0=Mon, 6=Sun
+  const endOffset = 6 - todayDow; // pad to fill the last week row
+  const totalCells = HEATMAP_WEEKS * 7;
+  const startOffset = totalCells - 1 - endOffset;
+
+  const cells: { key: string; has: boolean; completeness: number }[] = [];
+  for (let i = 0; i < totalCells; i++) {
     const d = new Date();
-    d.setDate(d.getDate() - i);
+    d.setDate(d.getDate() - startOffset + i);
     const k = dayKey(d);
-    const m = moodByDay.get(k);
-    cells.push({ key: k, has: entryDayKeys.has(k), mood: m ? Math.round(m.sum / m.count) : null });
+    cells.push({
+      key: k,
+      has: entryDayKeys.has(k),
+      completeness: completenessByDay.get(k) ?? 0,
+    });
   }
 
   return (
@@ -90,17 +105,18 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
             </div>
 
             <div style={styles.heatmap}>
+              {DAY_LABELS.map((label, i) => (
+                <div key={`lbl-${i}`} style={styles.dayLabel}>{label}</div>
+              ))}
               {cells.map(c => (
                 <div
                   key={c.key}
                   title={c.key}
                   style={{
                     ...styles.cell,
-                    background: !c.has
-                      ? 'rgba(255,255,255,0.2)'
-                      : c.mood !== null
-                      ? MOOD_COLOR[c.mood]
-                      : 'var(--accent-primary)',
+                    background: c.has
+                      ? COMPLETENESS_COLOR[c.completeness] ?? 'rgba(255,255,255,0.2)'
+                      : 'rgba(255,255,255,0.2)',
                     opacity: c.has ? 1 : 0.5,
                   }}
                 />
@@ -178,6 +194,10 @@ const styles: Record<string, React.CSSProperties> = {
   statLabel: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
   heatmap: {
     display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5,
+  },
+  dayLabel: {
+    fontSize: 10, fontWeight: 600, color: 'var(--text-ghost)',
+    textAlign: 'center', paddingBottom: 4,
   },
   cell: { aspectRatio: '1', borderRadius: 6 },
   heatmapLegend: { fontSize: 11, color: 'var(--text-ghost)', marginTop: 8 },
