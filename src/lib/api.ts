@@ -153,6 +153,16 @@ export async function saveJournalEntry(entry: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
+  // Dedup: skip if an entry was already created in the last 60 seconds.
+  // Guards against double-saves from effect re-fires or StrictMode.
+  const cutoff = new Date(Date.now() - 60_000).toISOString();
+  const { count } = await supabase
+    .from('journal_entries')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('created_at', cutoff);
+  if ((count ?? 0) > 0) return;
+
   const row: Record<string, unknown> = {
     user_id: user.id,
     event_context: entry.event_context,

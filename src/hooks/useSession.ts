@@ -35,6 +35,15 @@ export function useSession() {
   const recordStartRef = useRef<number>(0);
   const analysisRanRef = useRef(false);
 
+  // Keep refs in sync so runAnalysis always reads fresh data without
+  // needing session.rounds/startedAt/calendarEvents in its dep array.
+  const roundsRef = useRef(session.rounds);
+  const startedAtRef = useRef(session.startedAt);
+  const calendarEventsRef = useRef(session.calendarEvents);
+  roundsRef.current = session.rounds;
+  startedAtRef.current = session.startedAt;
+  calendarEventsRef.current = session.calendarEvents;
+
   const updateRound = useCallback((index: number, updates: Partial<QuestionRound>) => {
     setSession(prev => ({
       ...prev,
@@ -171,25 +180,16 @@ export function useSession() {
   // `interpret` reflects the user's Interpreted/Log preference. In Log mode we
   // never call analyze-session, so transcripts are never sent for analysis.
   //
-  // Reads transcripts via functional setState to avoid stale closure data.
-  // The analysisRanRef guard prevents the effect from firing twice when the
-  // runAnalysis reference changes mid-flight (background transcription updates
-  // session.rounds, which recreates the callback and re-triggers the effect).
+  // Reads session data from refs (kept in sync above) so the callback is stable
+  // (empty dep array → never recreated → effect never re-fires from reference
+  // change). The analysisRanRef guard is a belt-and-suspenders safety net.
   const runAnalysis = useCallback(async (interpret: boolean) => {
     if (analysisRanRef.current) return;
     analysisRanRef.current = true;
 
-    // Snapshot transcripts and calendar context from current state
-    let transcripts: (string | null)[] = [];
-    let calendarEvents: CalendarEvent[] | null = null;
-    let startedAt: string | null = null;
-    setSession(prev => {
-      transcripts = prev.rounds.map(r => r.transcript);
-      calendarEvents = prev.calendarEvents;
-      startedAt = prev.startedAt;
-      return prev;
-    });
-
+    const transcripts = roundsRef.current.map(r => r.transcript);
+    const calendarEvents = calendarEventsRef.current;
+    const startedAt = startedAtRef.current;
     const completedAt = new Date().toISOString();
     const durationMs = startedAt
       ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
