@@ -299,11 +299,6 @@ export function getQ1Categories(events: CalendarEvent[] | null): string[] {
     .map(([cat]) => CATEGORY_CHIP_LABELS[cat]);
 }
 
-// Sanitize event titles before using in question text — calendar data is untrusted
-function sanitizeTitle(raw: string): string {
-  return raw.replace(/[^\w\s,.'&:()-]/g, '').trim().slice(0, 80);
-}
-
 export function getQ1WithContext(events: CalendarEvent[] | null): { question: string; subPrompt: string } {
   if (!events || events.length === 0) {
     return QUESTIONS[0];
