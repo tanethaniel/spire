@@ -185,6 +185,17 @@ export async function setUserSettings(settings: UserSettings): Promise<void> {
 
 // --- History (past entries for History + Insights views) ---
 
+const META_WORDS = /\b(transcript|session|entry|data|record|absent|empty|incomplete|brief response)/i;
+
+function filterMetaThemes(themes: string[]): string[] {
+  return themes.filter(t => !META_WORDS.test(t));
+}
+
+function filterMetaInsight(insight: string | null): string | null {
+  if (!insight) return null;
+  return META_WORDS.test(insight) ? null : insight;
+}
+
 export async function fetchJournalEntries(): Promise<JournalEntry[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -196,18 +207,28 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
     .order('created_at', { ascending: false });
   if (error) throw error;
 
-  return (data ?? []).map((row): JournalEntry => ({
+  const entries = (data ?? []).map((row): JournalEntry => ({
     id: row.id,
     createdAt: row.created_at,
     transcripts: [
       row.q1_transcript, row.q2_transcript, row.q3_transcript,
       row.q4_transcript, row.q5_transcript, row.q6_transcript,
     ],
-    themes: row.themes,
-    insight: row.insight,
+    themes: row.themes ? filterMetaThemes(row.themes) : row.themes,
+    insight: filterMetaInsight(row.insight),
     moodScore: row.mood_score ?? null,
     activityTags: row.activity_tags ?? null,
     eventContext: row.event_context,
     durationMs: row.duration_ms,
   }));
+
+  // Deduplicate: entries with identical transcripts on the same day are dupes
+  const seen = new Set<string>();
+  return entries.filter(e => {
+    const day = e.createdAt.slice(0, 10);
+    const key = day + '|' + e.transcripts.map(t => t ?? '').join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
