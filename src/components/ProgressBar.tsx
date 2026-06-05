@@ -61,7 +61,7 @@ const styles: Record<string, React.CSSProperties> = {
   track: {
     width: '100%',
     height: 2,
-    background: 'rgba(255,255,255,0.35)',
+    background: 'rgba(255,255,255,0.2)',
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -80,7 +80,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 6,
     height: 6,
     borderRadius: '50%',
-    background: 'rgba(255,255,255,0.35)',
+    background: 'rgba(255,255,255,0.2)',
     transition: 'all 0.2s',
   },
   dotDone: {
