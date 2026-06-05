@@ -32,11 +32,12 @@ function currentStreak(entryDayKeys: Set<string>): number {
 }
 
 export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageProps) {
-  const entryDayKeys = new Set(entries.map(e => dayKey(new Date(e.createdAt))));
+  const answered = entries.filter(e => e.transcripts.some(Boolean));
+  const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
   // Average mood per day for the heatmap coloring.
   const moodByDay = new Map<string, { sum: number; count: number }>();
-  for (const e of entries) {
+  for (const e of answered) {
     if (e.moodScore === null) continue;
     const k = dayKey(new Date(e.createdAt));
     const cur = moodByDay.get(k) ?? { sum: 0, count: 0 };
@@ -45,9 +46,9 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
   }
 
   const streak = currentStreak(entryDayKeys);
-  const totalDays = distinctEntryDays(entries);
-  const unlocked = tipsUnlocked(entries);
-  const tips = unlocked ? computeCorrelations(entries) : [];
+  const totalDays = distinctEntryDays(answered);
+  const unlocked = tipsUnlocked(answered);
+  const tips = unlocked ? computeCorrelations(answered) : [];
 
   // Build heatmap cells oldest → newest.
   const cells: { key: string; has: boolean; mood: number | null }[] = [];
@@ -62,7 +63,7 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <div style={styles.title}>Insights</div>
+        <div style={styles.title}>Review</div>
         <button style={styles.gear} onClick={onOpenSettings} aria-label="Settings">⚙</button>
       </div>
 
@@ -83,7 +84,7 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
                 <div style={styles.statLabel}>days reflected</div>
               </div>
               <div style={styles.stat}>
-                <div style={styles.statNum}>{entries.length}</div>
+                <div style={styles.statNum}>{answered.length}</div>
                 <div style={styles.statLabel}>total sessions</div>
               </div>
             </div>
