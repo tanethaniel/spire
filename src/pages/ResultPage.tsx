@@ -237,7 +237,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
   },
   newBadge: {
-    background: 'rgba(212,145,122,0.15)',
+    background: 'rgba(107,191,168,0.15)',
     color: 'var(--accent-primary)',
     borderRadius: 4,
     padding: '1px 5px',
@@ -274,7 +274,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.35)',
     backdropFilter: 'blur(12px)',
     WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(212,145,122,0.25)',
+    border: '1px solid rgba(107,191,168,0.25)',
     borderRadius: 16,
     padding: 18,
     marginBottom: 24,
@@ -371,7 +371,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
     transition: 'all 0.15s',
-    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
+    boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
   },
   streakNote: {
     textAlign: 'center' as const,

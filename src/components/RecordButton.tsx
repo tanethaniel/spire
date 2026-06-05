@@ -193,7 +193,7 @@ const styles: Record<string, React.CSSProperties> = {
     touchAction: 'none',
     cursor: 'pointer',
     flexShrink: 0,
-    boxShadow: '0 4px 20px rgba(212,145,122,0.3)',
+    boxShadow: '0 4px 20px rgba(107,191,168,0.3)',
   },
   locked: {
     background: 'rgba(255,255,255,0.3)',

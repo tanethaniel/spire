@@ -222,7 +222,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative', overflow: 'hidden',
     background: 'rgba(255,255,255,0.35)',
     backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(212,145,122,0.25)', borderRadius: 16,
+    border: '1px solid rgba(107,191,168,0.25)', borderRadius: 16,
     padding: 18, marginBottom: 10,
   },
   tipGradient: {

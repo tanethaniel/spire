@@ -1,18 +1,19 @@
 :root {
-  --bg-base: #F2E8DE;
+  --bg-base: #F2F0E6;
   --bg-surface: rgba(255, 255, 255, 0.42);
   --bg-elevated: rgba(255, 255, 255, 0.55);
   --border-subtle: rgba(255, 255, 255, 0.45);
   --border-glass: rgba(255, 255, 255, 0.35);
-  --accent-primary: #D4917A;
-  --accent-hover: #E0A18E;
-  --accent-blue: #7AADCC;
-  --accent-purple: #B08AA0;
-  --text-primary: #2A2A38;
-  --text-secondary: #4A4A58;
-  --text-muted: #7A7A88;
-  --text-ghost: #9A9AA5;
-  --error: #C85A4A;
+  --accent-primary: #6BBFA8;
+  --accent-hover: #7ECAB5;
+  --accent-soft: #B0E5D7;
+  --accent-blue: #5BA89A;
+  --accent-purple: #7AB8A8;
+  --text-primary: #333A40;
+  --text-secondary: #4A5258;
+  --text-muted: #6B7580;
+  --text-ghost: #8A9298;
+  --error: #D4756A;
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
@@ -32,7 +33,7 @@ html, body, #root {
 
 body {
   font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
-  background: linear-gradient(145deg, #F5E6D3 0%, #EDD8C4 25%, #E8D0B8 45%, #DDDDD4 65%, #C8D8D4 85%, #BDD4D4 100%);
+  background: linear-gradient(145deg, #B0E5D7 0%, #C4EBE0 25%, #D8F0EA 45%, #E6F0EC 65%, #EEF0E8 85%, #F2F0E6 100%);
   background-attachment: fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;

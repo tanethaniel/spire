@@ -164,7 +164,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 16,
     fontSize: 16,
     fontWeight: 600,
-    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
+    boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
   },
   signOut: {
     width: '100%',

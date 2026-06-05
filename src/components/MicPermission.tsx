@@ -88,7 +88,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16,
     fontWeight: 600,
     marginBottom: 16,
-    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
+    boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
   },
   privacy: {
     fontSize: 12,

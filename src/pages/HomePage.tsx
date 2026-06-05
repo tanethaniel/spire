@@ -290,7 +290,7 @@ const styles: Record<string, React.CSSProperties> = {
   eventBlock: {
     display: 'flex',
     borderRadius: 10,
-    background: 'rgba(212,145,122,0.13)',
+    background: 'rgba(107,191,168,0.13)',
     overflow: 'hidden',
     flexShrink: 0,
   },
@@ -360,7 +360,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pillSelected: {
     borderColor: 'var(--accent-primary)',
-    background: 'rgba(212,145,122,0.12)',
+    background: 'rgba(107,191,168,0.12)',
   },
   ctaArea: {
     padding: '0 24px',
@@ -382,6 +382,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
     transition: 'all 0.15s',
-    boxShadow: '0 4px 16px rgba(212,145,122,0.25)',
+    boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
   },
 };

@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Spire — Reflect',
         short_name: 'Spire',
         description: 'Voice-first daily reflection',
-        theme_color: '#0A0A0F',
-        background_color: '#0A0A0F',
+        theme_color: '#B0E5D7',
+        background_color: '#F2F0E6',
         display: 'standalone',
         start_url: '/',
         icons: [
