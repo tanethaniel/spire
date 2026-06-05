@@ -10,7 +10,6 @@ interface HistoryPageProps {
 }
 
 const Q_LABELS = ['Context', 'Emotions', 'Memory', 'Learning', 'Self', 'Anything else'];
-const MOOD_FACE = ['😞', '🙁', '😐', '🙂', '😄']; // index = moodScore + 2
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -43,13 +42,11 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
           entries.filter(e => e.transcripts.some(Boolean)).map(entry => {
             const isOpen = expanded === entry.id;
             const answered = entry.transcripts.filter(Boolean).length;
-            const showMood = interpretationEnabled && entry.moodScore !== null;
             return (
               <div key={entry.id} style={styles.card}>
                 <div style={styles.cardHead} onClick={() => setExpanded(isOpen ? null : entry.id)}>
                   <div style={{ flex: 1 }}>
                     <div style={styles.date}>
-                      {showMood && <span style={styles.mood}>{MOOD_FACE[(entry.moodScore ?? 0) + 2]}</span>}
                       {formatDate(entry.createdAt)}
                     </div>
                     <div style={styles.meta}>{answered} of 6 answered</div>
@@ -120,7 +117,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardHead: { display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer' },
   date: { fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 },
-  mood: { fontSize: 18 },
   meta: { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 },
   themes: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   themeChip: {
