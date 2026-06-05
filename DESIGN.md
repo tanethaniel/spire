@@ -239,6 +239,115 @@ E runs alongside C.
 
 - You chose speed (Approach A) over completeness (Approach B). That's the right instinct for a conviction bet with no user validation. Ship fast, learn fast.
 
+## UI Design Specifications (from /plan-design-review 2026-06-01)
+
+### Three Screens
+
+**Screen 1 — Home / Prompt Selection**
+- Header: `spire.` wordmark (left) + avatar initial (right)
+- Greeting line: time-of-day contextual ("Monday evening") + "What's been on your mind today?"
+- Calendar zone: dashed border card with camera icon + "Add today's calendar" title + "Screenshot → better prompts" sub. Tap → bottom sheet: "Choose from library" | "Take screenshot". Loading: spinner. Success: "Found 4 events" → events replace the upload zone as context chips.
+- Skip link: "Skip — reflect without calendar" centered below zone
+- Divider: thin line with "or choose a topic" label
+- Topic grid: 2×2, pills with emoji icon + label + hint text. Options: Work (💼), People (🤝), Mind & body (🌿), On my mind (💭)
+- Selected prompt preview: appears below grid with amber left-border, shows exact Q1 that will be asked
+- CTA: full-width amber button "▶ Start reflecting" with sub-copy "6 questions · ~7 minutes · voice only"
+- Day-2+ returning user state: subtle chip at top of screen showing yesterday's top theme ("Yesterday: Career confidence") — creates analytics pull
+
+**Screen 2 — Guided Session (6 Questions)**
+- Progress: back button (left) + "Question N of 6" label (right) + thin progress bar + 6 dots (pill-shaped active dot, filled past dots, empty future dots)
+- Speaking state: small badge "Spire is speaking…" with animated waveform. Record button is LOCKED (grayed, no interaction) while ElevenLabs audio plays. Badge fades + button activates when audio ends.
+- Question number: `Q1` in amber uppercase label
+- Question text: 26px semibold, calendar-injected name in amber (`<em>` styling)
+- Sub-prompt: 15px muted, "Take your time. There's no wrong answer."
+- Live transcript area: dark inset card, text appears as user speaks (via real-time display of Whisper incremental results — or simulated in V1). Shows "Your words will appear here…" placeholder when idle.
+- Record button states:
+  - Locked (ElevenLabs playing): gray fill, slow pulse
+  - Ready: amber fill, "Hold the button to answer" hint
+  - Recording: dark background + red border + stop square icon + ripple rings radiating
+  - Done: "✓ Saved — transcribing in background" status
+- Recording < 5 seconds: on release, toast appears — "That was quick — want to re-record?" with Yes/Skip
+- ElevenLabs fallback (error): badge hides, question shown as large text, record button activates immediately
+- Skip: small "Skip this question" text button below record area (min 44px touch target)
+- Network lost: toast "Lost connection — your recording is saved locally"
+- Crash recovery: on app reopen, modal — "You were mid-session — resume?" with Yes/Start over
+
+**Screen 3 — Progressive Result Reveal**
+- Loading state: centered spinner + "Reading your reflection…" (1.8s before reveal)
+- Progressive reveal sequence:
+  1. Transcripts accordion appears (all collapsed by default)
+  2. Theme chips animate in staggered (0.2s apart): each chip has a colored dot + specific label
+  3. AI insight card fades in (gradient top border, amber label "✦ Spire noticed", italic insight text quoting user's words, two action buttons: "Save for later" | "Reply with voice")
+  4. "Done for today ✓" CTA + day streak note appears
+- Accordion transcripts: `Q1 · Context` label in amber, first 60 chars of transcript as preview, expand to full
+- Error state (Claude themes timeout): transcripts still appear, theme area shows 3 skeleton chips with muted "Themes unavailable" label
+- "Done for today ✓" → brief success animation → navigate to home state showing "See you tomorrow" + today's themes
+
+### Design Tokens
+
+| Token | Value |
+|-------|-------|
+| `--bg-base` | `#0A0A0F` |
+| `--bg-surface` | `#0F0F18` |
+| `--bg-elevated` | `#141420` |
+| `--border-subtle` | `#1E1E2A` |
+| `--accent-primary` | `#C8A97A` |
+| `--accent-blue` | `#7A9AC8` |
+| `--accent-purple` | `#A87A9A` |
+| `--text-primary` | `#F0EEE8` |
+| `--text-secondary` | `#8B8A85` |
+| `--text-muted` | `#5A5958` |
+| `--text-ghost` | `#5A5958` (not #4A4948 — contrast floor) |
+| `--error` | `#D4756A` |
+| `--radius-sm` | `10px` |
+| `--radius-md` | `14px` |
+| `--radius-lg` | `18px` |
+| Font | `-apple-system, 'SF Pro Display', 'Inter', sans-serif` |
+
+### Typography Scale
+
+| Role | Size | Weight | Line-height |
+|------|------|--------|-------------|
+| Display | 28px | 600 | 1.2 |
+| Heading | 26px | 600 | 1.25 |
+| Title | 22px | 700 | 1.2 |
+| Body | 15px | 400 | 1.6 |
+| Label | 14px | 500 | 1.4 |
+| Caption | 13px | 400 | 1.5 |
+| Micro | 11–12px | 600 | 1.3 (uppercase + letter-spacing: 0.1em) |
+
+### Interaction Timing
+
+| Interaction | Duration | Easing |
+|---|---|---|
+| Button press | 0.15s | ease |
+| Card appear | 0.3s | ease |
+| Theme chip stagger | 0.2s offset | ease |
+| Insight fade | 0.5s | ease, 0.4s delay |
+| Progressive reveal start | 1.8s after session end | — |
+| Record ripple | 2s | ease-out, infinite |
+
+### Accessibility Requirements
+
+- Record button: `aria-label="Hold to record"`, `aria-pressed` state, min 80px (already 80px ✓)
+- Question text: wrapped in `aria-live="polite"` region — screen reader announces new question
+- Skip links: min 44px touch target height (currently 30px — FIX REQUIRED)
+- ElevenLabs audio: visual speaking indicator must be present for deaf/hard-of-hearing users who need to know when speech ends — the waveform badge serves this role
+- Color contrast: `--text-ghost` raised to `#5A5958` (3.2:1 on base) for all functional text. Purely decorative dividers may use lower contrast.
+- Viewport minimum: 375px (iPhone SE). Prompt grid must not overflow on 375px.
+
+### Claude Prompt Constraints (Design-Critical)
+
+**Theme extraction:** Themes must be 2–4 word specific noun phrases derived from user's exact language. Forbidden: single-word categories ("Work"), emotional adjectives ("Positive feelings"), universal labels ("Stress"). Valid examples: "Career confidence," "Manager relationship," "Q3 deadline pressure."
+
+**Insight card copy:** Must quote or closely paraphrase user's actual words. Must ask a question that couldn't apply to anyone else. Forbidden openers: "It sounds like you care about...", "You seem to value...", "Today was clearly...". Insight must be grounded in specific language from the session.
+
+### Unresolved (post-V1)
+
+- Auto-advance timing after each answer: 2s default, but Q6 ("Anything else?") should have longer silence before advancing
+- Whether to show "Share entry" on result screen
+- Whether background transcription (Q1 uploading while Q2 plays) surfaces any loading state to user
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
@@ -246,8 +355,8 @@ E runs alongside C.
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
 | Outside Voice | `/plan-eng-review` | Independent 2nd opinion | 1 | issues_found | 6 gaps identified, all resolved |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 9 issues found, all resolved |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | 3 screens designed, 7-pass review, all critical gaps resolved |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
 **UNRESOLVED:** 0
-**VERDICT:** ENG CLEARED — ready to implement.
+**VERDICT:** ENG CLEARED + DESIGN CLEARED — ready to implement.
