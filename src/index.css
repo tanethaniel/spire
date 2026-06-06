@@ -35,7 +35,7 @@ html, body, #root {
 
 body {
   font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
-  background: linear-gradient(145deg, #B0E5D7 0%, #C4EBE0 25%, #D8F0EA 45%, #E6F0EC 65%, #EEF0E8 85%, #F2F0E6 100%);
+  background: linear-gradient(165deg, #F0EDE3 0%, #E8EDE6 15%, #D4E8E0 30%, #B8DED4 50%, #94CFC2 70%, #74BFB2 85%, #5EAFA4 100%);
   background-attachment: fixed;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
