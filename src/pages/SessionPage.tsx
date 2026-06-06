@@ -11,11 +11,13 @@ interface SessionPageProps {
   state: SessionState;
   micStream: MediaStream | null;
   calendarEvents: CalendarEvent[] | null;
+  recordingError: 'too_short' | 'transcription_failed' | null;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onSkip: () => void;
   onBack: () => void;
   onTTSDone: () => void;
+  onClearRecordingError: () => void;
 }
 
 export function SessionPage({
@@ -24,21 +26,44 @@ export function SessionPage({
   state,
   micStream,
   calendarEvents,
+  recordingError,
   onStartRecording,
   onStopRecording,
   onSkip,
   onBack,
   onTTSDone,
+  onClearRecordingError,
 }: SessionPageProps) {
   const [ttsPlaying, setTtsPlaying] = useState(false);
-  const [showShortWarning, setShowShortWarning] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [popupVisible, setPopupVisible] = useState(false);
   const { speak, cancel: cancelTTS, prefetch } = useTTS();
   const ttsTriggeredRef = useRef(-1);
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isRecording = state === SessionState.RECORDING;
   const isTranscribing = state === SessionState.BACKGROUND_TRANSCRIBING;
   const buttonDisabled = ttsPlaying || isTranscribing;
+
+  // Show popup when recordingError is set, auto-dismiss after 5s
+  useEffect(() => {
+    if (recordingError) {
+      setPopupVisible(true);
+      popupTimerRef.current = setTimeout(() => {
+        setPopupVisible(false);
+        onClearRecordingError();
+      }, 5000);
+    }
+    return () => {
+      if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+    };
+  }, [recordingError, onClearRecordingError]);
+
+  const dismissPopup = useCallback(() => {
+    if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+    setPopupVisible(false);
+    onClearRecordingError();
+  }, [onClearRecordingError]);
 
   // Reset lock state when recording stops
   useEffect(() => {
@@ -70,9 +95,9 @@ export function SessionPage({
   }, [currentQuestion, state, onTTSDone, round.question, round.toneInstruction, speak, cancelTTS, prefetch]);
 
   const handleStart = useCallback(() => {
-    setShowShortWarning(false);
+    if (popupVisible) dismissPopup();
     onStartRecording();
-  }, [onStartRecording]);
+  }, [onStartRecording, popupVisible, dismissPopup]);
 
   const handleStop = useCallback(() => {
     setLocked(false);
@@ -151,8 +176,6 @@ export function SessionPage({
               <div style={styles.recDot} />
               <span>Recording…</span>
             </>
-          ) : showShortWarning ? (
-            <span style={{ color: 'var(--error)' }}>That was quick — hold longer to record</span>
           ) : (
             <span>Hold the button to answer</span>
           )}
@@ -170,6 +193,23 @@ export function SessionPage({
           Skip this question
         </button>
       </div>
+
+      {popupVisible && (
+        <div style={styles.popupBackdrop} onClick={dismissPopup}>
+          <div style={styles.popupCard} onClick={e => e.stopPropagation()}>
+            <div style={styles.popupIcon}>
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                <circle cx="14" cy="14" r="12" stroke="var(--text-muted)" strokeWidth="1.5" />
+                <path d="M14 9v6" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="14" cy="19" r="1" fill="var(--text-muted)" />
+              </svg>
+            </div>
+            <div style={styles.popupTitle}>Unfortunately we couldn't quite get that.</div>
+            <div style={styles.popupBody}>Please retry.</div>
+            <div style={styles.popupNote}>*Note that responses that are too brief require an 8 second minimum.</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -181,6 +221,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
+    position: 'relative',
   },
   questionArea: {
     padding: '8px 24px 0',
@@ -332,5 +373,49 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     maxHeight: 160,
     overflowY: 'auto' as const,
+  },
+  // Recording error popup
+  popupBackdrop: {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(0,0,0,0.3)',
+    animation: 'fadeIn 0.2s ease',
+  },
+  popupCard: {
+    background: 'rgba(30, 30, 40, 0.75)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid var(--border-glass)',
+    borderTop: '1px solid rgba(255,255,255,0.25)',
+    borderRadius: 20,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+    padding: '28px 24px 24px',
+    maxWidth: 320,
+    width: '85%',
+    textAlign: 'center' as const,
+    animation: 'slideUp 0.25s ease',
+  },
+  popupIcon: {
+    marginBottom: 14,
+  },
+  popupTitle: {
+    fontSize: 16,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    marginBottom: 6,
+  },
+  popupBody: {
+    fontSize: 15,
+    color: 'var(--text-secondary)',
+    marginBottom: 14,
+  },
+  popupNote: {
+    fontSize: 12,
+    color: 'var(--text-ghost)',
+    fontStyle: 'italic',
   },
 };

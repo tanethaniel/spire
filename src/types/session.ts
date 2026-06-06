@@ -39,6 +39,7 @@ export interface SessionData {
   insight: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  recordingError: 'too_short' | 'transcription_failed' | null;
 }
 
 // User preference for whether Spire interprets entries (themes/insight/tips)

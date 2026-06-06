@@ -96,6 +96,7 @@ function App() {
     skipQuestion,
     runAnalysis,
     resetSession,
+    clearRecordingError,
   } = useSession();
 
   const handleStart = useCallback(async (events: CalendarEvent[] | null) => {
@@ -176,11 +177,13 @@ function App() {
         state={session.state}
         micStream={micStream}
         calendarEvents={session.calendarEvents}
+        recordingError={session.recordingError ?? null}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
         onSkip={skipQuestion}
         onBack={handleBack}
         onTTSDone={onTTSDone}
+        onClearRecordingError={clearRecordingError}
       />
     );
   }

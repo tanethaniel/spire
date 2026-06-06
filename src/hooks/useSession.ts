@@ -28,6 +28,7 @@ export function useSession() {
     insight: null,
     startedAt: null,
     completedAt: null,
+    recordingError: null,
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -117,10 +118,9 @@ export function useSession() {
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const duration = Date.now() - recordStartRef.current;
 
-        if (duration < 5000) {
-          // Recording too short — let the component handle the UI prompt
-          setSession(prev => ({ ...prev, state: SessionState.TTS_PLAYING }));
-          updateRound(idx, { status: 'tts_playing' });
+        if (duration < 8000) {
+          setSession(prev => ({ ...prev, state: SessionState.RECORDING, recordingError: 'too_short' }));
+          updateRound(idx, { status: 'pending' });
           return;
         }
 
@@ -136,15 +136,12 @@ export function useSession() {
           updateRound(idx, { transcript, status: 'done', transcriptFailed: false });
           await deleteAudio(audioKey);
         } catch (err) {
-          // Surface the real failure to the console so transcription issues
-          // are diagnosable instead of silently swallowed.
           console.error(`[transcription] Q${idx + 1} failed:`, err);
-          updateRound(idx, { status: 'done', transcriptFailed: true });
-          // Audio preserved in IndexedDB (cleaned up after 24h if not retried)
+          updateRound(idx, { status: 'pending', transcriptFailed: true });
+          setSession(prev => ({ ...prev, state: SessionState.RECORDING, recordingError: 'transcription_failed' }));
+          return;
         }
 
-        // Advance only if this question is still the active one.
-        // A late-finishing background transcription must not move the pointer.
         setSession(prev => {
           if (prev.currentQuestion !== idx) return prev;
           const next = idx + 1;
@@ -274,7 +271,12 @@ export function useSession() {
       insight: null,
       startedAt: null,
       completedAt: null,
+      recordingError: null,
     });
+  }, []);
+
+  const clearRecordingError = useCallback(() => {
+    setSession(prev => ({ ...prev, recordingError: null }));
   }, []);
 
   return {
@@ -288,5 +290,6 @@ export function useSession() {
     skipQuestion,
     runAnalysis,
     resetSession,
+    clearRecordingError,
   };
 }
