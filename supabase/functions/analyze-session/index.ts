@@ -185,7 +185,8 @@ Return JSON with this exact shape and no other text:
     }
 
     const result = await response.json();
-    const text = result.content?.[0]?.text || '{}';
+    let text = result.content?.[0]?.text || '{}';
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
 
     let parsed;
     try {
