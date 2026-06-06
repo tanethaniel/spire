@@ -77,32 +77,32 @@ export const QUESTIONS: { question: string; subPrompt: string; toneInstruction: 
   {
     question: 'What did you do today?',
     subPrompt: 'Take your time. There\'s no wrong answer.',
-    toneInstruction: 'Speak warmly and openly, like greeting a close friend at the start of a conversation. Relaxed energy, gentle curiosity.',
+    toneInstruction: 'Speak like you\'re greeting a close friend you haven\'t seen all day. Warm, relaxed, genuinely curious. Let the words breathe — pause naturally between phrases. Don\'t rush the ending, let it trail off gently like a real question.',
   },
   {
     question: 'How did those things make you feel? What emotions stemmed from today?',
     subPrompt: 'Whatever comes to mind first.',
-    toneInstruction: 'Speak softly and gently, creating a safe space. Slower pace, tender and empathetic, like a trusted listener.',
+    toneInstruction: 'Speak softly and slowly, like you\'re sitting next to someone in a quiet room. Tender, empathetic. Pause before "what emotions" as if you\'re giving them space to think. Let each word land.',
   },
   {
     question: 'What memories did you make today? What stuck with you?',
     subPrompt: 'Big or small — anything that comes back to you.',
-    toneInstruction: 'Speak with quiet wonder and warmth, like reminiscing with a friend. Slightly lighter energy, reflective.',
+    toneInstruction: 'Speak with quiet wonder, like you\'re both looking back on the day together. Slightly lighter energy, a gentle smile in your voice. Pause after "today" before the second question. Reflective, unhurried.',
   },
   {
     question: 'Was there anything interesting you learned today?',
     subPrompt: 'Something new, surprising, or useful.',
-    toneInstruction: 'Speak with gentle curiosity and a hint of playful interest. Slightly more energy, encouraging.',
+    toneInstruction: 'Speak with genuine curiosity, like you really want to know. A hint of playful interest — slightly more energy than before, but still calm. Lean into the word "interesting" with a little emphasis.',
   },
   {
     question: 'Was there anything interesting you learned about yourself today? What caused it?',
     subPrompt: 'Even a small realization counts.',
-    toneInstruction: 'Speak thoughtfully and intimately, like sharing a quiet insight. Unhurried, contemplative, warm.',
+    toneInstruction: 'Speak thoughtfully and intimately, like sharing something personal. Slow down on "about yourself" — give it weight. Pause before "what caused it" as if the question just occurred to you. Contemplative, warm.',
   },
   {
     question: 'Anything else?',
     subPrompt: 'Whatever\'s still on your mind.',
-    toneInstruction: 'Speak very gently and briefly, like a soft invitation. Minimal energy, calm, giving space.',
+    toneInstruction: 'Speak very gently and briefly, almost a whisper. Like you\'re giving them permission to say one more thing or to be done. Minimal energy, a soft exhale before speaking. Let the silence after feel comfortable.',
   },
 ];
 
