@@ -1,6 +1,7 @@
 import type { JournalEntry } from '../types/session';
 import { TIPS_MIN_DAYS } from '../types/session';
 import { computeCorrelations, distinctEntryDays, tipsUnlocked } from '../lib/correlations';
+import { applyMbtiFlavor } from '../lib/mbtiMessaging';
 import { dayKey, currentStreak } from '../lib/stats';
 
 interface InsightsPageProps {
@@ -9,6 +10,7 @@ interface InsightsPageProps {
   onOpenProfile: () => void;
   avatarUrl: string | null;
   userName: string;
+  mbti: string | null;
 }
 
 const HEATMAP_WEEKS = 5;
@@ -25,7 +27,7 @@ const COMPLETENESS_COLOR: Record<number, string> = {
 };
 
 
-export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName }: InsightsPageProps) {
+export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName, mbti }: InsightsPageProps) {
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
@@ -40,7 +42,8 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
   const streak = currentStreak(entryDayKeys);
   const totalDays = distinctEntryDays(answered);
   const unlocked = tipsUnlocked(answered);
-  const tips = unlocked ? computeCorrelations(answered) : [];
+  const rawTips = unlocked ? computeCorrelations(answered) : [];
+  const tips = mbti ? applyMbtiFlavor(rawTips, mbti) : rawTips;
 
   // Build heatmap cells aligned to Monday start.
   const today = new Date();

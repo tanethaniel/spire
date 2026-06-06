@@ -237,6 +237,7 @@ function App() {
               onOpenProfile={() => setProfileOpen(true)}
               avatarUrl={profileUser?.avatarUrl ?? null}
               userName={profileUser?.name ?? ''}
+              mbti={mbti}
             />
           )}
         </div>
