@@ -22,6 +22,7 @@ export interface QuestionRound {
   index: number;
   question: string;
   subPrompt: string;
+  toneInstruction: string;
   transcript: string | null;
   audioKey: string | null;
   status: 'pending' | 'tts_playing' | 'recording' | 'transcribing' | 'done' | 'skipped';
@@ -72,30 +73,36 @@ export interface CorrelationTip {
 // Minimum days of entries before correlation tips unlock.
 export const TIPS_MIN_DAYS = 7;
 
-export const QUESTIONS: { question: string; subPrompt: string }[] = [
+export const QUESTIONS: { question: string; subPrompt: string; toneInstruction: string }[] = [
   {
     question: 'What did you do today?',
     subPrompt: 'Take your time. There\'s no wrong answer.',
+    toneInstruction: 'Speak warmly and openly, like greeting a close friend at the start of a conversation. Relaxed energy, gentle curiosity.',
   },
   {
     question: 'How did those things make you feel? What emotions stemmed from today?',
     subPrompt: 'Whatever comes to mind first.',
+    toneInstruction: 'Speak softly and gently, creating a safe space. Slower pace, tender and empathetic, like a trusted listener.',
   },
   {
     question: 'What memories did you make today? What stuck with you?',
     subPrompt: 'Big or small — anything that comes back to you.',
+    toneInstruction: 'Speak with quiet wonder and warmth, like reminiscing with a friend. Slightly lighter energy, reflective.',
   },
   {
     question: 'Was there anything interesting you learned today?',
     subPrompt: 'Something new, surprising, or useful.',
+    toneInstruction: 'Speak with gentle curiosity and a hint of playful interest. Slightly more energy, encouraging.',
   },
   {
     question: 'Was there anything interesting you learned about yourself today? What caused it?',
     subPrompt: 'Even a small realization counts.',
+    toneInstruction: 'Speak thoughtfully and intimately, like sharing a quiet insight. Unhurried, contemplative, warm.',
   },
   {
     question: 'Anything else?',
     subPrompt: 'Whatever\'s still on your mind.',
+    toneInstruction: 'Speak very gently and briefly, like a soft invitation. Minimal energy, calm, giving space.',
   },
 ];
 

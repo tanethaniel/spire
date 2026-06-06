@@ -13,6 +13,7 @@ const FALLBACK_AUDIO: Record<number, string> = {
 export function useTTS() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef(false);
+  const cacheRef = useRef<Map<number, Promise<ArrayBuffer | null>>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -21,17 +22,24 @@ export function useTTS() {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      cacheRef.current.clear();
     };
+  }, []);
+
+  const prefetch = useCallback((text: string, questionIndex: number, instructions?: string) => {
+    if (cacheRef.current.has(questionIndex)) return;
+    const promise = textToSpeech(text, instructions).catch(() => null);
+    cacheRef.current.set(questionIndex, promise);
   }, []);
 
   const speak = useCallback(async (
     text: string,
     questionIndex: number,
     onDone: () => void,
+    instructions?: string,
   ) => {
     abortRef.current = false;
 
-    // Stop any previous playback
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -43,10 +51,15 @@ export function useTTS() {
       onDone();
     };
 
-    // Try ElevenLabs API first
     try {
-      const buffer = await textToSpeech(text);
+      let bufferPromise = cacheRef.current.get(questionIndex);
+      if (!bufferPromise) {
+        bufferPromise = textToSpeech(text, instructions).catch(() => null);
+        cacheRef.current.set(questionIndex, bufferPromise);
+      }
+      const buffer = await bufferPromise;
       if (abortRef.current) return;
+      if (!buffer) throw new Error('TTS fetch failed');
 
       const blob = new Blob([buffer], { type: 'audio/mpeg' });
       const url = URL.createObjectURL(blob);
@@ -60,6 +73,7 @@ export function useTTS() {
       return;
     } catch {
       if (abortRef.current) return;
+      cacheRef.current.delete(questionIndex);
     }
 
     // Fallback: static WAV file
@@ -71,7 +85,6 @@ export function useTTS() {
 
         audio.onended = finish;
         audio.onerror = () => {
-          // Last resort: browser speechSynthesis
           trySpeechSynthesis(text, finish);
         };
 
@@ -82,7 +95,6 @@ export function useTTS() {
       }
     }
 
-    // Last resort: browser speechSynthesis
     trySpeechSynthesis(text, finish);
   }, []);
 
@@ -95,7 +107,7 @@ export function useTTS() {
     window.speechSynthesis?.cancel();
   }, []);
 
-  return { speak, cancel };
+  return { speak, cancel, prefetch };
 }
 
 function trySpeechSynthesis(text: string, onDone: () => void) {
@@ -111,7 +123,6 @@ function trySpeechSynthesis(text: string, onDone: () => void) {
   utt.onerror = onDone;
   synth.speak(utt);
 
-  // Watchdog in case speech stalls
   const estimate = Math.min(Math.max(text.length * 90, 4000), 15000);
   const timer = setTimeout(() => {
     synth.cancel();

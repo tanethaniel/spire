@@ -10,6 +10,7 @@ function createInitialRounds(): QuestionRound[] {
     index: i,
     question: q.question,
     subPrompt: q.subPrompt,
+    toneInstruction: q.toneInstruction,
     transcript: null,
     audioKey: null,
     status: 'pending',

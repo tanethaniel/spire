@@ -45,12 +45,14 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
   return data.events ?? [];
 }
 
-export async function textToSpeech(text: string): Promise<ArrayBuffer> {
+export async function textToSpeech(text: string, instructions?: string): Promise<ArrayBuffer> {
   const headers = await getAuthHeaders();
+  const body: Record<string, string> = { text };
+  if (instructions) body.instructions = instructions;
   const res = await fetch(`${EDGE_FUNCTION_BASE}/text-to-speech`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`text-to-speech failed: ${res.status}`);
   return res.arrayBuffer();

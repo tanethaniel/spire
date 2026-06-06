@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SessionState, type CalendarEvent, type QuestionRound, getQ1Categories } from '../types/session';
+import { SessionState, QUESTIONS, type CalendarEvent, type QuestionRound, getQ1Categories } from '../types/session';
 import { useTTS } from '../hooks/useTTS';
 import { ProgressBar } from '../components/ProgressBar';
 import { RecordButton } from '../components/RecordButton';
@@ -33,7 +33,7 @@ export function SessionPage({
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [showShortWarning, setShowShortWarning] = useState(false);
   const [locked, setLocked] = useState(false);
-  const { speak, cancel: cancelTTS } = useTTS();
+  const { speak, cancel: cancelTTS, prefetch } = useTTS();
   const ttsTriggeredRef = useRef(-1);
 
   const isRecording = state === SessionState.RECORDING;
@@ -43,11 +43,6 @@ export function SessionPage({
   // Reset lock state when recording stops
   useEffect(() => {
     if (!isRecording) setLocked(false);
-  }, [isRecording]);
-
-  // Allow TTS re-trigger if we return to TTS_PLAYING for the same question
-  useEffect(() => {
-    if (isRecording) ttsTriggeredRef.current = -1;
   }, [isRecording]);
 
   // Play the question audio when entering TTS_PLAYING state
@@ -60,13 +55,18 @@ export function SessionPage({
     speak(round.question, currentQuestion, () => {
       setTtsPlaying(false);
       onTTSDone();
-    });
+    }, round.toneInstruction);
+
+    // Pre-fetch next question's audio while this one plays
+    const next = currentQuestion + 1;
+    if (next < QUESTIONS.length) {
+      prefetch(QUESTIONS[next].question, next, QUESTIONS[next].toneInstruction);
+    }
 
     return () => {
       cancelTTS();
-      ttsTriggeredRef.current = -1;
     };
-  }, [currentQuestion, state, onTTSDone, round.question, speak, cancelTTS]);
+  }, [currentQuestion, state, onTTSDone, round.question, round.toneInstruction, speak, cancelTTS, prefetch]);
 
   const handleStart = useCallback(() => {
     setShowShortWarning(false);

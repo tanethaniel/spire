@@ -58,6 +58,9 @@ serve(async (req) => {
 
     const body = await req.json();
     const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 500) : '';
+    const toneInstructions = typeof body?.instructions === 'string'
+      ? body.instructions.trim().slice(0, 300)
+      : TONE;
     if (!text) {
       return new Response(JSON.stringify({ error: 'Missing text' }), {
         status: 400,
@@ -82,7 +85,7 @@ serve(async (req) => {
     };
     // The gpt-4o-mini-tts model supports tone steering via `instructions`.
     if (DEFAULT_MODEL.includes('gpt-4o')) {
-      payload.instructions = TONE;
+      payload.instructions = toneInstructions;
     }
 
     const ttsRes = await fetch('https://api.openai.com/v1/audio/speech', {
