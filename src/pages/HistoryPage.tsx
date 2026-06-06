@@ -228,9 +228,6 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
                     {interpretationEnabled && entry.summary && (
                       <div style={styles.summary}>{entry.summary}</div>
                     )}
-                    {interpretationEnabled && entry.insight && (
-                      <div style={styles.insight}>✦ {entry.insight}</div>
-                    )}
                     {entry.transcripts.map((t, i) =>
                       t ? (
                         <div key={i} style={styles.qRow}>
@@ -387,10 +384,6 @@ const styles: Record<string, React.CSSProperties> = {
   summary: {
     fontSize: 15, color: 'var(--text-secondary)', fontWeight: 500,
     paddingTop: 12, marginBottom: 4, lineHeight: 1.5,
-  },
-  insight: {
-    fontSize: 14, fontStyle: 'italic', color: 'var(--accent-primary)',
-    paddingTop: 8, marginBottom: 4, lineHeight: 1.5,
   },
   // Per-question expand rows
   qRow: {
