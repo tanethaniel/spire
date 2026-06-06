@@ -47,6 +47,7 @@ serve(async (req) => {
     const { count } = await supabase
       .from('user_events')
       .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
       .eq('event', 'question_started')
       .gte('created_at', todayStart.toISOString());
     if ((count ?? 0) >= MAX_TTS_PER_DAY) {

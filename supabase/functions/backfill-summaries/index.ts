@@ -113,7 +113,9 @@ Return: {"summary": "...", "keyword_tags": ["tag1", "tag2"]}`,
 
         const result = await response.json();
         let text = result.content?.[0]?.text || '{}';
-        text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+        const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (fenced) text = fenced[1].trim();
+        else text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
 
         let parsed;
         try {

@@ -60,6 +60,7 @@ serve(async (req) => {
     const { count } = await supabase
       .from('user_events')
       .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
       .eq('event', 'session_completed')
       .gte('created_at', todayStart.toISOString());
 
@@ -186,7 +187,9 @@ Return JSON with this exact shape and no other text:
 
     const result = await response.json();
     let text = result.content?.[0]?.text || '{}';
-    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenced) text = fenced[1].trim();
+    else text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
 
     let parsed;
     try {
@@ -220,9 +223,21 @@ Return JSON with this exact shape and no other text:
           .slice(0, 10)
       : [];
 
+    const themes: string[] = Array.isArray(parsed.themes)
+      ? parsed.themes
+          .filter((t: unknown): t is string => typeof t === 'string')
+          .map((t: string) => t.trim().slice(0, 80))
+          .filter((t: string) => t.length > 0)
+          .slice(0, 3)
+      : [];
+
+    const insight: string | null = typeof parsed.insight === 'string'
+      ? parsed.insight.trim().slice(0, 500)
+      : null;
+
     return new Response(JSON.stringify({
-      themes: parsed.themes || [],
-      insight: parsed.insight || null,
+      themes,
+      insight,
       mood_score: moodScore,
       activity_tags: activityTags,
       summary,

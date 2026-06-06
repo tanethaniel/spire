@@ -5,7 +5,6 @@ interface HistoryPageProps {
   entries: JournalEntry[];
   loading: boolean;
   error: boolean;
-  interpretationEnabled: boolean;
   visible: boolean;
   onOpenProfile: () => void;
   avatarUrl: string | null;
@@ -80,7 +79,7 @@ function highlightText(text: string, kw: string): ReactNode {
   );
 }
 
-export function HistoryPage({ entries, loading, error, interpretationEnabled, visible, onOpenProfile, avatarUrl, userName, onDeleteEntry }: HistoryPageProps) {
+export function HistoryPage({ entries, loading, error, visible, onOpenProfile, avatarUrl, userName, onDeleteEntry }: HistoryPageProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);

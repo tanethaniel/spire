@@ -222,7 +222,6 @@ function App() {
               entries={entries}
               loading={entriesLoading}
               error={entriesError}
-              interpretationEnabled={interpretationEnabled}
               visible={effectiveView === 'history'}
               onOpenProfile={() => setProfileOpen(true)}
               avatarUrl={profileUser?.avatarUrl ?? null}
