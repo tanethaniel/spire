@@ -170,13 +170,15 @@ export async function getUserSettings(): Promise<UserSettings> {
 
   const { data, error } = await supabase
     .from('user_settings')
-    .select('interpretation_enabled')
+    .select('interpretation_enabled, mbti')
     .eq('user_id', user.id)
     .maybeSingle();
   if (error) throw error;
 
-  // Default to Interpreted mode when no row exists yet.
-  return { interpretationEnabled: data ? data.interpretation_enabled : true };
+  return {
+    interpretationEnabled: data ? data.interpretation_enabled : true,
+    mbti: data?.mbti ?? null,
+  };
 }
 
 export async function setUserSettings(settings: UserSettings): Promise<void> {
@@ -186,6 +188,7 @@ export async function setUserSettings(settings: UserSettings): Promise<void> {
   const { error } = await supabase.from('user_settings').upsert({
     user_id: user.id,
     interpretation_enabled: settings.interpretationEnabled,
+    mbti: settings.mbti,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

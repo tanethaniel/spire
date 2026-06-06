@@ -5,7 +5,21 @@ interface ProfileSheetProps {
   stats: { streak: number; totalSessions: number };
   interpretationEnabled: boolean;
   onToggle: (next: boolean) => void;
+  mbti: string | null;
+  onMbtiChange: (mbti: string | null) => void;
   onClose: () => void;
+}
+
+const MBTI_PAIRS: [string, string, string][] = [
+  ['E', 'I', 'Energy'],
+  ['S', 'N', 'Information'],
+  ['T', 'F', 'Decisions'],
+  ['J', 'P', 'Lifestyle'],
+];
+
+function parseMbti(mbti: string | null): [string, string, string, string] {
+  if (!mbti || mbti.length !== 4) return ['E', 'S', 'T', 'J'];
+  return [mbti[0].toUpperCase(), mbti[1].toUpperCase(), mbti[2].toUpperCase(), mbti[3].toUpperCase()];
 }
 
 function formatMemberSince(iso: string): string {
@@ -13,8 +27,16 @@ function formatMemberSince(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
-export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, onClose }: ProfileSheetProps) {
+export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbti, onMbtiChange, onClose }: ProfileSheetProps) {
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
+  const mbtiLetters = parseMbti(mbti);
+  const hasMbti = mbti !== null && mbti.length === 4;
+
+  const toggleMbtiLetter = (pairIndex: number, letter: string) => {
+    const next = [...mbtiLetters];
+    next[pairIndex] = letter;
+    onMbtiChange(next.join(''));
+  };
 
   return (
     <div style={styles.backdrop} onClick={onClose}>
@@ -83,6 +105,52 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, onC
               }} />
             </button>
           </div>
+        </div>
+
+        {/* MBTI */}
+        <div style={styles.mbtiSection}>
+          <div style={styles.row}>
+            <div style={styles.rowText}>
+              <div style={styles.rowLabel}>Personality type</div>
+              <div style={styles.rowSub}>
+                {hasMbti
+                  ? `Your type: ${mbti}`
+                  : 'Set your MBTI to unlock richer insights.'}
+              </div>
+            </div>
+          </div>
+          <div style={styles.mbtiGrid}>
+            {MBTI_PAIRS.map(([a, b], i) => {
+              const selected = mbtiLetters[i];
+              return (
+                <div key={i} style={styles.mbtiPair}>
+                  <button
+                    style={{
+                      ...styles.mbtiBtn,
+                      ...(hasMbti && selected === a ? styles.mbtiBtnActive : {}),
+                    }}
+                    onClick={() => toggleMbtiLetter(i, a)}
+                  >
+                    {a}
+                  </button>
+                  <button
+                    style={{
+                      ...styles.mbtiBtn,
+                      ...(hasMbti && selected === b ? styles.mbtiBtnActive : {}),
+                    }}
+                    onClick={() => toggleMbtiLetter(i, b)}
+                  >
+                    {b}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {hasMbti && (
+            <button style={styles.mbtiClear} onClick={() => onMbtiChange(null)}>
+              Clear
+            </button>
+          )}
         </div>
 
         <button style={styles.done} onClick={onClose}>Done</button>
@@ -273,6 +341,49 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
     cursor: 'pointer',
+  },
+  // MBTI
+  mbtiSection: {
+    borderTop: '1px solid rgba(255,255,255,0.2)',
+    paddingTop: 16,
+    marginBottom: 20,
+  },
+  mbtiGrid: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 8,
+  },
+  mbtiPair: {
+    flex: 1,
+    display: 'flex',
+    borderRadius: 12,
+    overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'rgba(255,255,255,0.08)',
+  },
+  mbtiBtn: {
+    flex: 1,
+    padding: '10px 0',
+    border: 'none',
+    background: 'transparent',
+    fontSize: 16,
+    fontWeight: 700,
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  mbtiBtnActive: {
+    background: 'var(--accent-primary)',
+    color: '#fff',
+  },
+  mbtiClear: {
+    background: 'none',
+    border: 'none',
+    fontSize: 13,
+    color: 'var(--text-ghost)',
+    cursor: 'pointer',
+    marginTop: 8,
+    padding: '4px 0',
   },
   signOut: {
     width: '100%',

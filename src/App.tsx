@@ -70,7 +70,7 @@ function App() {
   const authed = !!authSession;
   const { status: micStatus, requestMic } = useMicPermission();
   const [showMicPrompt, setShowMicPrompt] = useState(false);
-  const { interpretationEnabled, setInterpretationEnabled } = useSettings(authed);
+  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
 
   const profileUser = authSession ? {
@@ -206,6 +206,8 @@ function App() {
           stats={profileStats}
           interpretationEnabled={interpretationEnabled}
           onToggle={setInterpretationEnabled}
+          mbti={mbti}
+          onMbtiChange={setMbti}
           onClose={() => setProfileOpen(false)}
         />
       )}

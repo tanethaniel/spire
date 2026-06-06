@@ -46,6 +46,7 @@ export interface SessionData {
 // enforced server-side in analyze-session.
 export interface UserSettings {
   interpretationEnabled: boolean;
+  mbti: string | null;
 }
 
 // A persisted past session, as read back for History and Insights.
