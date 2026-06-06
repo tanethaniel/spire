@@ -191,13 +191,24 @@ function computeSentimentTrend(entries: JournalEntry[]): CorrelationTip[] {
   }];
 }
 
+const OBSERVATION_SKIP = new Set([
+  ...SCHEDULE_TAGS, ...SOCIAL_TAGS,
+  'light day', 'quiet day', 'reflective', 'self expression',
+  'low energy', 'energized', 'productive', 'tired',
+]);
+
 function computeObservationalStats(days: Map<string, DaySignal>): CorrelationTip[] {
   const totalDays = days.size;
   if (totalDays < TIPS_MIN_DAYS) return [];
 
   const tagDayCount = new Map<string, number>();
   for (const [, day] of days) {
-    for (const t of day.tags) {
+    const allTags = new Set<string>();
+    for (const t of day.tags) allTags.add(t);
+    for (const t of day.keywordTags) allTags.add(t);
+
+    for (const t of allTags) {
+      if (OBSERVATION_SKIP.has(t)) continue;
       tagDayCount.set(t, (tagDayCount.get(t) ?? 0) + 1);
     }
   }
