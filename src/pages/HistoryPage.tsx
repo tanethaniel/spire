@@ -79,7 +79,7 @@ function highlightText(text: string, kw: string): ReactNode {
 
 export function HistoryPage({ entries, loading, error, interpretationEnabled, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [expandedQ, setExpandedQ] = useState<string | null>(null);
+  const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -95,9 +95,35 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
     [answered, search, keyword],
   );
 
+  const autoExpandKeys = useMemo(() => {
+    if (!keyword.trim()) return new Set<string>();
+    const keys = new Set<string>();
+    const kw = keyword.trim().toLowerCase();
+    for (const entry of filtered) {
+      entry.transcripts.forEach((t, i) => {
+        if (t && t.toLowerCase().includes(kw)) {
+          keys.add(`${entry.id}-${i}`);
+        }
+      });
+    }
+    return keys;
+  }, [filtered, keyword]);
+
+  const isQExpanded = (key: string) => expandedQ.has(key) || autoExpandKeys.has(key);
+
   const toggleQ = (entryId: string, qIdx: number) => {
     const key = `${entryId}-${qIdx}`;
-    setExpandedQ(prev => prev === key ? null : key);
+    setExpandedQ(prev => {
+      const next = new Set(prev);
+      if (autoExpandKeys.has(key)) {
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   return (
@@ -170,7 +196,7 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
             const answeredCount = entry.transcripts.filter(Boolean).length;
             return (
               <div key={entry.id} style={styles.card}>
-                <div style={styles.cardHead} onClick={() => { setExpanded(isOpen ? null : entry.id); setExpandedQ(null); }}>
+                <div style={styles.cardHead} onClick={() => { setExpanded(isOpen ? null : entry.id); setExpandedQ(new Set()); }}>
                   <div style={{ flex: 1 }}>
                     <div style={styles.date}>{formatDate(entry.createdAt)}</div>
                     <div style={styles.meta}>{answeredCount} of 6 answered</div>
@@ -200,10 +226,10 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
                             <div style={styles.answerLabel}>Q{i + 1} · {Q_LABELS[i]}</div>
                             <span style={{
                               ...styles.qChevron,
-                              transform: expandedQ === `${entry.id}-${i}` ? 'rotate(180deg)' : 'none',
+                              transform: isQExpanded(`${entry.id}-${i}`) ? 'rotate(180deg)' : 'none',
                             }}>∨</span>
                           </div>
-                          {expandedQ === `${entry.id}-${i}` && (
+                          {isQExpanded(`${entry.id}-${i}`) && (
                             <div style={styles.answerText}>{highlightText(t, keyword)}</div>
                           )}
                         </div>
