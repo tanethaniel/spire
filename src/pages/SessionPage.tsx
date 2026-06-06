@@ -65,6 +65,7 @@ export function SessionPage({
 
     return () => {
       cancelTTS();
+      ttsTriggeredRef.current = -1;
     };
   }, [currentQuestion, state, onTTSDone, round.question, round.toneInstruction, speak, cancelTTS, prefetch]);
 
