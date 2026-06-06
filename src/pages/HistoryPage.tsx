@@ -238,7 +238,13 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
                 {isOpen && (
                   <div style={styles.cardBody}>
                     {entry.summary && (
-                      <div style={styles.summary}>{entry.summary}</div>
+                      <div style={styles.summaryCard}>
+                        <div style={styles.summaryHeader}>
+                          <span style={styles.summaryIcon}>✦</span>
+                          <span style={styles.summaryLabel}>AI Summary</span>
+                        </div>
+                        <div style={styles.summaryText}>{entry.summary}</div>
+                      </div>
                     )}
                     {entry.transcripts.map((t, i) =>
                       t ? (
@@ -392,9 +398,29 @@ const styles: Record<string, React.CSSProperties> = {
   meta: { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 },
   chevron: { fontSize: 14, color: 'var(--text-ghost)', transition: 'transform 0.2s', marginLeft: 8 },
   cardBody: { padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,0.2)' },
-  summary: {
-    fontSize: 15, color: 'var(--text-secondary)', fontWeight: 500,
-    paddingTop: 12, marginBottom: 4, lineHeight: 1.5,
+  summaryCard: {
+    marginTop: 12, marginBottom: 8, padding: '12px 14px',
+    background: 'rgba(255,255,255,0.08)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    borderTop: '1px solid rgba(255,255,255,0.28)',
+    borderRadius: 12,
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+  },
+  summaryHeader: {
+    display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
+  },
+  summaryIcon: {
+    fontSize: 12, color: 'var(--accent-primary)', lineHeight: 1,
+  },
+  summaryLabel: {
+    fontSize: 10, fontWeight: 600, color: 'var(--text-muted)',
+    letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+  },
+  summaryText: {
+    fontSize: 14, color: 'var(--text-secondary)', fontStyle: 'italic',
+    lineHeight: 1.55,
   },
   // Per-question expand rows
   qRow: {
