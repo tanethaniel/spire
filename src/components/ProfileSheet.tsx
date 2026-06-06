@@ -7,6 +7,7 @@ interface ProfileSheetProps {
   onToggle: (next: boolean) => void;
   mbti: string | null;
   onMbtiChange: (mbti: string | null) => void;
+  goals: string[];
   onClose: () => void;
 }
 
@@ -27,7 +28,7 @@ function formatMemberSince(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
-export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbti, onMbtiChange, onClose }: ProfileSheetProps) {
+export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbti, onMbtiChange, goals, onClose }: ProfileSheetProps) {
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
   const mbtiLetters = parseMbti(mbti);
   const hasMbti = mbti !== null && mbti.length === 4;
@@ -106,6 +107,22 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
             </button>
           </div>
         </div>
+
+        {/* Goals */}
+        {goals.length > 0 && (
+          <div style={styles.goalsSection}>
+            <div style={styles.row}>
+              <div style={styles.rowText}>
+                <div style={styles.rowLabel}>Your goals</div>
+              </div>
+            </div>
+            <div style={styles.goalsGrid}>
+              {goals.map(g => (
+                <span key={g} style={styles.goalPill}>{g}</span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* MBTI */}
         <div style={styles.mbtiSection}>
@@ -341,6 +358,25 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
     cursor: 'pointer',
+  },
+  // Goals
+  goalsSection: {
+    borderTop: '1px solid rgba(255,255,255,0.2)',
+    paddingTop: 16,
+    marginBottom: 16,
+  },
+  goalsGrid: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 8,
+  },
+  goalPill: {
+    padding: '8px 14px',
+    borderRadius: 20,
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 600,
   },
   // MBTI
   mbtiSection: {

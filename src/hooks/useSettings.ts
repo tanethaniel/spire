@@ -52,27 +52,38 @@ export function useSettings(authed: boolean) {
     }
   }, [interpretationEnabled, mbti, onboardingCompleted, goal]);
 
-  const completeOnboarding = useCallback(async (selectedGoal: string | null, selectedMbti: string | null) => {
+  const completeOnboarding = useCallback(async (
+    selectedGoals: string[],
+    selectedMbti: string | null,
+    interpretEnabled: boolean,
+  ) => {
     setOnboardingState(true);
-    setGoalState(selectedGoal);
+    const goalJson = selectedGoals.length > 0 ? JSON.stringify(selectedGoals) : null;
+    setGoalState(goalJson);
+    setInterpretation(interpretEnabled);
     if (selectedMbti) setMbtiState(selectedMbti);
     try {
       await setUserSettings({
-        interpretationEnabled,
+        interpretationEnabled: interpretEnabled,
         mbti: selectedMbti ?? mbti,
         onboardingCompleted: true,
-        goal: selectedGoal,
+        goal: goalJson,
       });
     } catch {
       // Onboarding state is best-effort; don't revert to avoid re-showing
     }
-  }, [interpretationEnabled, mbti]);
+  }, [mbti]);
+
+  const goals: string[] = (() => {
+    if (!goal) return [];
+    try { return JSON.parse(goal); } catch { return []; }
+  })();
 
   return {
     interpretationEnabled, setInterpretationEnabled,
     mbti, setMbti,
     onboardingCompleted, completeOnboarding,
-    goal,
+    goals,
     loaded,
   };
 }

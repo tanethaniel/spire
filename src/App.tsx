@@ -71,7 +71,7 @@ function App() {
   const authed = !!authSession;
   const { status: micStatus, requestMic } = useMicPermission();
   const [showMicPrompt, setShowMicPrompt] = useState(false);
-  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, loaded: settingsLoaded } = useSettings(authed);
+  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
 
   const profileUser = authSession ? {
@@ -157,8 +157,9 @@ function App() {
   if (settingsLoaded && !onboardingCompleted) {
     return (
       <OnboardingFlow
-        onComplete={(goal, selectedMbti) => completeOnboarding(goal, selectedMbti)}
-        onSkip={() => completeOnboarding(null, null)}
+        onComplete={(selectedGoals, selectedMbti, interpretEnabled) => completeOnboarding(selectedGoals, selectedMbti, interpretEnabled)}
+        onSkip={() => completeOnboarding([], null, interpretationEnabled)}
+        interpretationEnabled={interpretationEnabled}
       />
     );
   }
@@ -221,6 +222,7 @@ function App() {
           onToggle={setInterpretationEnabled}
           mbti={mbti}
           onMbtiChange={setMbti}
+          goals={goals}
           onClose={() => setProfileOpen(false)}
         />
       )}
