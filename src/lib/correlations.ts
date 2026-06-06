@@ -3,7 +3,7 @@ import { TIPS_MIN_DAYS } from '../types/session';
 
 const MIN_DAYS_PER_TAG = 3;
 const MIN_MOOD_DELTA = 0.5;
-const MAX_TIPS = 5;
+const MAX_TIPS = 6;
 const MAX_PER_CATEGORY = 2;
 
 interface DaySignal {
@@ -191,6 +191,46 @@ function computeSentimentTrend(entries: JournalEntry[]): CorrelationTip[] {
   }];
 }
 
+function computeObservationalStats(days: Map<string, DaySignal>): CorrelationTip[] {
+  const totalDays = days.size;
+  if (totalDays < TIPS_MIN_DAYS) return [];
+
+  const tagDayCount = new Map<string, number>();
+  for (const [, day] of days) {
+    for (const t of day.tags) {
+      tagDayCount.set(t, (tagDayCount.get(t) ?? 0) + 1);
+    }
+  }
+
+  const tips: CorrelationTip[] = [];
+  const sorted = [...tagDayCount.entries()].sort((a, b) => b[1] - a[1]);
+
+  for (const [tag, count] of sorted) {
+    if (count < 2) continue;
+    const pct = Math.round((count / totalDays) * 100);
+
+    let message: string;
+    if (pct >= 70) {
+      message = `${tag.charAt(0).toUpperCase() + tag.slice(1)} has been part of most of your days — ${count} out of ${totalDays}.`;
+    } else if (pct >= 40) {
+      message = `You had ${tag} on ${count} of your last ${totalDays} days.`;
+    } else {
+      message = `${tag.charAt(0).toUpperCase() + tag.slice(1)} showed up ${count} time${count > 1 ? 's' : ''} in the last ${totalDays} days.`;
+    }
+
+    tips.push({
+      tag,
+      withTagAvg: 0,
+      withoutTagAvg: 0,
+      dayCount: count,
+      category: 'observation',
+      message,
+    });
+  }
+
+  return tips.slice(0, 3);
+}
+
 function diverseTopN(tips: CorrelationTip[], max: number): CorrelationTip[] {
   const byCategory = new Map<string, CorrelationTip[]>();
   for (const tip of tips) {
@@ -246,6 +286,7 @@ export function computeCorrelations(entries: JournalEntry[]): CorrelationTip[] {
     tips.push(...computeKeywordMoodTips(moodDays, SOCIAL_TAGS, 'social'));
   }
 
+  tips.push(...computeObservationalStats(days));
   tips.push(...computeRecurringTopics(entries));
   tips.push(...computeSentimentTrend(entries));
 

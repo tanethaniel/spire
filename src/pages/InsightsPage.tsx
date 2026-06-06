@@ -157,7 +157,9 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
                   <div style={styles.tipGradient} />
                   <div style={styles.tipMessage}>{tip.message}</div>
                   <div style={styles.tipMeta}>
-                    {tip.category === 'recurring'
+                    {tip.category === 'observation'
+                      ? `${tip.dayCount} of your recent days`
+                      : tip.category === 'recurring'
                       ? `Mentioned in ${tip.dayCount} recent sessions`
                       : tip.category === 'trend'
                       ? `Over the last ${tip.dayCount} days`

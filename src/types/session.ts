@@ -74,7 +74,7 @@ export interface CorrelationTip {
   withTagAvg: number;
   withoutTagAvg: number;
   dayCount: number;
-  category?: 'activity' | 'schedule' | 'social' | 'recurring' | 'trend';
+  category?: 'activity' | 'schedule' | 'social' | 'recurring' | 'trend' | 'observation';
 }
 
 // Minimum days of entries before correlation tips unlock.

@@ -57,6 +57,24 @@ describe('computeCorrelations', () => {
     expect(computeCorrelations(entries)).toEqual([]);
   });
 
+  it('surfaces observational stats for frequent activities', () => {
+    const entries = [
+      entry('2026-06-01', 1, ['gym', 'coding']),
+      entry('2026-06-02', 1, ['gym']),
+      entry('2026-06-03', 1, ['gym']),
+      entry('2026-06-04', 1, ['coding']),
+      entry('2026-06-05', 1, ['coding']),
+      entry('2026-06-06', 1, ['reading']),
+      entry('2026-06-07', 1, ['reading']),
+    ];
+    const tips = computeCorrelations(entries);
+    const obs = tips.filter(t => t.category === 'observation');
+    expect(obs.length).toBeGreaterThan(0);
+    const gymObs = obs.find(t => t.tag === 'gym');
+    expect(gymObs).toBeDefined();
+    expect(gymObs!.dayCount).toBe(3);
+  });
+
   it('surfaces a positive correlation when gym days have clearly better moods', () => {
     const entries = [
       entry('2026-06-01', 2, ['gym']),
@@ -91,7 +109,7 @@ describe('computeCorrelations', () => {
     expect(deadline!.message).toContain('dip');
   });
 
-  it('ignores tags that appear on fewer than 3 days', () => {
+  it('ignores mood correlations for tags on fewer than 3 days', () => {
     const entries = [
       entry('2026-06-01', 2, ['gym']),
       entry('2026-06-02', 2, ['gym']),
@@ -101,12 +119,11 @@ describe('computeCorrelations', () => {
       entry('2026-06-06', -1, ['work']),
       entry('2026-06-07', -1, ['work']),
     ];
-    // gym only appears on 2 days → no tip for gym
     const tips = computeCorrelations(entries);
-    expect(tips.find(t => t.tag === 'gym')).toBeUndefined();
+    expect(tips.find(t => t.tag === 'gym' && t.category === 'activity')).toBeUndefined();
   });
 
-  it('suppresses weak correlations below the mood-delta threshold', () => {
+  it('suppresses weak mood correlations below the delta threshold', () => {
     const entries = [
       entry('2026-06-01', 1, ['gym']),
       entry('2026-06-02', 1, ['gym']),
@@ -116,8 +133,8 @@ describe('computeCorrelations', () => {
       entry('2026-06-06', 1, ['work']),
       entry('2026-06-07', 1, ['work']),
     ];
-    // identical moods → delta 0 → no tips
-    expect(computeCorrelations(entries)).toEqual([]);
+    const tips = computeCorrelations(entries);
+    expect(tips.find(t => t.category === 'activity')).toBeUndefined();
   });
 
   it('skips days with no mood reading without crashing', () => {
