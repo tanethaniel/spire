@@ -79,6 +79,7 @@ export function SessionPage({
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;
     if (ttsTriggeredRef.current === currentQuestion) return;
+    if (recordingError) return;
     ttsTriggeredRef.current = currentQuestion;
 
     setTtsPlaying(true);
@@ -97,7 +98,7 @@ export function SessionPage({
       cancelTTS();
       ttsTriggeredRef.current = -1;
     };
-  }, [currentQuestion, state, onTTSDone, round.question, round.toneInstruction, speak, cancelTTS, prefetch]);
+  }, [currentQuestion, state, recordingError, onTTSDone, round.question, round.toneInstruction, speak, cancelTTS, prefetch]);
 
   const handleStart = useCallback(() => {
     if (popupVisible) dismissPopup();
