@@ -258,11 +258,22 @@ function buildQ1(events: CalendarEvent[]): string {
   }
 
   if (shape === 'light') {
-    const names = joinEventNames(events);
+    const counts: Record<EventCategory, number> = {
+      meetings: 0, social: 0, health: 0, personal: 0, focus: 0, other: 0,
+    };
+    for (const ev of events) counts[categorizeEvent(ev.title)]++;
+
+    const cats = (Object.entries(counts) as [EventCategory, number][])
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    const parts: string[] = cats.map(([cat, n]) => getCategoryLabel(cat, n));
+    const summary = parts.length === 1 ? parts[0] : `${parts[0]} and ${parts[1]}`;
+
     if (events.length === 1) {
-      return `You had ${names} ${timeframe} — how did it go?`;
+      return `You had ${summary} ${timeframe} — how did it go?`;
     }
-    return `You had ${names} ${timeframe} — how did it all go?`;
+    return `You had ${summary} ${timeframe} — how did it all go?`;
   }
 
   // Moderate (3-4 events or 3-5h): use category summaries for top categories,
