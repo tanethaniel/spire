@@ -13,6 +13,7 @@ const FALLBACK_AUDIO: Record<number, string> = {
 export function useTTS() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef(false);
+  const callIdRef = useRef(0);
   const cacheRef = useRef<Map<number, Promise<ArrayBuffer | null>>>(new Map());
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function useTTS() {
     onDone: () => void,
     instructions?: string,
   ) => {
+    const myId = ++callIdRef.current;
     abortRef.current = false;
 
     if (audioRef.current) {
@@ -46,7 +48,7 @@ export function useTTS() {
     }
 
     const finish = () => {
-      if (abortRef.current) return;
+      if (abortRef.current || callIdRef.current !== myId) return;
       abortRef.current = true;
       onDone();
     };
@@ -58,7 +60,7 @@ export function useTTS() {
         cacheRef.current.set(questionIndex, bufferPromise);
       }
       const buffer = await bufferPromise;
-      if (abortRef.current) return;
+      if (abortRef.current || callIdRef.current !== myId) return;
       if (!buffer) throw new Error('TTS fetch failed');
 
       const blob = new Blob([buffer], { type: 'audio/mpeg' });
@@ -72,7 +74,7 @@ export function useTTS() {
       await audio.play();
       return;
     } catch {
-      if (abortRef.current) return;
+      if (abortRef.current || callIdRef.current !== myId) return;
       cacheRef.current.delete(questionIndex);
     }
 
@@ -99,6 +101,7 @@ export function useTTS() {
   }, []);
 
   const cancel = useCallback(() => {
+    ++callIdRef.current;
     abortRef.current = true;
     if (audioRef.current) {
       audioRef.current.pause();
