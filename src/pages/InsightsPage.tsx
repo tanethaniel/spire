@@ -1,11 +1,14 @@
 import type { JournalEntry } from '../types/session';
 import { TIPS_MIN_DAYS } from '../types/session';
 import { computeCorrelations, distinctEntryDays, tipsUnlocked } from '../lib/correlations';
+import { dayKey, currentStreak } from '../lib/stats';
 
 interface InsightsPageProps {
   entries: JournalEntry[];
   loading: boolean;
-  onOpenSettings: () => void;
+  onOpenProfile: () => void;
+  avatarUrl: string | null;
+  userName: string;
 }
 
 const HEATMAP_WEEKS = 5;
@@ -21,28 +24,8 @@ const COMPLETENESS_COLOR: Record<number, string> = {
   6: '#2E8B3E',
 };
 
-function dayKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
-// Current consecutive-day streak ending today (or yesterday, so a missed
-// "today" before the evening session doesn't zero the streak).
-function currentStreak(entryDayKeys: Set<string>): number {
-  let streak = 0;
-  const cursor = new Date();
-  // Allow today to be empty without breaking the streak.
-  if (!entryDayKeys.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
-  while (entryDayKeys.has(dayKey(cursor))) {
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
-export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageProps) {
+export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName }: InsightsPageProps) {
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
@@ -82,7 +65,13 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
     <div style={styles.page}>
       <div style={styles.header}>
         <div style={styles.title}>Review</div>
-        <button style={styles.gear} onClick={onOpenSettings} aria-label="Settings">⚙</button>
+        <button style={styles.avatarBtn} onClick={onOpenProfile} aria-label="Profile">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={styles.avatarImg} />
+          ) : (
+            <span style={styles.avatarInitial}>{(userName || '?').charAt(0).toUpperCase()}</span>
+          )}
+        </button>
       </div>
 
       <div style={styles.body}>
@@ -182,9 +171,20 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '20px 24px 12px',
   },
   title: { fontSize: 26, fontWeight: 700, letterSpacing: -0.5 },
-  gear: {
-    background: 'none', border: 'none', fontSize: 20, color: 'var(--text-muted)',
+  avatarBtn: {
+    background: 'none', border: 'none', padding: 0,
     minHeight: 44, minWidth: 44,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+  },
+  avatarImg: {
+    width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' as const,
+    border: '1.5px solid rgba(255,255,255,0.4)',
+  },
+  avatarInitial: {
+    width: 30, height: 30, borderRadius: '50%',
+    background: 'var(--accent-primary)', color: '#fff',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 14, fontWeight: 700, border: '1.5px solid rgba(255,255,255,0.4)',
   },
   body: { flex: 1, overflowY: 'auto', padding: '0 24px 24px' },
   empty: { textAlign: 'center', padding: '64px 16px', color: 'var(--text-ghost)', fontSize: 14 },

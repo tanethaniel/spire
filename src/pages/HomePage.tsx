@@ -4,7 +4,9 @@ import { fetchCalendarEvents } from '../lib/api';
 
 interface HomePageProps {
   onStart: (events: CalendarEvent[] | null) => void;
-  onOpenSettings: () => void;
+  onOpenProfile: () => void;
+  avatarUrl: string | null;
+  userName: string;
 }
 
 const TOPICS = [
@@ -14,7 +16,7 @@ const TOPICS = [
   { icon: '💭', label: 'On my mind', hint: 'Anything else' },
 ];
 
-export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
+export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePageProps) {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -79,7 +81,13 @@ export function HomePage({ onStart, onOpenSettings }: HomePageProps) {
     <div style={styles.page}>
       <div style={styles.header}>
         <div style={styles.wordmark}>spire<span style={{ color: 'var(--accent-primary)' }}>.</span></div>
-        <button style={styles.gear} onClick={onOpenSettings} aria-label="Settings">⚙</button>
+        <button style={styles.avatarBtn} onClick={onOpenProfile} aria-label="Profile">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={styles.avatarImg} />
+          ) : (
+            <span style={styles.avatarInitial}>{(userName || '?').charAt(0).toUpperCase()}</span>
+          )}
+        </button>
       </div>
 
       <div style={styles.greeting}>
@@ -192,13 +200,36 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     letterSpacing: -0.5,
   },
-  gear: {
+  avatarBtn: {
     background: 'none',
     border: 'none',
-    fontSize: 20,
-    color: 'var(--text-muted)',
+    padding: 0,
     minHeight: 44,
     minWidth: 44,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+  },
+  avatarImg: {
+    width: 30,
+    height: 30,
+    borderRadius: '50%',
+    objectFit: 'cover' as const,
+    border: '1.5px solid rgba(255,255,255,0.4)',
+  },
+  avatarInitial: {
+    width: 30,
+    height: 30,
+    borderRadius: '50%',
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 14,
+    fontWeight: 700,
+    border: '1.5px solid rgba(255,255,255,0.4)',
   },
   greeting: {
     padding: '8px 24px 20px',

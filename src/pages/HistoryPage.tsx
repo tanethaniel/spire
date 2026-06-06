@@ -7,7 +7,9 @@ interface HistoryPageProps {
   error: boolean;
   interpretationEnabled: boolean;
   visible: boolean;
-  onOpenSettings: () => void;
+  onOpenProfile: () => void;
+  avatarUrl: string | null;
+  userName: string;
   onDeleteEntry: (id: string) => void;
 }
 
@@ -78,7 +80,7 @@ function highlightText(text: string, kw: string): ReactNode {
   );
 }
 
-export function HistoryPage({ entries, loading, error, interpretationEnabled, visible, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
+export function HistoryPage({ entries, loading, error, interpretationEnabled, visible, onOpenProfile, avatarUrl, userName, onDeleteEntry }: HistoryPageProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -142,7 +144,13 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
     <div style={styles.page}>
       <div style={styles.header}>
         <div style={styles.title}>Receipts</div>
-        <button style={styles.gear} onClick={onOpenSettings} aria-label="Settings">⚙</button>
+        <button style={styles.avatarBtn} onClick={onOpenProfile} aria-label="Profile">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={styles.avatarImg} />
+          ) : (
+            <span style={styles.avatarInitial}>{(userName || '?').charAt(0).toUpperCase()}</span>
+          )}
+        </button>
       </div>
 
       <div style={styles.searchRow}>
@@ -316,9 +324,20 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '20px 24px 12px',
   },
   title: { fontSize: 26, fontWeight: 700, letterSpacing: -0.5 },
-  gear: {
-    background: 'none', border: 'none', fontSize: 20, color: 'var(--text-muted)',
+  avatarBtn: {
+    background: 'none', border: 'none', padding: 0,
     minHeight: 44, minWidth: 44,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+  },
+  avatarImg: {
+    width: 30, height: 30, borderRadius: '50%', objectFit: 'cover' as const,
+    border: '1.5px solid rgba(255,255,255,0.4)',
+  },
+  avatarInitial: {
+    width: 30, height: 30, borderRadius: '50%',
+    background: 'var(--accent-primary)', color: '#fff',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 14, fontWeight: 700, border: '1.5px solid rgba(255,255,255,0.4)',
   },
   // Search + filter
   searchRow: {

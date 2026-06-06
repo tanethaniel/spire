@@ -16,13 +16,14 @@ import { HistoryPage } from './pages/HistoryPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { MicPermission } from './components/MicPermission';
 import { BottomNav, type AppView } from './components/BottomNav';
-import { SettingsSheet } from './components/SettingsSheet';
+import { ProfileSheet } from './components/ProfileSheet';
+import { dayKey, currentStreak } from './lib/stats';
 
 function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<AppView>('home');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Clean up any orphaned voice recordings left from failed transcription sessions
   useEffect(() => { cleanupStaleAudio(); }, []);
@@ -71,6 +72,18 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
+
+  const profileUser = authSession ? {
+    name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
+    avatarUrl: (authSession.user.user_metadata?.avatar_url as string | undefined) ?? null,
+    email: authSession.user.email ?? '',
+    createdAt: authSession.user.created_at,
+  } : null;
+
+  const profileStats = {
+    streak: currentStreak(new Set(entries.filter(e => e.transcripts.some(Boolean)).map(e => dayKey(new Date(e.createdAt))))),
+    totalSessions: entries.filter(e => e.transcripts.some(Boolean)).length,
+  };
 
   const {
     session,
@@ -187,18 +200,20 @@ function App() {
           }}
         />
       )}
-      {settingsOpen && (
-        <SettingsSheet
+      {profileOpen && profileUser && (
+        <ProfileSheet
+          user={profileUser}
+          stats={profileStats}
           interpretationEnabled={interpretationEnabled}
           onToggle={setInterpretationEnabled}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => setProfileOpen(false)}
         />
       )}
 
       <div style={shell.root}>
         <div style={shell.viewport}>
           {effectiveView === 'home' && (
-            <HomePage onStart={handleStart} onOpenSettings={() => setSettingsOpen(true)} />
+            <HomePage onStart={handleStart} onOpenProfile={() => setProfileOpen(true)} avatarUrl={profileUser?.avatarUrl ?? null} userName={profileUser?.name ?? ''} />
           )}
           {effectiveView === 'history' && (
             <HistoryPage
@@ -207,7 +222,9 @@ function App() {
               error={entriesError}
               interpretationEnabled={interpretationEnabled}
               visible={effectiveView === 'history'}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenProfile={() => setProfileOpen(true)}
+              avatarUrl={profileUser?.avatarUrl ?? null}
+              userName={profileUser?.name ?? ''}
               onDeleteEntry={handleDeleteEntry}
             />
           )}
@@ -215,7 +232,9 @@ function App() {
             <InsightsPage
               entries={entries}
               loading={entriesLoading}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenProfile={() => setProfileOpen(true)}
+              avatarUrl={profileUser?.avatarUrl ?? null}
+              userName={profileUser?.name ?? ''}
             />
           )}
         </div>
