@@ -1,11 +1,11 @@
 :root {
   --bg-base: #F2F0E6;
-  --bg-surface: rgba(255, 255, 255, 0.18);
-  --bg-elevated: rgba(255, 255, 255, 0.25);
-  --border-subtle: rgba(255, 255, 255, 0.3);
-  --border-glass: rgba(255, 255, 255, 0.22);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
-  --glass-shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.08);
+  --bg-surface: rgba(255, 255, 255, 0.12);
+  --bg-elevated: rgba(255, 255, 255, 0.18);
+  --border-subtle: rgba(255, 255, 255, 0.35);
+  --border-glass: rgba(255, 255, 255, 0.28);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --glass-shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.3);
   --accent-primary: #6BBFA8;
   --accent-hover: #7ECAB5;
   --accent-soft: #B0E5D7;

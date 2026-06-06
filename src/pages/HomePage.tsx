@@ -292,7 +292,8 @@ const styles: Record<string, React.CSSProperties> = {
   eventBlock: {
     display: 'flex',
     borderRadius: 10,
-    background: 'rgba(107,191,168,0.13)',
+    background: 'rgba(255,255,255,0.12)',
+    border: '1px solid rgba(255,255,255,0.2)',
     overflow: 'hidden',
     flexShrink: 0,
   },
@@ -374,9 +375,11 @@ const styles: Record<string, React.CSSProperties> = {
   ctaButton: {
     width: '100%',
     padding: 18,
-    background: 'var(--accent-primary)',
+    background: 'rgba(107,191,168,0.35)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
     color: 'var(--text-primary)',
-    border: 'none',
+    border: '1px solid rgba(255,255,255,0.35)',
     borderRadius: 18,
     fontSize: 17,
     fontWeight: 600,
@@ -386,6 +389,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: 8,
     transition: 'all 0.15s',
-    boxShadow: '0 4px 16px rgba(107,191,168,0.25)',
+    boxShadow: '0 8px 32px rgba(107,191,168,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
   },
 };
