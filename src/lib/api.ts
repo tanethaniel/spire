@@ -90,6 +90,8 @@ export interface AnalysisResult {
   insight: string | null;
   mood_score: number | null;
   activity_tags: string[];
+  summary: string | null;
+  keyword_tags: string[];
 }
 
 export async function analyzeSession(
@@ -112,6 +114,8 @@ export async function saveJournalEntry(entry: {
   insight: string | null;
   mood_score: number | null;
   activity_tags: string[] | null;
+  summary: string | null;
+  keyword_tags: string[] | null;
   event_context: CalendarEvent[] | null;
   duration_ms: number;
 }): Promise<void> {
@@ -134,6 +138,8 @@ export async function saveJournalEntry(entry: {
     insight: entry.insight,
     mood_score: entry.mood_score,
     activity_tags: entry.activity_tags,
+    summary: entry.summary,
+    keyword_tags: entry.keyword_tags,
     duration_ms: entry.duration_ms,
   };
   entry.transcripts.forEach((t, i) => {
@@ -198,6 +204,11 @@ function filterMetaInsight(insight: string | null): string | null {
   return META_WORDS.test(insight) ? null : insight;
 }
 
+function filterMetaSummary(summary: string | null | undefined): string | null {
+  if (!summary) return null;
+  return META_WORDS.test(summary) ? null : summary;
+}
+
 export async function fetchJournalEntries(): Promise<JournalEntry[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -220,6 +231,8 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
     insight: filterMetaInsight(row.insight),
     moodScore: row.mood_score ?? null,
     activityTags: row.activity_tags ?? null,
+    summary: filterMetaSummary(row.summary),
+    keywordTags: row.keyword_tags ?? null,
     eventContext: row.event_context,
     durationMs: row.duration_ms,
   }));

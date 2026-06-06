@@ -225,6 +225,9 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
 
                 {isOpen && (
                   <div style={styles.cardBody}>
+                    {interpretationEnabled && entry.summary && (
+                      <div style={styles.summary}>{entry.summary}</div>
+                    )}
                     {interpretationEnabled && entry.insight && (
                       <div style={styles.insight}>✦ {entry.insight}</div>
                     )}
@@ -381,9 +384,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   chevron: { fontSize: 14, color: 'var(--text-ghost)', transition: 'transform 0.2s', marginLeft: 8 },
   cardBody: { padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,0.2)' },
+  summary: {
+    fontSize: 15, color: 'var(--text-secondary)', fontWeight: 500,
+    paddingTop: 12, marginBottom: 4, lineHeight: 1.5,
+  },
   insight: {
     fontSize: 14, fontStyle: 'italic', color: 'var(--accent-primary)',
-    paddingTop: 12, marginBottom: 4, lineHeight: 1.5,
+    paddingTop: 8, marginBottom: 4, lineHeight: 1.5,
   },
   // Per-question expand rows
   qRow: {

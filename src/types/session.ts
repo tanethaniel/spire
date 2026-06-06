@@ -57,6 +57,8 @@ export interface JournalEntry {
   insight: string | null;
   moodScore: number | null;      // -2..+2, null in Log mode
   activityTags: string[] | null; // normalized tags, null in Log mode
+  summary: string | null;        // one-sentence session summary, null in Log mode
+  keywordTags: string[] | null;  // richer tags for pattern recognition, null in Log mode
   eventContext: CalendarEvent[] | null;
   durationMs: number | null;
 }
@@ -68,6 +70,7 @@ export interface CorrelationTip {
   withTagAvg: number;
   withoutTagAvg: number;
   dayCount: number;
+  category?: 'activity' | 'schedule' | 'social' | 'recurring' | 'trend';
 }
 
 // Minimum days of entries before correlation tips unlock.

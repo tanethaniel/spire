@@ -210,6 +210,8 @@ export function useSession() {
         insight: null,
         mood_score: null,
         activity_tags: null,
+        summary: null,
+        keyword_tags: null,
         event_context: calendarEvents,
         duration_ms: durationMs,
       });
@@ -218,7 +220,7 @@ export function useSession() {
     }
 
     try {
-      const { themes, insight, mood_score, activity_tags } = await analyzeSession(transcripts);
+      const { themes, insight, mood_score, activity_tags, summary, keyword_tags } = await analyzeSession(transcripts);
 
       setSession(prev => ({
         ...prev,
@@ -235,6 +237,8 @@ export function useSession() {
         insight,
         mood_score,
         activity_tags,
+        summary,
+        keyword_tags,
         event_context: calendarEvents,
         duration_ms: durationMs,
       });
@@ -250,6 +254,8 @@ export function useSession() {
         insight: null,
         mood_score: null,
         activity_tags: null,
+        summary: null,
+        keyword_tags: null,
         event_context: calendarEvents,
         duration_ms: durationMs,
       });

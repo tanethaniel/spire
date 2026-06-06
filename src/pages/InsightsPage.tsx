@@ -152,10 +152,16 @@ export function InsightsPage({ entries, loading, onOpenSettings }: InsightsPageP
               </div>
             ) : (
               tips.map(tip => (
-                <div key={tip.tag} style={styles.tipCard}>
+                <div key={`${tip.category}-${tip.tag}`} style={styles.tipCard}>
                   <div style={styles.tipGradient} />
                   <div style={styles.tipMessage}>{tip.message}</div>
-                  <div style={styles.tipMeta}>Across {tip.dayCount} days with "{tip.tag}"</div>
+                  <div style={styles.tipMeta}>
+                    {tip.category === 'recurring'
+                      ? `Mentioned in ${tip.dayCount} recent sessions`
+                      : tip.category === 'trend'
+                      ? `Over the last ${tip.dayCount} days`
+                      : `Across ${tip.dayCount} days with "${tip.tag}"`}
+                  </div>
                 </div>
               ))
             )}
