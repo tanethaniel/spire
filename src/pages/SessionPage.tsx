@@ -70,6 +70,11 @@ export function SessionPage({
     if (!isRecording) setLocked(false);
   }, [isRecording]);
 
+  // Prevent TTS from replaying when returning to TTS_PLAYING after an error
+  useEffect(() => {
+    if (recordingError) ttsTriggeredRef.current = currentQuestion;
+  }, [recordingError, currentQuestion]);
+
   // Play the question audio when entering TTS_PLAYING state
   useEffect(() => {
     if (state !== SessionState.TTS_PLAYING) return;

@@ -119,7 +119,7 @@ export function useSession() {
         const duration = Date.now() - recordStartRef.current;
 
         if (duration < 8000) {
-          setSession(prev => ({ ...prev, state: SessionState.RECORDING, recordingError: 'too_short' }));
+          setSession(prev => ({ ...prev, state: SessionState.TTS_PLAYING, recordingError: 'too_short' }));
           updateRound(idx, { status: 'pending' });
           return;
         }
@@ -138,7 +138,7 @@ export function useSession() {
         } catch (err) {
           console.error(`[transcription] Q${idx + 1} failed:`, err);
           updateRound(idx, { status: 'pending', transcriptFailed: true });
-          setSession(prev => ({ ...prev, state: SessionState.RECORDING, recordingError: 'transcription_failed' }));
+          setSession(prev => ({ ...prev, state: SessionState.TTS_PLAYING, recordingError: 'transcription_failed' }));
           return;
         }
 
