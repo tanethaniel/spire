@@ -160,13 +160,13 @@ const CATEGORY_KEYWORDS: { category: EventCategory; keywords: string[] }[] = [
   },
 ];
 
-const CATEGORY_LABELS: Record<EventCategory, { singular: string; plural: string; full: string }> = {
-  meetings: { singular: 'a meeting', plural: 'meetings', full: 'a full day of meetings' },
-  social:   { singular: 'some social time', plural: 'some social time', full: 'a lot of social time' },
-  health:   { singular: 'a health appointment', plural: 'some wellness time', full: 'a wellness-filled day' },
-  personal: { singular: 'an errand', plural: 'some errands', full: 'a day of errands' },
-  focus:    { singular: 'some focus time', plural: 'some focus time', full: 'a lot of focus time' },
-  other:    { singular: 'something on your calendar', plural: 'some things on your calendar', full: 'a busy day' },
+const CATEGORY_LABELS: Record<EventCategory, { singular: string; plural: string }> = {
+  meetings: { singular: 'a meeting', plural: 'some meetings' },
+  social:   { singular: 'some social time', plural: 'some social time' },
+  health:   { singular: 'a wellness appointment', plural: 'some wellness time' },
+  personal: { singular: 'an errand', plural: 'some errands' },
+  focus:    { singular: 'some focus time', plural: 'some focus time' },
+  other:    { singular: 'something on your calendar', plural: 'a few things on your calendar' },
 };
 
 function categorizeEvent(title: string): EventCategory {
@@ -179,9 +179,31 @@ function categorizeEvent(title: string): EventCategory {
 
 function getCategoryLabel(category: EventCategory, count: number): string {
   const labels = CATEGORY_LABELS[category];
-  if (count >= 4) return labels.full;
   if (count >= 2) return labels.plural;
   return labels.singular;
+}
+
+function cleanTitle(title: string): string {
+  return title
+    .replace(/\s*[\[(].*?[\])]/, '')
+    .replace(/\s*[-–—|:]\s*https?:\/\/\S+/, '')
+    .trim();
+}
+
+function joinEventNames(events: CalendarEvent[]): string {
+  const names = events.map(e => cleanTitle(e.title));
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+}
+
+type DayShape = 'light' | 'moderate' | 'full' | 'packed';
+
+function getDayShape(eventCount: number, totalHours: number): DayShape {
+  if (eventCount >= 8 || totalHours >= 7) return 'packed';
+  if (eventCount >= 5 || totalHours >= 5) return 'full';
+  if (eventCount >= 3 || totalHours >= 3) return 'moderate';
+  return 'light';
 }
 
 function parseHour(timeStr: string): number | null {
@@ -222,69 +244,57 @@ function getTimeframe(events: CalendarEvent[]): string {
   return 'today';
 }
 
-const Q1_TEMPLATES = [
-  (s: string, t: string) => `You had ${s} ${t} — how did it all go?`,
-  (s: string, t: string) => `Looks like ${s} ${t} — what stood out to you?`,
-  (s: string, t: string) => `You had ${s} ${t} — how are you feeling about it?`,
-  (s: string, t: string) => `${s.charAt(0).toUpperCase() + s.slice(1)} ${t} — how was it?`,
-];
-
 function buildQ1(events: CalendarEvent[]): string {
+  const timeframe = getTimeframe(events);
+  const totalHours = computeTotalHours(events);
+  const shape = getDayShape(events.length, totalHours);
+
+  if (shape === 'packed') {
+    return `You had a really packed ${timeframe} — how are you holding up?`;
+  }
+
+  if (shape === 'full') {
+    return `You had a full ${timeframe} — how are you feeling about it all?`;
+  }
+
+  if (shape === 'light') {
+    const names = joinEventNames(events);
+    if (events.length === 1) {
+      return `You had ${names} ${timeframe} — how did it go?`;
+    }
+    return `You had ${names} ${timeframe} — how did it all go?`;
+  }
+
+  // Moderate (3-4 events or 3-5h): use category summaries for top categories,
+  // then mention remaining event names
   const counts: Record<EventCategory, number> = {
     meetings: 0, social: 0, health: 0, personal: 0, focus: 0, other: 0,
   };
-  for (const ev of events) counts[categorizeEvent(ev.title)]++;
-
-  const timeframe = getTimeframe(events);
-  const totalHours = computeTotalHours(events);
-  const templateIdx = new Date().getDay() % Q1_TEMPLATES.length;
-
-  // Packed day: 5+ events AND 5+ hours
-  if (events.length >= 5 && totalHours >= 5) {
-    if (events.length >= 10) return `You had a really packed ${timeframe} — how are you holding up?`;
-    return Q1_TEMPLATES[templateIdx]('a packed day', timeframe);
+  const otherEvents: CalendarEvent[] = [];
+  for (const ev of events) {
+    const cat = categorizeEvent(ev.title);
+    counts[cat]++;
+    if (cat === 'other') otherEvents.push(ev);
   }
 
-  // Rank categories by count, drop zeros
-  const ranked = (Object.entries(counts) as [EventCategory, number][])
-    .filter(([, n]) => n > 0)
+  const named = (Object.entries(counts) as [EventCategory, number][])
+    .filter(([cat, n]) => n > 0 && cat !== 'other')
     .sort((a, b) => b[1] - a[1]);
 
-  if (ranked.length === 0) return QUESTIONS[0].question;
-
-  // If 'other' dominates or is the only category
-  const otherCount = counts.other;
-  const namedCategories = ranked.filter(([cat]) => cat !== 'other');
-
-  if (namedCategories.length === 0) {
-    return Q1_TEMPLATES[templateIdx]('a busy day', timeframe);
+  const parts: string[] = [];
+  for (const [cat, n] of named.slice(0, 2)) {
+    parts.push(getCategoryLabel(cat, n));
+  }
+  for (const ev of otherEvents.slice(0, 2 - parts.length)) {
+    parts.push(cleanTitle(ev.title));
   }
 
-  if (otherCount > 0 && namedCategories.length > 0 && otherCount > namedCategories[0][1]) {
-    return Q1_TEMPLATES[templateIdx]('a busy day', timeframe);
+  if (parts.length === 0) {
+    return `You had a few things on your calendar ${timeframe} — how did they go?`;
   }
 
-  // Build summary from top 1-2 named categories
-  const top = namedCategories.slice(0, 2);
-
-  // 3+ named categories → packed-style phrasing
-  if (namedCategories.length >= 3) {
-    return Q1_TEMPLATES[templateIdx]('a packed day', timeframe);
-  }
-
-  let summary: string;
-  if (top.length === 1) {
-    summary = getCategoryLabel(top[0][0], top[0][1]);
-  } else {
-    summary = `${getCategoryLabel(top[0][0], top[0][1])} and ${getCategoryLabel(top[1][0], top[1][1])}`;
-  }
-
-  // Single event → simpler phrasing
-  if (events.length === 1) {
-    return `You had ${summary} ${timeframe} — how did it go?`;
-  }
-
-  return Q1_TEMPLATES[templateIdx](summary, timeframe);
+  const summary = parts.length === 1 ? parts[0] : `${parts[0]} and ${parts[1]}`;
+  return `Looks like you had ${summary} ${timeframe} — what stood out to you?`;
 }
 
 const CATEGORY_CHIP_LABELS: Record<EventCategory, string> = {
