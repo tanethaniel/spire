@@ -79,7 +79,7 @@ function highlightText(text: string, kw: string): ReactNode {
 }
 
 export function HistoryPage({ entries, loading, error, interpretationEnabled, visible, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -88,7 +88,7 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
 
   useEffect(() => {
     if (!visible) {
-      setExpanded(null);
+      setExpanded(new Set());
       setExpandedQ(new Set());
       setConfirmDelete(null);
       setSearch('');
@@ -204,28 +204,40 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
           </div>
         ) : (
           filtered.map(entry => {
-            const isOpen = expanded === entry.id;
+            const isOpen = expanded.has(entry.id);
             const answeredCount = entry.transcripts.filter(Boolean).length;
             return (
               <div key={entry.id} style={styles.card}>
-                <div style={styles.cardHead} onClick={() => { setExpanded(isOpen ? null : entry.id); setExpandedQ(new Set()); }}>
+                <div style={styles.cardHead} onClick={() => {
+                  setExpanded(prev => {
+                    const next = new Set(prev);
+                    if (isOpen) {
+                      next.delete(entry.id);
+                    } else {
+                      next.add(entry.id);
+                    }
+                    return next;
+                  });
+                  if (isOpen) {
+                    setExpandedQ(prev => {
+                      const next = new Set(prev);
+                      for (const k of prev) {
+                        if (k.startsWith(entry.id)) next.delete(k);
+                      }
+                      return next;
+                    });
+                  }
+                }}>
                   <div style={{ flex: 1 }}>
                     <div style={styles.date}>{formatDate(entry.createdAt)}</div>
                     <div style={styles.meta}>{answeredCount} of 6 answered</div>
-                    {interpretationEnabled && entry.themes && entry.themes.length > 0 && !isOpen && (
-                      <div style={styles.themes}>
-                        {entry.themes.map((t, i) => (
-                          <span key={i} style={styles.themeChip}>{highlightText(t, keyword)}</span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   <span style={{ ...styles.chevron, transform: isOpen ? 'rotate(180deg)' : 'none' }}>∨</span>
                 </div>
 
                 {isOpen && (
                   <div style={styles.cardBody}>
-                    {interpretationEnabled && entry.summary && (
+                    {entry.summary && (
                       <div style={styles.summary}>{entry.summary}</div>
                     )}
                     {entry.transcripts.map((t, i) =>
@@ -253,7 +265,11 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, vi
                           <span style={styles.confirmText}>Delete this entry?</span>
                           <button
                             style={styles.confirmYes}
-                            onClick={() => { onDeleteEntry(entry.id); setConfirmDelete(null); setExpanded(null); }}
+                            onClick={() => {
+                              onDeleteEntry(entry.id);
+                              setConfirmDelete(null);
+                              setExpanded(prev => { const next = new Set(prev); next.delete(entry.id); return next; });
+                            }}
                           >
                             Delete
                           </button>
@@ -374,11 +390,6 @@ const styles: Record<string, React.CSSProperties> = {
   cardHead: { display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer' },
   date: { fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 },
   meta: { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 },
-  themes: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
-  themeChip: {
-    fontSize: 12, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.2)',
-    border: '1px solid var(--border-glass)', borderRadius: 12, padding: '3px 9px',
-  },
   chevron: { fontSize: 14, color: 'var(--text-ghost)', transition: 'transform 0.2s', marginLeft: 8 },
   cardBody: { padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,0.2)' },
   summary: {
