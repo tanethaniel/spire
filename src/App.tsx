@@ -206,6 +206,7 @@ function App() {
               loading={entriesLoading}
               error={entriesError}
               interpretationEnabled={interpretationEnabled}
+              visible={effectiveView === 'history'}
               onOpenSettings={() => setSettingsOpen(true)}
               onDeleteEntry={handleDeleteEntry}
             />

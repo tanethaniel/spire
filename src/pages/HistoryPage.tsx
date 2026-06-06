@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { JournalEntry } from '../types/session';
 
 interface HistoryPageProps {
@@ -6,6 +6,7 @@ interface HistoryPageProps {
   loading: boolean;
   error: boolean;
   interpretationEnabled: boolean;
+  visible: boolean;
   onOpenSettings: () => void;
   onDeleteEntry: (id: string) => void;
 }
@@ -77,13 +78,24 @@ function highlightText(text: string, kw: string): ReactNode {
   );
 }
 
-export function HistoryPage({ entries, loading, error, interpretationEnabled, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
+export function HistoryPage({ entries, loading, error, interpretationEnabled, visible, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [keyword, setKeyword] = useState('');
   const [showKeyword, setShowKeyword] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setExpanded(null);
+      setExpandedQ(new Set());
+      setConfirmDelete(null);
+      setSearch('');
+      setKeyword('');
+      setShowKeyword(false);
+    }
+  }, [visible]);
 
   const answered = useMemo(
     () => entries.filter(e => e.transcripts.some(Boolean)),
