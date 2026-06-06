@@ -48,6 +48,8 @@ export interface SessionData {
 export interface UserSettings {
   interpretationEnabled: boolean;
   mbti: string | null;
+  onboardingCompleted: boolean;
+  goal: string | null;
 }
 
 // A persisted past session, as read back for History and Insights.

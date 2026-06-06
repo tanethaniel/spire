@@ -17,6 +17,7 @@ import { InsightsPage } from './pages/InsightsPage';
 import { MicPermission } from './components/MicPermission';
 import { BottomNav, type AppView } from './components/BottomNav';
 import { ProfileSheet } from './components/ProfileSheet';
+import { OnboardingFlow } from './components/OnboardingFlow';
 import { dayKey, currentStreak } from './lib/stats';
 
 function App() {
@@ -70,7 +71,7 @@ function App() {
   const authed = !!authSession;
   const { status: micStatus, requestMic } = useMicPermission();
   const [showMicPrompt, setShowMicPrompt] = useState(false);
-  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti } = useSettings(authed);
+  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
 
   const profileUser = authSession ? {
@@ -151,6 +152,15 @@ function App() {
 
   if (!authSession) {
     return <LoginPage />;
+  }
+
+  if (settingsLoaded && !onboardingCompleted) {
+    return (
+      <OnboardingFlow
+        onComplete={(goal, selectedMbti) => completeOnboarding(goal, selectedMbti)}
+        onSkip={() => completeOnboarding(null, null)}
+      />
+    );
   }
 
   if (session.state === SessionState.RESULT) {

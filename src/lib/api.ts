@@ -170,7 +170,7 @@ export async function getUserSettings(): Promise<UserSettings> {
 
   const { data, error } = await supabase
     .from('user_settings')
-    .select('interpretation_enabled, mbti')
+    .select('interpretation_enabled, mbti, onboarding_completed, goal')
     .eq('user_id', user.id)
     .maybeSingle();
   if (error) throw error;
@@ -178,6 +178,8 @@ export async function getUserSettings(): Promise<UserSettings> {
   return {
     interpretationEnabled: data ? data.interpretation_enabled : true,
     mbti: data?.mbti ?? null,
+    onboardingCompleted: data?.onboarding_completed ?? false,
+    goal: data?.goal ?? null,
   };
 }
 
@@ -189,6 +191,8 @@ export async function setUserSettings(settings: UserSettings): Promise<void> {
     user_id: user.id,
     interpretation_enabled: settings.interpretationEnabled,
     mbti: settings.mbti,
+    onboarding_completed: settings.onboardingCompleted,
+    goal: settings.goal,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;
