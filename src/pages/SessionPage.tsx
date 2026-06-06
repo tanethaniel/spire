@@ -137,15 +137,10 @@ export function SessionPage({
             </div>
           );
         })()}
+      </div>
 
-        <div style={styles.transcriptArea}>
-          <div style={{
-            ...styles.transcriptText,
-            ...(round.transcript ? styles.transcriptActive : {}),
-          }}>
-            {round.transcript || 'Your words will appear here…'}
-          </div>
-        </div>
+      <div style={styles.recordArea}>
+        <AudioWaveform active={isRecording} stream={micStream} />
 
         <div style={{
           ...styles.statusLine,
@@ -162,10 +157,7 @@ export function SessionPage({
             <span>Hold the button to answer</span>
           )}
         </div>
-      </div>
 
-      <div style={styles.recordArea}>
-        <AudioWaveform active={isRecording} stream={micStream} />
         <RecordButton
           disabled={buttonDisabled}
           recording={isRecording}
@@ -191,8 +183,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
   },
   questionArea: {
-    padding: '8px 24px 24px',
-    flex: 1,
+    padding: '8px 24px 0',
     display: 'flex',
     flexDirection: 'column',
   },
@@ -266,31 +257,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 12,
     padding: '3px 10px',
   },
-  transcriptArea: {
-    background: 'var(--bg-surface)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid var(--border-glass)',
-    borderTop: '1px solid rgba(255,255,255,0.35)',
-    borderRadius: 14,
-    boxShadow: 'var(--glass-shadow)',
-    padding: '14px 16px',
-    minHeight: 80,
-    marginBottom: 16,
-    flex: 1,
-    maxHeight: 180,
-    overflowY: 'auto' as const,
-  },
-  transcriptText: {
-    fontSize: 15,
-    color: 'var(--text-ghost)',
-    lineHeight: 1.6,
-    fontStyle: 'italic',
-  },
-  transcriptActive: {
-    color: 'var(--text-secondary)',
-    fontStyle: 'normal',
-  },
   statusLine: {
     display: 'flex',
     alignItems: 'center',
@@ -310,12 +276,13 @@ const styles: Record<string, React.CSSProperties> = {
     animation: 'recpulse 1s infinite',
   },
   recordArea: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 12,
-    paddingBottom: 48,
-    marginTop: 'auto',
+    justifyContent: 'center',
+    gap: 16,
+    paddingBottom: 40,
   },
   skipQ: {
     fontSize: 13,

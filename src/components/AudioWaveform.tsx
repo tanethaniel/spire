@@ -5,7 +5,7 @@ interface AudioWaveformProps {
   stream: MediaStream | null;
 }
 
-const BAR_COUNT = 28;
+const BAR_COUNT = 40;
 
 export function AudioWaveform({ active, stream }: AudioWaveformProps) {
   const [bars, setBars] = useState<number[]>(Array(BAR_COUNT).fill(3));
@@ -20,7 +20,7 @@ export function AudioWaveform({ active, stream }: AudioWaveformProps) {
       const idle = () => {
         t += 0.06;
         setBars(Array.from({ length: BAR_COUNT }, (_, i) =>
-          3 + Math.sin(t + i * 0.4) * 2 + Math.random() * 1.5
+          4 + Math.sin(t + i * 0.4) * 6 + Math.random() * 3
         ));
         animFrameRef.current = requestAnimationFrame(idle);
       };
@@ -45,7 +45,7 @@ export function AudioWaveform({ active, stream }: AudioWaveformProps) {
         const newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
           const idx = Math.floor((i / BAR_COUNT) * dataArray.length * 0.6);
           const val = dataArray[idx] / 255;
-          return 3 + val * 44;
+          return 4 + val * 80;
         });
         setBars(newBars);
         animFrameRef.current = requestAnimationFrame(draw);
@@ -85,8 +85,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    height: 52,
+    height: 120,
     width: '100%',
+    padding: '0 16px',
   },
   bar: {
     width: 3,
