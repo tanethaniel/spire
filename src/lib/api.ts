@@ -193,7 +193,7 @@ export async function setUserSettings(settings: UserSettings): Promise<void> {
 
 // --- History (past entries for History + Insights views) ---
 
-const META_WORDS = /\b(transcript|session|entry|data|record|absent|empty|incomplete|brief response)/i;
+const META_WORDS = /\b(transcript|journal entry|journal session|no data|absent entry|empty entry|incomplete entry|brief response)/i;
 
 function filterMetaThemes(themes: string[]): string[] {
   return themes.filter(t => !META_WORDS.test(t));
