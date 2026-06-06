@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { JournalEntry } from '../types/session';
 
 interface HistoryPageProps {
@@ -63,6 +63,18 @@ function matchesKeyword(entry: JournalEntry, keyword: string): boolean {
     }
   }
   return false;
+}
+
+function highlightText(text: string, kw: string): ReactNode {
+  if (!kw.trim()) return text;
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.toLowerCase() === kw.toLowerCase()
+      ? <strong key={i} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{part}</strong>
+      : part
+  );
 }
 
 export function HistoryPage({ entries, loading, error, interpretationEnabled, onOpenSettings, onDeleteEntry }: HistoryPageProps) {
@@ -165,7 +177,7 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
                     {interpretationEnabled && entry.themes && entry.themes.length > 0 && !isOpen && (
                       <div style={styles.themes}>
                         {entry.themes.map((t, i) => (
-                          <span key={i} style={styles.themeChip}>{t}</span>
+                          <span key={i} style={styles.themeChip}>{highlightText(t, keyword)}</span>
                         ))}
                       </div>
                     )}
@@ -192,7 +204,7 @@ export function HistoryPage({ entries, loading, error, interpretationEnabled, on
                             }}>∨</span>
                           </div>
                           {expandedQ === `${entry.id}-${i}` && (
-                            <div style={styles.answerText}>{t}</div>
+                            <div style={styles.answerText}>{highlightText(t, keyword)}</div>
                           )}
                         </div>
                       ) : null,
