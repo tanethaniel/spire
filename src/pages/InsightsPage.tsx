@@ -11,6 +11,7 @@ interface InsightsPageProps {
   avatarUrl: string | null;
   userName: string;
   mbti: string | null;
+  interpretationEnabled: boolean;
 }
 
 const HEATMAP_WEEKS = 5;
@@ -27,7 +28,7 @@ const COMPLETENESS_COLOR: Record<number, string> = {
 };
 
 
-export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName, mbti }: InsightsPageProps) {
+export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName, mbti, interpretationEnabled }: InsightsPageProps) {
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
@@ -121,7 +122,15 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
 
             {/* Patterns */}
             <div style={{ ...styles.sectionLabel, marginTop: 28 }}>Patterns</div>
-            {!unlocked ? (
+            {!interpretationEnabled ? (
+              <div style={styles.lockedCard}>
+                <div style={styles.lockIcon}>✦</div>
+                <div style={styles.lockTitle}>Patterns are paused</div>
+                <div style={styles.lockSub}>
+                  Toggle interpret mode on in your profile to view patterns.
+                </div>
+              </div>
+            ) : !unlocked ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
                 <div style={styles.lockTitle}>Patterns unlock soon</div>

@@ -3,7 +3,6 @@ export type AppView = 'home' | 'history' | 'insights';
 interface BottomNavProps {
   view: AppView;
   onChange: (view: AppView) => void;
-  showInsights: boolean; // hidden in Log mode
 }
 
 const ITEMS: { view: AppView; label: string; icon: string }[] = [
@@ -12,8 +11,8 @@ const ITEMS: { view: AppView; label: string; icon: string }[] = [
   { view: 'history', label: 'Receipts', icon: '☰' },
 ];
 
-export function BottomNav({ view, onChange, showInsights }: BottomNavProps) {
-  const items = ITEMS.filter(i => i.view !== 'insights' || showInsights);
+export function BottomNav({ view, onChange }: BottomNavProps) {
+  const items = ITEMS;
 
   return (
     <nav style={styles.nav}>

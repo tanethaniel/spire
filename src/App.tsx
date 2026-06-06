@@ -130,9 +130,7 @@ function App() {
     refreshEntries();
   }, [refreshEntries]);
 
-  // Insights is hidden in Log mode; fall back to Home without storing a bad view.
-  const effectiveView: AppView =
-    !interpretationEnabled && view === 'insights' ? 'home' : view;
+  const effectiveView: AppView = view;
 
   useEffect(() => {
     if (session.state === SessionState.ANALYZING) {
@@ -252,10 +250,11 @@ function App() {
               avatarUrl={profileUser?.avatarUrl ?? null}
               userName={profileUser?.name ?? ''}
               mbti={mbti}
+              interpretationEnabled={interpretationEnabled}
             />
           )}
         </div>
-        <BottomNav view={effectiveView} onChange={setView} showInsights={interpretationEnabled} />
+        <BottomNav view={effectiveView} onChange={setView} />
       </div>
     </>
   );
