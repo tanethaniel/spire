@@ -313,13 +313,19 @@ export async function backfillEntrySignals(): Promise<number> {
   console.log(`[backfill] extracting signals for ${missing.length} entries…`);
 
   let extracted = 0;
-  for (const entry of missing) {
-    try {
-      await extractEntrySignals(entry.id);
-      extracted++;
-      console.log(`[backfill] extracted signals for entry ${entry.id} (${extracted}/${missing.length})`);
-    } catch (err) {
-      console.error(`[backfill] failed for entry ${entry.id}:`, err);
+  const BATCH_SIZE = 3;
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    const batch = missing.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(entry => extractEntrySignals(entry.id).then(() => entry.id)),
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        extracted++;
+        console.log(`[backfill] extracted signals for entry ${r.value} (${extracted}/${missing.length})`);
+      } else {
+        console.error(`[backfill] failed for an entry:`, r.reason);
+      }
     }
   }
   return extracted;

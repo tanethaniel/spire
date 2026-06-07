@@ -863,16 +863,36 @@ serve(async (req) => {
         feedback: p.user_feedback!,
       }));
 
+    // Archive old active patterns that will be replaced by fresh candidates
+    const candidateTypes = new Set(candidates.map(c => c.type));
+    for (const pType of candidateTypes) {
+      await supabase
+        .from('pattern_insights')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('pattern_type', pType)
+        .eq('status', 'active');
+    }
+
+    // Run all LLM calls in parallel for speed
+    const llmResults = await Promise.allSettled(
+      candidates.map(candidate =>
+        writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory)
+          .then(result => ({ candidate, result }))
+      ),
+    );
+
     const savedPatterns: Record<string, unknown>[] = [];
 
-    for (const candidate of candidates) {
-      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
-      if (!llmResult) {
-        console.error(`[generate-patterns] Skipping candidate "${candidate.signal}" — LLM failed`);
+    for (const outcome of llmResults) {
+      if (outcome.status === 'rejected' || !outcome.value.result) {
+        const sig = outcome.status === 'fulfilled' ? outcome.value.candidate.signal : 'unknown';
+        console.error(`[generate-patterns] Skipping candidate "${sig}" — LLM failed`);
         continue;
       }
 
-      // Compute date range
+      const { candidate, result: llmResult } = outcome.value;
+
       const allDates = candidate.quotes
         .map(q => q.date)
         .filter(Boolean)
@@ -880,7 +900,6 @@ serve(async (req) => {
       const earliestDate = allDates[0] || null;
       const latestDate = allDates[allDates.length - 1] || null;
 
-      // 6. Save Results
       const row = {
         user_id: user.id,
         pattern_type: candidate.type,
@@ -909,23 +928,12 @@ serve(async (req) => {
 
       const { data: saved, error: saveError } = await supabase
         .from('pattern_insights')
-        .upsert(row, { onConflict: 'user_id,pattern_type,related_tags' })
+        .insert(row)
         .select()
         .single();
 
       if (saveError) {
         console.error(`[generate-patterns] Failed to save pattern "${candidate.signal}":`, saveError);
-        // If upsert with onConflict fails, try a plain insert
-        const { data: inserted, error: insertError } = await supabase
-          .from('pattern_insights')
-          .insert(row)
-          .select()
-          .single();
-        if (insertError) {
-          console.error(`[generate-patterns] Insert also failed:`, insertError);
-        } else if (inserted) {
-          savedPatterns.push(inserted);
-        }
       } else if (saved) {
         savedPatterns.push(saved);
       }

@@ -100,6 +100,7 @@ function App() {
     runAnalysis,
     resetSession,
     clearRecordingError,
+    patternGenRef,
   } = useSession();
 
   const handleStart = useCallback(async (events: CalendarEvent[] | null) => {
@@ -120,10 +121,13 @@ function App() {
     resetSession();
     refreshEntries();
     setView('home');
-    // Pattern generation runs in background after session save;
-    // delay the fetch so new patterns are ready when we read them.
-    setTimeout(refreshPatterns, 5000);
-  }, [resetSession, refreshEntries, refreshPatterns]);
+    const pending = patternGenRef.current;
+    if (pending) {
+      pending.then(() => refreshPatterns()).catch(() => refreshPatterns());
+    } else {
+      refreshPatterns();
+    }
+  }, [resetSession, refreshEntries, refreshPatterns, patternGenRef]);
 
   const handleBack = useCallback(() => {
     resetSession();

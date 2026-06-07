@@ -17,6 +17,8 @@ function createInitialRounds(): QuestionRound[] {
   }));
 }
 
+export type PatternGenPromise = Promise<void> | null;
+
 export function useSession() {
   const [session, setSession] = useState<SessionData>({
     state: SessionState.IDLE,
@@ -37,6 +39,7 @@ export function useSession() {
   const mimeTypeRef = useRef<string>(getSupportedMimeType());
   const recordStartRef = useRef<number>(0);
   const analysisRanRef = useRef(false);
+  const patternGenRef = useRef<PatternGenPromise>(null);
 
   // Keep refs in sync so runAnalysis always reads fresh data without
   // needing session.rounds/startedAt/calendarEvents in its dep array.
@@ -200,9 +203,14 @@ export function useSession() {
 
     const triggerPatterns = (entryId: string | null) => {
       if (!entryId) return;
-      extractEntrySignals(entryId)
+      const p = extractEntrySignals(entryId)
         .then(() => generatePatterns(true))
-        .catch(err => console.error('[patterns] background generation failed:', err));
+        .then(() => { patternGenRef.current = null; })
+        .catch(err => {
+          console.error('[patterns] background generation failed:', err);
+          patternGenRef.current = null;
+        });
+      patternGenRef.current = p;
     };
 
     if (!interpret) {
@@ -321,5 +329,6 @@ export function useSession() {
     runAnalysis,
     resetSession,
     clearRecordingError,
+    patternGenRef,
   };
 }
