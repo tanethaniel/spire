@@ -41,12 +41,13 @@ serve(async (req) => {
       });
     }
 
-    // Rate limit: count questions transcribed today
+    // Rate limit: count questions transcribed today for this user
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const { count } = await supabase
       .from('user_events')
       .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
       .eq('event', 'question_completed')
       .gte('created_at', todayStart.toISOString());
 

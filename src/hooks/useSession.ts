@@ -243,20 +243,25 @@ export function useSession() {
       }));
 
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
-    } catch {
-      await saveJournalEntry({
-        sessionId,
-        transcripts,
-        themes: null,
-        insight: null,
-        mood_score: null,
-        emotion_tag: null,
-        activity_tags: null,
-        summary: null,
-        keyword_tags: null,
-        event_context: calendarEvents,
-        duration_ms: durationMs,
-      });
+    } catch (err) {
+      console.error('[runAnalysis] analysis or save failed:', err);
+      try {
+        await saveJournalEntry({
+          sessionId,
+          transcripts,
+          themes: null,
+          insight: null,
+          mood_score: null,
+          emotion_tag: null,
+          activity_tags: null,
+          summary: null,
+          keyword_tags: null,
+          event_context: calendarEvents,
+          duration_ms: durationMs,
+        });
+      } catch (saveErr) {
+        console.error('[runAnalysis] fallback save also failed:', saveErr);
+      }
 
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
     }
