@@ -4,6 +4,7 @@ import { SessionState, type CalendarEvent } from './types/session';
 import { useSession } from './hooks/useSession';
 import { useMicPermission } from './hooks/useMicPermission';
 import { useSettings } from './hooks/useSettings';
+import { usePatternNotes } from './hooks/usePatternNotes';
 import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
 import { deleteJournalEntry } from './lib/api';
@@ -73,6 +74,7 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
+  const { patterns, loading: patternsLoading, refreshing: patternsRefreshing, refresh: refreshPatterns, submitFeedback, setStatus } = usePatternNotes(authed, interpretationEnabled);
 
   const profileUser = authSession ? {
     name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
@@ -117,8 +119,9 @@ function App() {
   const handleDone = useCallback(() => {
     resetSession();
     refreshEntries();
+    refreshPatterns();
     setView('home');
-  }, [resetSession, refreshEntries]);
+  }, [resetSession, refreshEntries, refreshPatterns]);
 
   const handleBack = useCallback(() => {
     resetSession();
@@ -265,6 +268,13 @@ function App() {
               userName={profileUser?.name ?? ''}
               mbti={mbti}
               interpretationEnabled={interpretationEnabled}
+              patterns={patterns}
+              patternsLoading={patternsLoading}
+              patternsRefreshing={patternsRefreshing}
+              onRefreshPatterns={refreshPatterns}
+              onPatternFeedback={submitFeedback}
+              onPatternSave={(id) => setStatus(id, 'saved')}
+              onPatternDismiss={(id) => setStatus(id, 'dismissed')}
             />
           )}
         </div>

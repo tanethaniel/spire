@@ -84,6 +84,44 @@ export interface JournalEntry {
   durationMs: number | null;
 }
 
+// --- Pattern Notes types ---
+
+export type PatternConfidence = 'early_signal' | 'emerging_pattern' | 'strong_pattern';
+export type PatternStatus = 'active' | 'saved' | 'watching' | 'dismissed' | 'archived';
+export type PatternFeedback = 'true' | 'kind_of' | 'not_really';
+
+export interface PatternQuote {
+  text: string;
+  entryDate: string;
+}
+
+export interface PatternNote {
+  id: string;
+  patternType: string;
+  title: string;
+  note: string;
+  goalConnection: string | null;
+  personalityFraming: string | null;
+  evidenceSummary: string | null;
+  confidence: PatternConfidence;
+  confidenceReason: string | null;
+  evidenceCount: number | null;
+  entryCount: number | null;
+  dateRangeStart: string | null;
+  dateRangeEnd: string | null;
+  supportingQuotes: PatternQuote[] | null;
+  relatedCalendarContext: Record<string, unknown> | null;
+  relatedTags: string[] | null;
+  moodDelta: number | null;
+  reflectionPrompt: string | null;
+  suggestedExperiment: string | null;
+  suggestedIfThenPlan: { ifCue: string; thenResponse: string; fullText: string } | null;
+  status: PatternStatus;
+  userFeedback: PatternFeedback | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // A surfaced cross-session correlation, e.g. "better moods on gym days".
 export interface CorrelationTip {
   tag: string;

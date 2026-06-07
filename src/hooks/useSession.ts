@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { SessionState, type CalendarEvent, type QuestionRound, type SessionData, QUESTIONS, getQ1WithContext } from '../types/session';
 import { getSupportedMimeType } from '../lib/audio';
 import { saveAudio, deleteAudio } from '../lib/audioDb';
-import { processEntry, analyzeSession, saveJournalEntry } from '../lib/api';
+import { processEntry, analyzeSession, saveJournalEntry, extractEntrySignals, generatePatterns } from '../lib/api';
 import { trackEvent } from '../lib/events';
 
 function createInitialRounds(): QuestionRound[] {
@@ -198,8 +198,15 @@ export function useSession() {
       ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
       : 0;
 
+    const triggerPatterns = (entryId: string | null) => {
+      if (!entryId) return;
+      extractEntrySignals(entryId)
+        .then(() => generatePatterns())
+        .catch(err => console.error('[patterns] background generation failed:', err));
+    };
+
     if (!interpret) {
-      await saveJournalEntry({
+      const entryId = await saveJournalEntry({
         sessionId,
         transcripts,
         themes: null,
@@ -214,13 +221,14 @@ export function useSession() {
       });
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
+      triggerPatterns(entryId);
       return;
     }
 
     try {
       const { themes, insight, mood_score, emotion_tag, activity_tags, summary, keyword_tags } = await analyzeSession(transcripts);
 
-      await saveJournalEntry({
+      const entryId = await saveJournalEntry({
         sessionId,
         transcripts,
         themes,
@@ -243,10 +251,12 @@ export function useSession() {
       }));
 
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
+      triggerPatterns(entryId);
     } catch (err) {
       console.error('[runAnalysis] analysis or save failed:', err);
+      let entryId: string | null = null;
       try {
-        await saveJournalEntry({
+        entryId = await saveJournalEntry({
           sessionId,
           transcripts,
           themes: null,
@@ -264,6 +274,7 @@ export function useSession() {
       }
 
       setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
+      triggerPatterns(entryId);
     }
   }, []);
 

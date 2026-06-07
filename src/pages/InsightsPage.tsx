@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import type { JournalEntry } from '../types/session';
-import { TIPS_MIN_DAYS, EMOTION_FACE } from '../types/session';
+import type { JournalEntry, PatternNote } from '../types/session';
+import { EMOTION_FACE } from '../types/session';
 import type { EmotionTag } from '../types/session';
-import { computeCorrelations, distinctEntryDays, tipsUnlocked } from '../lib/correlations';
-import { applyMbtiFlavor } from '../lib/mbtiMessaging';
+import { distinctEntryDays } from '../lib/correlations';
 import { dayKey, currentStreak, avgSessionDuration } from '../lib/stats';
+import { PatternNoteCard } from '../components/PatternNoteCard';
+import { PatternDetailSheet } from '../components/PatternDetailSheet';
 
 interface InsightsPageProps {
   entries: JournalEntry[];
@@ -14,10 +15,18 @@ interface InsightsPageProps {
   userName: string;
   mbti: string | null;
   interpretationEnabled: boolean;
+  patterns: PatternNote[];
+  patternsLoading: boolean;
+  patternsRefreshing: boolean;
+  onRefreshPatterns: () => void;
+  onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
+  onPatternSave: (id: string) => void;
+  onPatternDismiss: (id: string) => void;
 }
 
 const HEATMAP_WEEKS = 5;
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const MIN_DAYS_FOR_PATTERNS = 3;
 
 // 6 shades: 1/6 answered = warm yellow → 6/6 = deep green
 const COMPLETENESS_COLOR: Record<number, string> = {
@@ -40,12 +49,18 @@ const MOOD_COLOR: Record<number, string> = {
 type CalendarMode = 'completeness' | 'mood';
 
 
-export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName, mbti, interpretationEnabled }: InsightsPageProps) {
+export function InsightsPage({
+  entries, loading, onOpenProfile, avatarUrl, userName,
+  interpretationEnabled, patterns, patternsLoading, patternsRefreshing,
+  onRefreshPatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
+}: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
+  const [selectedPattern, setSelectedPattern] = useState<PatternNote | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
-  // Best completeness score per day (how many of 6 questions were answered).
   const completenessByDay = new Map<string, number>();
   for (const e of answered) {
     const k = dayKey(new Date(e.createdAt));
@@ -53,7 +68,6 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
     completenessByDay.set(k, Math.max(completenessByDay.get(k) ?? 0, score));
   }
 
-  // Average mood + dominant emotion per day for mood calendar view
   const moodByDay = new Map<string, { sum: number; count: number; emotion: EmotionTag | null }>();
   for (const e of answered) {
     const k = dayKey(new Date(e.createdAt));
@@ -69,9 +83,10 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
   const streak = currentStreak(entryDayKeys);
   const totalDays = distinctEntryDays(answered);
   const avgDuration = avgSessionDuration(answered);
-  const unlocked = tipsUnlocked(answered);
-  const rawTips = unlocked ? computeCorrelations(answered) : [];
-  const tips = mbti ? applyMbtiFlavor(rawTips, mbti) : rawTips;
+
+  const mainPatterns = patterns.filter(p => p.confidence !== 'early_signal' && p.status !== 'saved');
+  const earlySignals = patterns.filter(p => p.confidence === 'early_signal' && p.status !== 'saved');
+  const savedPatterns = patterns.filter(p => p.status === 'saved');
 
   // Build heatmap cells aligned to Monday start.
   const today = new Date();
@@ -205,7 +220,18 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
             </div>
 
             {/* Patterns */}
-            <div style={{ ...styles.sectionLabel, marginTop: 28 }}>Patterns</div>
+            <div style={{ ...styles.sectionLabel, marginTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Patterns</span>
+              {interpretationEnabled && patterns.length > 0 && (
+                <button
+                  style={styles.refreshBtn}
+                  onClick={onRefreshPatterns}
+                  disabled={patternsRefreshing}
+                >
+                  {patternsRefreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
+              )}
+            </div>
             {!interpretationEnabled ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
@@ -214,141 +240,88 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
                   Toggle interpret mode on in your profile to view patterns.
                 </div>
               </div>
-            ) : !unlocked ? (
+            ) : patternsLoading ? (
+              <div style={styles.lockedCard}>
+                <div style={styles.lockTitle}>Loading patterns…</div>
+              </div>
+            ) : totalDays < MIN_DAYS_FOR_PATTERNS ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
                 <div style={styles.lockTitle}>Patterns unlock soon</div>
                 <div style={styles.lockSub}>
-                  Spire needs about a week of reflections to spot patterns like
-                  "better moods on gym days."
+                  Spire needs a few days of reflections to spot patterns in your journal.
                 </div>
                 <div style={styles.progressTrack}>
-                  <div style={{ ...styles.progressFill, width: `${Math.min(100, (totalDays / TIPS_MIN_DAYS) * 100)}%` }} />
+                  <div style={{ ...styles.progressFill, width: `${Math.min(100, (totalDays / MIN_DAYS_FOR_PATTERNS) * 100)}%` }} />
                 </div>
-                <div style={styles.progressText}>{totalDays} of {TIPS_MIN_DAYS} days</div>
+                <div style={styles.progressText}>{totalDays} of {MIN_DAYS_FOR_PATTERNS} days</div>
               </div>
-            ) : tips.length === 0 ? (
+            ) : patterns.length === 0 ? (
               <div style={styles.lockedCard}>
-                <div style={styles.lockTitle}>No clear patterns yet</div>
+                <div style={styles.lockTitle}>No patterns yet</div>
                 <div style={styles.lockSub}>
-                  Nothing stands out strongly so far. Keep reflecting and Spire will
-                  surface connections as they emerge.
+                  Keep reflecting and Spire will surface connections as they emerge.
                 </div>
+                <button style={styles.refreshBtnLarge} onClick={onRefreshPatterns} disabled={patternsRefreshing}>
+                  {patternsRefreshing ? 'Generating…' : 'Generate patterns'}
+                </button>
               </div>
             ) : (
-              tips.map((tip, i) => (
-                <div
-                  key={`${tip.category}-${tip.tag}`}
-                  style={{
-                    ...styles.tipCard,
-                    animation: 'slideUp 0.4s ease-out both',
-                    animationDelay: `${i * 0.08}s`,
-                  }}
-                >
-                  <div style={styles.tipGradient} />
-                  <div style={styles.tipMessage}>{tip.message}</div>
-
-                  {/* Activity / Schedule / Social — comparison bars */}
-                  {(tip.category === 'activity' || tip.category === 'schedule' || tip.category === 'social') && (
-                    <div style={styles.barsWrap}>
-                      <div style={styles.barRow}>
-                        <span style={styles.barLabel}>With {tip.tag}</span>
-                        <div style={styles.barTrack}>
-                          <div style={{ ...styles.barFillWith, width: `${((tip.withTagAvg + 2) / 4) * 100}%` }} />
-                        </div>
-                        <span style={styles.barValue}>{tip.withTagAvg > 0 ? '+' : ''}{tip.withTagAvg}</span>
-                      </div>
-                      <div style={styles.barRow}>
-                        <span style={styles.barLabel}>Without</span>
-                        <div style={styles.barTrack}>
-                          <div style={{ ...styles.barFillWithout, width: `${((tip.withoutTagAvg + 2) / 4) * 100}%` }} />
-                        </div>
-                        <span style={styles.barValue}>{tip.withoutTagAvg > 0 ? '+' : ''}{tip.withoutTagAvg}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Observation — frequency dots */}
-                  {tip.category === 'observation' && tip.totalDays && (
-                    <div style={styles.dotsWrap}>
-                      {Array.from({ length: tip.totalDays }, (_, j) => (
-                        <span
-                          key={j}
-                          style={{
-                            ...styles.dot,
-                            background: j < tip.dayCount
-                              ? 'var(--accent-primary)'
-                              : 'rgba(255,255,255,0.25)',
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Trend — sparkline */}
-                  {tip.category === 'trend' && tip.moodHistory && tip.moodHistory.length > 1 && (
-                    <svg viewBox="0 0 200 40" style={styles.sparkSvg}>
-                      <defs>
-                        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.3" />
-                          <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <line x1="0" y1="20" x2="200" y2="20" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 3" />
-                      <polyline
-                        fill="none"
-                        stroke="var(--accent-primary)"
-                        strokeWidth="2"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                        points={tip.moodHistory
-                          .map((m, j) => {
-                            const x = (j / (tip.moodHistory!.length - 1)) * 200;
-                            const y = 40 - ((m + 2) / 4) * 40;
-                            return `${x},${y}`;
-                          })
-                          .join(' ')}
+              <>
+                {mainPatterns.map((p, i) => (
+                  <PatternNoteCard
+                    key={p.id}
+                    pattern={p}
+                    index={i}
+                    onFeedback={onPatternFeedback}
+                    onSave={onPatternSave}
+                    onDismiss={onPatternDismiss}
+                    onOpen={() => { setSelectedPattern(p); setDetailOpen(true); }}
+                  />
+                ))}
+                {earlySignals.length > 0 && (
+                  <>
+                    <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Things to watch</div>
+                    {earlySignals.map((p, i) => (
+                      <PatternNoteCard
+                        key={p.id}
+                        pattern={p}
+                        index={i}
+                        onFeedback={onPatternFeedback}
+                        onSave={onPatternSave}
+                        onDismiss={onPatternDismiss}
+                        onOpen={() => { setSelectedPattern(p); setDetailOpen(true); }}
                       />
-                      <polygon
-                        fill="url(#sparkGrad)"
-                        points={[
-                          ...tip.moodHistory.map((m, j) => {
-                            const x = (j / (tip.moodHistory!.length - 1)) * 200;
-                            const y = 40 - ((m + 2) / 4) * 40;
-                            return `${x},${y}`;
-                          }),
-                          `200,40`,
-                          `0,40`,
-                        ].join(' ')}
+                    ))}
+                  </>
+                )}
+                {savedPatterns.length > 0 && (
+                  <>
+                    <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Saved</div>
+                    {savedPatterns.map((p, i) => (
+                      <PatternNoteCard
+                        key={p.id}
+                        pattern={p}
+                        index={i}
+                        onFeedback={onPatternFeedback}
+                        onSave={onPatternSave}
+                        onDismiss={onPatternDismiss}
+                        onOpen={() => { setSelectedPattern(p); setDetailOpen(true); }}
                       />
-                    </svg>
-                  )}
+                    ))}
+                  </>
+                )}
+              </>
+            )}
 
-                  {/* Recurring — tag chip with count */}
-                  {tip.category === 'recurring' && (
-                    <div style={styles.chipWrap}>
-                      <span style={styles.chip}>
-                        {tip.tag}
-                        <span style={styles.chipBadge}>{tip.dayCount}</span>
-                      </span>
-                    </div>
-                  )}
-
-                  <div style={styles.tipMeta}>
-                    {tip.category === 'observation'
-                      ? `${tip.dayCount} of your last ${tip.totalDays ?? tip.dayCount} days`
-                      : tip.category === 'recurring'
-                      ? `Mentioned in ${tip.dayCount} recent sessions`
-                      : tip.category === 'trend'
-                      ? `Over the last ${tip.dayCount} days`
-                      : tip.category === 'emotion'
-                      ? `Based on ${tip.dayCount} sessions`
-                      : tip.category === 'dayofweek'
-                      ? `Across ${tip.dayCount} ${tip.tag}s`
-                      : `Across ${tip.dayCount} days with "${tip.tag}"`}
-                  </div>
-                </div>
-              ))
+            {detailOpen && selectedPattern && (
+              <PatternDetailSheet
+                pattern={selectedPattern}
+                onClose={() => { setDetailOpen(false); setSelectedPattern(null); }}
+                onFeedback={onPatternFeedback}
+                onSave={onPatternSave}
+                onDismiss={onPatternDismiss}
+              />
             )}
           </>
         )}
@@ -439,6 +412,16 @@ const styles: Record<string, React.CSSProperties> = {
   lockIcon: { fontSize: 24, color: 'var(--accent-primary)', marginBottom: 8 },
   lockTitle: { fontSize: 16, fontWeight: 600, marginBottom: 6 },
   lockSub: { fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 14 },
+  refreshBtn: {
+    background: 'none', border: 'none', padding: 0,
+    fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)',
+    cursor: 'pointer', textTransform: 'uppercase' as const, letterSpacing: '0.05em',
+  },
+  refreshBtnLarge: {
+    background: 'var(--accent-primary)', border: 'none', borderRadius: 10,
+    padding: '10px 20px', fontSize: 14, fontWeight: 600, color: '#fff',
+    cursor: 'pointer', marginTop: 4,
+  },
   progressTrack: {
     height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.25)', overflow: 'hidden',
   },
