@@ -12,7 +12,7 @@ const corsHeaders = {
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
 // Per-user limit: max transcriptions per day (rate limiting)
-const MAX_TRANSCRIPTIONS_PER_DAY = 20;
+const MAX_TRANSCRIPTIONS_PER_DAY = 50;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
