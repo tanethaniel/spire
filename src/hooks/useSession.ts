@@ -199,7 +199,6 @@ export function useSession() {
       : 0;
 
     if (!interpret) {
-      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
       await saveJournalEntry({
         sessionId,
         transcripts,
@@ -213,20 +212,13 @@ export function useSession() {
         event_context: calendarEvents,
         duration_ms: durationMs,
       });
+      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
       return;
     }
 
     try {
       const { themes, insight, mood_score, emotion_tag, activity_tags, summary, keyword_tags } = await analyzeSession(transcripts);
-
-      setSession(prev => ({
-        ...prev,
-        state: SessionState.RESULT,
-        themes,
-        insight,
-        completedAt,
-      }));
 
       await saveJournalEntry({
         sessionId,
@@ -242,10 +234,16 @@ export function useSession() {
         duration_ms: durationMs,
       });
 
+      setSession(prev => ({
+        ...prev,
+        state: SessionState.RESULT,
+        themes,
+        insight,
+        completedAt,
+      }));
+
       trackEvent({ event: 'session_completed', duration_ms: durationMs });
     } catch {
-      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
-
       await saveJournalEntry({
         sessionId,
         transcripts,
@@ -259,11 +257,24 @@ export function useSession() {
         event_context: calendarEvents,
         duration_ms: durationMs,
       });
+
+      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
     }
   }, []);
 
   const resetSession = useCallback(() => {
     analysisRanRef.current = false;
+
+    // Stop mic and recorder if still active
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    setMicStream(prev => {
+      if (prev) prev.getTracks().forEach(t => t.stop());
+      return null;
+    });
+
     setSession({
       state: SessionState.IDLE,
       sessionId: null,

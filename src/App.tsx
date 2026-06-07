@@ -177,7 +177,20 @@ function App() {
     );
   }
 
-  // Active session (TTS / recording / transcribing / analyzing): full-screen flow.
+  // Analyzing: show a dedicated loading screen instead of the last question
+  if (session.state === SessionState.ANALYZING) {
+    return (
+      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 32px' }}>
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="15" stroke="var(--accent-primary)" strokeWidth="1.5" strokeDasharray="94" strokeDashoffset="0" style={{ animation: 'spin 1.2s linear infinite', transformOrigin: 'center' }} />
+        </svg>
+        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.3, textAlign: 'center' as const }}>Reflecting on your session…</div>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' as const }}>This takes a moment</div>
+      </div>
+    );
+  }
+
+  // Active session (TTS / recording / transcribing): full-screen flow.
   if (session.state !== SessionState.IDLE) {
     const currentRound = session.rounds[Math.min(session.currentQuestion, session.rounds.length - 1)];
     return (
