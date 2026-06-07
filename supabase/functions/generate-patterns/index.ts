@@ -102,6 +102,9 @@ interface PatternInsight {
   pattern_type: string;
   related_tags: string[] | null;
   status: string;
+  user_feedback: string | null;
+  title: string | null;
+  note: string | null;
 }
 
 function toDateStr(d: string): string {
@@ -588,54 +591,77 @@ function buildCandidates(
   return filtered.slice(0, MAX_CANDIDATES);
 }
 
-const SYSTEM_PROMPT = `You are writing a personalized Pattern Note for Spire, a private voice journaling app. The system has already assembled deterministic evidence. Your job is to write a warm, grounded, concise reflection note based only on the provided evidence.
+const SYSTEM_PROMPT = `You are writing a personalized Pattern Note for Spire, a private voice journaling app. The system has already assembled deterministic evidence. Your job is to write a warm, grounded, actionable reflection note based only on the provided evidence.
 
 Rules:
 1. Do not invent evidence or make claims beyond the data
 2. Do not make clinical, diagnostic, or medical claims
 3. Do not overstate certainty — match the confidence level
 4. Use the user's stated goal to explain why the pattern may matter
-5. Use MBTI only as a light communication lens, never as causal proof
-6. Ground the note in the provided quotes or evidence
-7. Do not mention "LLM", "model", "data", "transcripts", or "backend"
-8. Do not mention skipped questions
-9. Do not shame, judge, or optimize the user
-10. Make the note feel personal and useful
-11. Write in second person ("you", "your")
+5. Ground the note in the provided quotes or evidence
+6. Do not mention "LLM", "model", "data", "transcripts", or "backend"
+7. Do not mention skipped questions
+8. Do not shame, judge, or optimize the user
+9. Make the note feel personal, useful, and ACTIONABLE
+10. Write in second person ("you", "your")
 
 Confidence language:
 - early_signal: "This may be showing up…", "This might be worth watching…"
 - emerging_pattern: "Spire is starting to notice…", "This seems to be becoming…"
 - strong_pattern: "This has shown up consistently…", "This appears to be a recurring…"
 
-MBTI framing rules:
-- Use "Since you identify as [MBTI]…" not "Because you are [MBTI]…"
-- Omit MBTI framing if mbti is null or would feel forced
-- INTJ/ENTJ: structured, systems-oriented, concise
-- INFP/INFJ: values-oriented, meaning-driven, emotionally nuanced
-- ENFP/ENTP: exploratory, flexible, possibility-oriented
-- ISTJ/ISFJ: practical, routine-oriented, concrete
-- ESTP/ESFP: experiential, immediate, energetic
-- INTP/ISTP: analytical, experimental, precise
-- ENFJ/ESFJ: relational, supportive, people-aware
-- ISFP: personal, values-sensitive, gentle
+MBTI-driven suggestions (CRITICAL — this is what makes patterns useful):
+- When MBTI is provided, use it to generate SPECIFIC, ACTIONABLE suggestions that fit the user's personality
+- Don't just observe patterns — connect them to concrete things the user could try
+- Extraverts (E types): suggest social/collaborative versions of solo activities. If they code alone, suggest pair programming, coding cafes, hackathons. If they exercise alone, suggest group classes or workout partners.
+- Introverts (I types): suggest structured alone time, deeper solo versions. If they're drained by meetings, suggest async communication blocks or recovery time.
+- Sensing (S types): suggest concrete, specific actions with clear steps
+- Intuitive (N types): suggest exploring new possibilities, reframing
+- Thinking (T types): suggest systems, experiments, tracking
+- Feeling (F types): suggest connecting with values, relationships, meaning
+- Judging (J types): suggest routines, schedules, planning
+- Perceiving (P types): suggest flexibility, variety, spontaneous options
+- personality_framing should be a SPECIFIC suggestion tied to their MBTI, not a generic observation
+- Example: ENFP who codes a lot → "As someone who thrives on energy from others, you might enjoy coding at a cafe, joining a hackathon, or pair programming — it could make the work feel less draining"
+- Example: INTJ who mentions stress → "You tend to process best with structured thinking time. Try blocking 20 minutes after stressful meetings to decompress with a clear framework"
+- Omit MBTI framing if mbti is null
+
+Previous feedback (learn from this):
+- If the user marked a similar pattern "true", lean into that direction with deeper suggestions
+- If the user marked something "kind_of", refine — the direction was right but the framing needs adjustment
+- If the user marked something "not_really", avoid that angle and try a different interpretation
+- Previous feedback is provided in the context — use it to calibrate tone and accuracy
+
+suggested_experiment MUST be:
+- A specific, concrete thing to try THIS WEEK (not vague advice)
+- Tied to the pattern evidence AND the user's personality
+- Something that would test or leverage the pattern
+- Example: "Try coding at a coffee shop twice this week and note how your energy feels afterward"
+- NOT: "Consider exploring social activities" (too vague)
 
 Return JSON only:
 {
   "title": "max 80 chars, warm and specific",
-  "note": "max 450 chars, reflective paragraph",
+  "note": "max 450 chars, reflective paragraph grounded in evidence",
   "goal_connection": "max 260 chars, connects to user's goal, or null",
-  "personality_framing": "max 240 chars, MBTI-based framing, or null",
-  "reflection_prompt": "max 180 chars, a question for the user",
-  "suggested_experiment": "max 220 chars, a small thing to try",
-  "suggested_if_then_plan": {"if_cue": "...", "then_response": "...", "full_text": "max 240 chars"} or null
+  "personality_framing": "max 280 chars, SPECIFIC MBTI-based actionable suggestion, or null",
+  "reflection_prompt": "max 180 chars, a specific question for the user to sit with",
+  "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week",
+  "suggested_if_then_plan": {"if_cue": "specific trigger", "then_response": "specific action", "full_text": "max 240 chars"} or null
 }`;
+
+interface FeedbackEntry {
+  pattern_type: string;
+  title: string;
+  feedback: string;
+}
 
 async function writePatternNote(
   candidate: Candidate,
   goal: string | null,
   mbti: string | null,
   anthropicKey: string,
+  feedbackHistory: FeedbackEntry[],
 ): Promise<Record<string, unknown> | null> {
   const userMessage = JSON.stringify({
     user_profile: { goal: goal || 'not set', mbti: mbti || null },
@@ -649,6 +675,7 @@ async function writePatternNote(
       quotes: candidate.quotes,
       evidence_summary: candidate.evidence_summary,
     },
+    previous_feedback: feedbackHistory.length > 0 ? feedbackHistory : undefined,
   });
 
   try {
@@ -789,7 +816,7 @@ serve(async (req) => {
         .gte('date', cutoff.toISOString().slice(0, 10)),
       supabase
         .from('pattern_insights')
-        .select('id, pattern_type, related_tags, status')
+        .select('id, pattern_type, related_tags, status, user_feedback, title, note')
         .eq('user_id', user.id),
     ]);
 
@@ -827,10 +854,19 @@ serve(async (req) => {
       });
     }
 
+    // Build feedback history from previous patterns the user responded to
+    const feedbackHistory: FeedbackEntry[] = existingPatterns
+      .filter(p => p.user_feedback && p.title)
+      .map(p => ({
+        pattern_type: p.pattern_type,
+        title: p.title!,
+        feedback: p.user_feedback!,
+      }));
+
     const savedPatterns: Record<string, unknown>[] = [];
 
     for (const candidate of candidates) {
-      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey);
+      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
       if (!llmResult) {
         console.error(`[generate-patterns] Skipping candidate "${candidate.signal}" — LLM failed`);
         continue;
