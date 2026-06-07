@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { QUESTIONS } from '../types/session';
 import { textToSpeech } from '../lib/api';
 
 const FALLBACK_AUDIO: Record<number, string> = {
@@ -39,7 +38,6 @@ export function useTTS() {
     questionIndex: number,
     onDone: () => void,
     instructions?: string,
-    onFallback?: () => void,
   ) => {
     const myId = ++callIdRef.current;
     abortRef.current = false;
@@ -84,7 +82,6 @@ export function useTTS() {
     const fallbackSrc = FALLBACK_AUDIO[questionIndex];
     if (fallbackSrc) {
       try {
-        onFallback?.();
         const audio = new Audio(fallbackSrc);
         audioRef.current = audio;
 
