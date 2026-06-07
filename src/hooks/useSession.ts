@@ -201,7 +201,7 @@ export function useSession() {
     const triggerPatterns = (entryId: string | null) => {
       if (!entryId) return;
       extractEntrySignals(entryId)
-        .then(() => generatePatterns())
+        .then(() => generatePatterns(true))
         .catch(err => console.error('[patterns] background generation failed:', err));
     };
 

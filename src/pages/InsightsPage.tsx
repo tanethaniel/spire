@@ -260,11 +260,8 @@ export function InsightsPage({
               <div style={styles.lockedCard}>
                 <div style={styles.lockTitle}>No patterns yet</div>
                 <div style={styles.lockSub}>
-                  Keep reflecting and Spire will surface connections as they emerge.
+                  Patterns are generated automatically after each session. Keep reflecting and Spire will surface connections as they emerge.
                 </div>
-                <button style={styles.refreshBtnLarge} onClick={onRefreshPatterns} disabled={patternsRefreshing}>
-                  {patternsRefreshing ? 'Generating…' : 'Generate patterns'}
-                </button>
               </div>
             ) : (
               <>

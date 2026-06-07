@@ -119,8 +119,10 @@ function App() {
   const handleDone = useCallback(() => {
     resetSession();
     refreshEntries();
-    refreshPatterns();
     setView('home');
+    // Pattern generation runs in background after session save;
+    // delay the fetch so new patterns are ready when we read them.
+    setTimeout(refreshPatterns, 5000);
   }, [resetSession, refreshEntries, refreshPatterns]);
 
   const handleBack = useCallback(() => {
