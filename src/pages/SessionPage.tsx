@@ -37,6 +37,7 @@ export function SessionPage({
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [locked, setLocked] = useState(false);
   const [popupVisible, setPopupVisible] = useState(false);
+  const [displayQuestion, setDisplayQuestion] = useState<string | null>(null);
   const { speak, cancel: cancelTTS, prefetch } = useTTS();
   const ttsTriggeredRef = useRef(-1);
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,10 +84,13 @@ export function SessionPage({
     ttsTriggeredRef.current = currentQuestion;
 
     setTtsPlaying(true);
+    setDisplayQuestion(null);
     speak(round.question, currentQuestion, () => {
       setTtsPlaying(false);
       onTTSDone();
-    }, round.toneInstruction);
+    }, round.toneInstruction, () => {
+      setDisplayQuestion(QUESTIONS[currentQuestion]?.question ?? round.question);
+    });
 
     // Pre-fetch next question's audio while this one plays
     const next = currentQuestion + 1;
@@ -154,7 +158,7 @@ export function SessionPage({
         )}
 
         <div style={styles.qNumber}>Q{currentQuestion + 1}</div>
-        <div style={styles.qText}>{round.question}</div>
+        <div style={styles.qText}>{displayQuestion ?? round.question}</div>
         <div style={styles.qSub}>{round.subPrompt}</div>
 
         {currentQuestion === 0 && (() => {
