@@ -465,9 +465,28 @@ function buildCandidates(
     if (days < 3) continue;
     const dates = ents.map(e => e.created_at);
     const { confidence, reason } = assignConfidence(ents.length, days, weekSpan(dates));
-    // Gather quotes from signals on those entries
     const entryIdSet = new Set(ents.map(e => e.id));
     const relatedSigs = signals.filter(s => entryIdSet.has(s.entry_id) && s.quote);
+
+    // Find co-occurring activities on these emotion days
+    const coActivities = new Map<string, number>();
+    for (const e of ents) {
+      const tags = [...(e.activity_tags || []), ...(e.keyword_tags || [])];
+      for (const t of tags) {
+        const norm = t.toLowerCase().trim();
+        if (norm) coActivities.set(norm, (coActivities.get(norm) || 0) + 1);
+      }
+    }
+    const topActivities = [...coActivities.entries()]
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([act]) => act);
+
+    const activityNote = topActivities.length > 0
+      ? ` Often alongside: ${topActivities.join(', ')}.`
+      : '';
+
     candidates.push({
       type: 'emotion_trend',
       signal: emotion,
@@ -482,9 +501,58 @@ function buildCandidates(
         quote: s.quote,
       })),
       entry_ids: [...entryIdSet],
-      tags: [emotion, 'emotion'],
-      evidence_summary: `Emotion "${emotion}" appeared on ${days} distinct days.`,
+      tags: [emotion, 'emotion', ...topActivities],
+      evidence_summary: `Emotion "${emotion}" appeared on ${days} distinct days.${activityNote}`,
     });
+  }
+
+  // --- Candidate: Activity-Mood Link ---
+  // Uses structured activity_tags to find activities with consistent mood impact
+  const activityMoodMap = new Map<string, { moods: number[]; entryIds: string[]; dates: string[] }>();
+  for (const e of entries) {
+    if (e.mood_score == null || !e.activity_tags) continue;
+    for (const tag of e.activity_tags) {
+      const norm = tag.toLowerCase().trim();
+      if (!norm) continue;
+      const rec = activityMoodMap.get(norm) || { moods: [], entryIds: [], dates: [] };
+      rec.moods.push(e.mood_score);
+      rec.entryIds.push(e.id);
+      rec.dates.push(e.created_at);
+      activityMoodMap.set(norm, rec);
+    }
+  }
+  if (avgMood != null) {
+    for (const [activity, data] of activityMoodMap) {
+      const days = distinctDaysFromDates(data.dates);
+      if (days < 2 || data.moods.length < 2) continue;
+      const actAvg = data.moods.reduce((a, b) => a + b, 0) / data.moods.length;
+      const delta = actAvg - avgMood;
+      if (Math.abs(delta) < 0.4) continue;
+
+      const { confidence, reason } = assignConfidence(data.moods.length, days, weekSpan(data.dates));
+      const entryIdSet = new Set(data.entryIds);
+      const relatedQuotes = signals
+        .filter(s => entryIdSet.has(s.entry_id) && s.quote)
+        .slice(0, 5);
+
+      candidates.push({
+        type: 'activity_mood_link',
+        signal: activity,
+        confidence,
+        confidence_reason: reason,
+        supporting_days: days,
+        mood_delta: Math.round(delta * 100) / 100,
+        calendar_context: null,
+        quotes: relatedQuotes.map(s => ({
+          date: s.journal_entries?.created_at || '',
+          question_index: s.question_index,
+          quote: s.quote,
+        })),
+        entry_ids: [...entryIdSet],
+        tags: [activity, 'activity_mood'],
+        evidence_summary: `Your mood is ${delta > 0 ? 'higher' : 'lower'} by ${Math.abs(delta).toFixed(1)} on days involving "${activity}" (${days} days, avg mood ${actAvg.toFixed(1)} vs overall ${avgMood.toFixed(1)}).`,
+      });
+    }
   }
 
   // --- Filter candidates ---

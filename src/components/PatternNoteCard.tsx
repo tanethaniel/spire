@@ -237,7 +237,7 @@ const styles: Record<string, React.CSSProperties> = {
   feedbackBtnActive: {
     background: 'var(--accent-primary)',
     color: '#fff',
-    borderColor: 'var(--accent-primary)',
+    border: '1px solid var(--accent-primary)',
   },
   actionRight: {
     display: 'flex',
