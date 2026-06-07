@@ -18,7 +18,7 @@ import { MicPermission } from './components/MicPermission';
 import { BottomNav, type AppView } from './components/BottomNav';
 import { ProfileSheet } from './components/ProfileSheet';
 import { OnboardingFlow } from './components/OnboardingFlow';
-import { dayKey, currentStreak } from './lib/stats';
+import { dayKey, currentStreak, getStreakMilestone } from './lib/stats';
 
 function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null);
@@ -171,6 +171,7 @@ function App() {
         startedAt={session.startedAt}
         completedAt={session.completedAt}
         interpretationEnabled={interpretationEnabled}
+        streak={profileStats.streak + 1}
         onDone={handleDone}
       />
     );

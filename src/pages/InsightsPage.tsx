@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import type { JournalEntry } from '../types/session';
 import { TIPS_MIN_DAYS } from '../types/session';
 import { computeCorrelations, distinctEntryDays, tipsUnlocked } from '../lib/correlations';
 import { applyMbtiFlavor } from '../lib/mbtiMessaging';
-import { dayKey, currentStreak } from '../lib/stats';
+import { dayKey, currentStreak, avgSessionDuration } from '../lib/stats';
 
 interface InsightsPageProps {
   entries: JournalEntry[];
@@ -27,8 +28,19 @@ const COMPLETENESS_COLOR: Record<number, string> = {
   6: '#2E8B3E',
 };
 
+const MOOD_COLOR: Record<number, string> = {
+  [-2]: '#D4756A',
+  [-1]: '#D4A574',
+  [0]: '#B8B8B8',
+  [1]: '#98C84C',
+  [2]: '#6BBFA8',
+};
+
+type CalendarMode = 'completeness' | 'mood';
+
 
 export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userName, mbti, interpretationEnabled }: InsightsPageProps) {
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
 
@@ -40,8 +52,20 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
     completenessByDay.set(k, Math.max(completenessByDay.get(k) ?? 0, score));
   }
 
+  // Average mood per day for mood calendar view
+  const moodByDay = new Map<string, { sum: number; count: number }>();
+  for (const e of answered) {
+    if (e.moodScore === null || e.moodScore === undefined) continue;
+    const k = dayKey(new Date(e.createdAt));
+    const cur = moodByDay.get(k) ?? { sum: 0, count: 0 };
+    cur.sum += e.moodScore;
+    cur.count += 1;
+    moodByDay.set(k, cur);
+  }
+
   const streak = currentStreak(entryDayKeys);
   const totalDays = distinctEntryDays(answered);
+  const avgDuration = avgSessionDuration(answered);
   const unlocked = tipsUnlocked(answered);
   const rawTips = unlocked ? computeCorrelations(answered) : [];
   const tips = mbti ? applyMbtiFlavor(rawTips, mbti) : rawTips;
@@ -53,15 +77,19 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
   const totalCells = HEATMAP_WEEKS * 7;
   const startOffset = totalCells - 1 - endOffset;
 
-  const cells: { key: string; has: boolean; completeness: number }[] = [];
+  const cells: { key: string; has: boolean; completeness: number; mood: number | null; isToday: boolean }[] = [];
+  const todayKey = dayKey(today);
   for (let i = 0; i < totalCells; i++) {
     const d = new Date();
     d.setDate(d.getDate() - startOffset + i);
     const k = dayKey(d);
+    const moodData = moodByDay.get(k);
     cells.push({
       key: k,
       has: entryDayKeys.has(k),
       completeness: completenessByDay.get(k) ?? 0,
+      mood: moodData ? Math.round(moodData.sum / moodData.count) : null,
+      isToday: k === todayKey,
     });
   }
 
@@ -95,30 +123,69 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
                 <div style={styles.statLabel}>days reflected</div>
               </div>
               <div style={styles.stat}>
-                <div style={styles.statNum}>{answered.length}</div>
-                <div style={styles.statLabel}>total sessions</div>
+                <div style={styles.statNum}>{avgDuration}</div>
+                <div style={styles.statLabel}>avg minutes</div>
               </div>
+            </div>
+
+            <div style={styles.calendarToggle}>
+              <button
+                style={{ ...styles.toggleBtn, ...(calendarMode === 'completeness' ? styles.toggleBtnActive : {}) }}
+                onClick={() => setCalendarMode('completeness')}
+              >Consistency</button>
+              <button
+                style={{ ...styles.toggleBtn, ...(calendarMode === 'mood' ? styles.toggleBtnActive : {}) }}
+                onClick={() => setCalendarMode('mood')}
+              >Mood</button>
             </div>
 
             <div style={styles.heatmap}>
               {DAY_LABELS.map((label, i) => (
                 <div key={`lbl-${i}`} style={styles.dayLabel}>{label}</div>
               ))}
-              {cells.map(c => (
-                <div
-                  key={c.key}
-                  title={c.key}
-                  style={{
-                    ...styles.cell,
-                    background: c.has
-                      ? COMPLETENESS_COLOR[c.completeness] ?? 'rgba(255,255,255,0.2)'
-                      : 'rgba(255,255,255,0.2)',
-                    opacity: c.has ? 1 : 0.5,
-                  }}
-                />
-              ))}
+              {cells.map(c => {
+                let bg: string;
+                let cellOpacity: number;
+                if (calendarMode === 'completeness') {
+                  bg = c.has
+                    ? COMPLETENESS_COLOR[c.completeness] ?? 'rgba(255,255,255,0.2)'
+                    : 'rgba(255,255,255,0.2)';
+                  cellOpacity = c.has ? 1 : 0.5;
+                } else {
+                  bg = c.mood !== null
+                    ? MOOD_COLOR[c.mood] ?? 'rgba(255,255,255,0.2)'
+                    : 'rgba(255,255,255,0.2)';
+                  cellOpacity = c.mood !== null ? 1 : 0.5;
+                }
+                return (
+                  <div
+                    key={c.key}
+                    title={c.key}
+                    style={{
+                      ...styles.cell,
+                      background: bg,
+                      opacity: cellOpacity,
+                      transition: 'background 0.3s, opacity 0.3s',
+                      ...(c.isToday ? { boxShadow: 'inset 0 0 0 1.5px var(--accent-primary)' } : {}),
+                    }}
+                  />
+                );
+              })}
             </div>
-            <div style={styles.heatmapLegend}>Last 5 weeks</div>
+            <div style={styles.heatmapLegend}>
+              {calendarMode === 'completeness'
+                ? 'Last 5 weeks'
+                : (
+                  <span style={styles.moodLegend}>
+                    Last 5 weeks · Mood
+                    <span style={styles.legendDots}>
+                      {[-2, -1, 0, 1, 2].map(m => (
+                        <span key={m} style={{ ...styles.legendDot, background: MOOD_COLOR[m] }} />
+                      ))}
+                    </span>
+                  </span>
+                )}
+            </div>
 
             {/* Patterns */}
             <div style={{ ...styles.sectionLabel, marginTop: 28 }}>Patterns</div>
@@ -311,6 +378,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statNum: { fontSize: 26, fontWeight: 700, color: 'var(--accent-primary)', letterSpacing: -0.5 },
   statLabel: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
+  calendarToggle: {
+    display: 'flex', gap: 4, marginBottom: 12,
+    background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 3,
+  },
+  toggleBtn: {
+    flex: 1, padding: '6px 0', border: 'none', borderRadius: 8,
+    background: 'transparent', color: 'var(--text-muted)',
+    fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+  },
+  toggleBtnActive: {
+    background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  },
   heatmap: {
     display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5,
   },
@@ -320,6 +400,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cell: { aspectRatio: '1', borderRadius: 6 },
   heatmapLegend: { fontSize: 11, color: 'var(--text-ghost)', marginTop: 8 },
+  moodLegend: { display: 'flex', alignItems: 'center', gap: 6 },
+  legendDots: { display: 'flex', gap: 3 },
+  legendDot: { width: 8, height: 8, borderRadius: '50%', display: 'inline-block' },
   lockedCard: {
     background: 'var(--bg-surface)',
     backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',

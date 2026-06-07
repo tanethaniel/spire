@@ -236,7 +236,12 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
                   }
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={styles.date}>{formatDate(entry.createdAt)}</div>
+                    <div style={styles.dateRow}>
+                      <span style={styles.date}>{formatDate(entry.createdAt)}</span>
+                      {entry.durationMs && entry.durationMs > 0 && (
+                        <span style={styles.durationBadge}>{Math.round(entry.durationMs / 60000)}m</span>
+                      )}
+                    </div>
                     <div style={styles.meta}>{answeredCount} of 6 answered</div>
                   </div>
                   <span style={{ ...styles.chevron, transform: isOpen ? 'rotate(180deg)' : 'none' }}>∨</span>
@@ -412,7 +417,12 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: 'var(--glass-shadow)',
   },
   cardHead: { display: 'flex', alignItems: 'center', padding: '14px 16px', cursor: 'pointer' },
-  date: { fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 },
+  dateRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  date: { fontSize: 16, fontWeight: 600 },
+  durationBadge: {
+    fontSize: 11, fontWeight: 600, color: 'var(--text-ghost)',
+    background: 'rgba(255,255,255,0.12)', borderRadius: 6, padding: '2px 6px',
+  },
   meta: { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 },
   chevron: { fontSize: 14, color: 'var(--text-ghost)', transition: 'transform 0.2s', marginLeft: 8 },
   cardBody: { padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,0.2)' },

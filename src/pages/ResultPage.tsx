@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { QuestionRound } from '../types/session';
+import { getStreakMilestone } from '../lib/stats';
 
 interface ResultPageProps {
   rounds: QuestionRound[];
@@ -8,13 +9,14 @@ interface ResultPageProps {
   startedAt: string | null;
   completedAt: string | null;
   interpretationEnabled: boolean;
+  streak: number;
   onDone: () => void;
 }
 
 const THEME_COLORS = ['var(--accent-primary)', 'var(--accent-blue)', 'var(--accent-purple)'];
 const Q_LABELS = ['Context', 'Emotions', 'Memory', 'Learning', 'Self', 'Anything else'];
 
-export function ResultPage({ rounds, themes, insight, startedAt, completedAt, interpretationEnabled, onDone }: ResultPageProps) {
+export function ResultPage({ rounds, themes, insight, startedAt, completedAt, interpretationEnabled, streak, onDone }: ResultPageProps) {
   const [phase, setPhase] = useState<'analyzing' | 'content'>('analyzing');
   const [visibleThemes, setVisibleThemes] = useState(0);
   const [insightVisible, setInsightVisible] = useState(false);
@@ -160,7 +162,10 @@ export function ResultPage({ rounds, themes, insight, startedAt, completedAt, in
           Done for today ✓
         </button>
         <div style={styles.streakNote}>
-          Day <span style={{ color: 'var(--accent-primary)' }}>1</span> — come back tomorrow to see patterns
+          {getStreakMilestone(streak)
+            ? <>Day <span style={{ color: 'var(--accent-primary)' }}>{streak}</span> — {getStreakMilestone(streak)}</>
+            : <>Day <span style={{ color: 'var(--accent-primary)' }}>{streak}</span> — come back tomorrow to keep it going</>
+          }
         </div>
       </div>
     </div>
