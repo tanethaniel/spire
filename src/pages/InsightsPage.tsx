@@ -152,13 +152,107 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
                 </div>
               </div>
             ) : (
-              tips.map(tip => (
-                <div key={`${tip.category}-${tip.tag}`} style={styles.tipCard}>
+              tips.map((tip, i) => (
+                <div
+                  key={`${tip.category}-${tip.tag}`}
+                  style={{
+                    ...styles.tipCard,
+                    animation: 'slideUp 0.4s ease-out both',
+                    animationDelay: `${i * 0.08}s`,
+                  }}
+                >
                   <div style={styles.tipGradient} />
                   <div style={styles.tipMessage}>{tip.message}</div>
+
+                  {/* Activity / Schedule / Social — comparison bars */}
+                  {(tip.category === 'activity' || tip.category === 'schedule' || tip.category === 'social') && (
+                    <div style={styles.barsWrap}>
+                      <div style={styles.barRow}>
+                        <span style={styles.barLabel}>With {tip.tag}</span>
+                        <div style={styles.barTrack}>
+                          <div style={{ ...styles.barFillWith, width: `${((tip.withTagAvg + 2) / 4) * 100}%` }} />
+                        </div>
+                        <span style={styles.barValue}>{tip.withTagAvg > 0 ? '+' : ''}{tip.withTagAvg}</span>
+                      </div>
+                      <div style={styles.barRow}>
+                        <span style={styles.barLabel}>Without</span>
+                        <div style={styles.barTrack}>
+                          <div style={{ ...styles.barFillWithout, width: `${((tip.withoutTagAvg + 2) / 4) * 100}%` }} />
+                        </div>
+                        <span style={styles.barValue}>{tip.withoutTagAvg > 0 ? '+' : ''}{tip.withoutTagAvg}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Observation — frequency dots */}
+                  {tip.category === 'observation' && tip.totalDays && (
+                    <div style={styles.dotsWrap}>
+                      {Array.from({ length: tip.totalDays }, (_, j) => (
+                        <span
+                          key={j}
+                          style={{
+                            ...styles.dot,
+                            background: j < tip.dayCount
+                              ? 'var(--accent-primary)'
+                              : 'rgba(255,255,255,0.25)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Trend — sparkline */}
+                  {tip.category === 'trend' && tip.moodHistory && tip.moodHistory.length > 1 && (
+                    <svg viewBox="0 0 200 40" style={styles.sparkSvg}>
+                      <defs>
+                        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.3" />
+                          <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <line x1="0" y1="20" x2="200" y2="20" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 3" />
+                      <polyline
+                        fill="none"
+                        stroke="var(--accent-primary)"
+                        strokeWidth="2"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        points={tip.moodHistory
+                          .map((m, j) => {
+                            const x = (j / (tip.moodHistory!.length - 1)) * 200;
+                            const y = 40 - ((m + 2) / 4) * 40;
+                            return `${x},${y}`;
+                          })
+                          .join(' ')}
+                      />
+                      <polygon
+                        fill="url(#sparkGrad)"
+                        points={[
+                          ...tip.moodHistory.map((m, j) => {
+                            const x = (j / (tip.moodHistory!.length - 1)) * 200;
+                            const y = 40 - ((m + 2) / 4) * 40;
+                            return `${x},${y}`;
+                          }),
+                          `200,40`,
+                          `0,40`,
+                        ].join(' ')}
+                      />
+                    </svg>
+                  )}
+
+                  {/* Recurring — tag chip with count */}
+                  {tip.category === 'recurring' && (
+                    <div style={styles.chipWrap}>
+                      <span style={styles.chip}>
+                        {tip.tag}
+                        <span style={styles.chipBadge}>{tip.dayCount}</span>
+                      </span>
+                    </div>
+                  )}
+
                   <div style={styles.tipMeta}>
                     {tip.category === 'observation'
-                      ? `${tip.dayCount} of your recent days`
+                      ? `${tip.dayCount} of your last ${tip.totalDays ?? tip.dayCount} days`
                       : tip.category === 'recurring'
                       ? `Mentioned in ${tip.dayCount} recent sessions`
                       : tip.category === 'trend'
@@ -257,4 +351,41 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tipMessage: { fontSize: 16, lineHeight: 1.5, color: 'var(--text-secondary)' },
   tipMeta: { fontSize: 12, color: 'var(--text-ghost)', marginTop: 8 },
+
+  barsWrap: { marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 },
+  barRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  barLabel: { fontSize: 11, color: 'var(--text-muted)', width: 70, flexShrink: 0 },
+  barTrack: {
+    flex: 1, height: 8, borderRadius: 4,
+    background: 'rgba(255,255,255,0.1)', overflow: 'hidden',
+  },
+  barFillWith: {
+    height: '100%', borderRadius: 4,
+    background: 'var(--accent-primary)', transition: 'width 0.4s ease-out',
+  },
+  barFillWithout: {
+    height: '100%', borderRadius: 4,
+    background: 'rgba(255,255,255,0.3)', transition: 'width 0.4s ease-out',
+  },
+  barValue: { fontSize: 11, color: 'var(--text-ghost)', width: 28, textAlign: 'right' as const },
+
+  dotsWrap: { marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' },
+  dot: { width: 10, height: 10, borderRadius: '50%', display: 'inline-block' },
+
+  sparkSvg: { width: '100%', height: 40, marginTop: 12 },
+
+  chipWrap: { marginTop: 12 },
+  chip: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '4px 12px', borderRadius: 20,
+    background: 'rgba(107,191,168,0.15)',
+    border: '1px solid rgba(107,191,168,0.3)',
+    fontSize: 13, color: 'var(--text-secondary)',
+  },
+  chipBadge: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 18, height: 18, borderRadius: '50%',
+    background: 'var(--accent-primary)', color: '#fff',
+    fontSize: 10, fontWeight: 700,
+  },
 };

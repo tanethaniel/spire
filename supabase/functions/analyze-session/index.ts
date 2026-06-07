@@ -143,17 +143,25 @@ Rules for insight:
 - Forbidden openers: "It sounds like you care about...", "You seem to value...", "Today was clearly..."
 - Forbidden topics: commenting on brevity, empty answers, or the journaling process itself
 - If the user gave short/casual answers, reflect warmly on what they shared — even "it was a fine day" is worth a gentle observation
+- Every claim must be traceable to something the user explicitly said in the transcripts
+- Never infer activities, emotions, or events not mentioned in the transcripts
+- If transcripts are very brief, keep the insight proportionally brief — do not elaborate beyond what was said
 
 Rules for mood_score:
 - An integer from -2 to 2 capturing the overall emotional tone of the day, primarily from Q2 (emotions)
 - -2 = very negative, -1 = somewhat negative, 0 = neutral/mixed, 1 = somewhat positive, 2 = very positive
-- Base it only on what the user actually expressed; if there is no emotional signal, use 0
+- Base it only on what the user actually expressed
+- If the user expressed a genuinely neutral or mixed emotional state, use 0
+- If the user did not discuss emotions at all or Q2 was skipped, return null instead of 0
 
 Rules for activity_tags:
 - 0 to 6 short lowercase tags for concrete activities, people, or contexts the user mentioned (mainly from Q1)
 - Single words or short phrases, normalized and reusable across days: "gym", "work", "friends", "family dinner", "deadline"
 - Lowercase, no punctuation, no emotions or adjectives as tags
 - If nothing concrete is mentioned, return an empty array
+- Only tag activities the user explicitly mentioned — never infer activities from context clues
+- Prefer these canonical tags when applicable: gym, running, yoga, work, reading, cooking, walking, friends, family, partner, coding, meetings
+- If the user mentions a synonym (e.g., "worked out", "hit the weights"), map to the canonical form ("gym")
 
 Rules for summary:
 - One sentence, max 20 words, capturing the emotional and factual essence of the session
@@ -165,8 +173,10 @@ Rules for keyword_tags:
 - 0 to 10 lowercase tags capturing context, schedule type, social dynamics, energy, and recurring topics
 - Include concrete activities (like activity_tags), plus schedule descriptors ("busy", "balanced", "light day"), social context ("alone", "with friends", "family time"), energy or state ("tired", "energized", "stressed", "relaxed"), and recurring themes ("work pressure", "creative flow", "relationship tension")
 - Lowercase, no punctuation, 1-3 words each
-- Be consistent across sessions: always use "gym" not sometimes "working out" then "exercise"
 - These power pattern recognition — err on the side of including more tags rather than fewer
+- Prefer these canonical tags when applicable: gym, running, yoga, work, reading, cooking, walking, friends, family, partner, coding, meetings, boxing, tennis, swimming
+- If the user mentions a synonym (e.g., "worked out", "hit the weights", "went for a jog"), map to the canonical form ("gym", "running")
+- Every tag must trace back to something the user said — no inferred or assumed tags
 
 Return JSON with this exact shape and no other text:
 {"themes": ["Theme 1"], "insight": "Your insight here", "mood_score": 0, "activity_tags": ["tag1"], "summary": "Your summary here", "keyword_tags": ["tag1", "tag2"]}`,

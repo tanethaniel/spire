@@ -6,6 +6,24 @@ const MIN_MOOD_DELTA = 0.5;
 const MAX_TIPS = 6;
 const MAX_PER_CATEGORY = 2;
 
+const TAG_SYNONYMS: Record<string, string> = {
+  workout: 'gym', exercise: 'gym', weights: 'gym', lifting: 'gym',
+  'weight training': 'gym', 'working out': 'gym', fitness: 'gym',
+  jogging: 'running', jog: 'running', run: 'running',
+  programming: 'coding', dev: 'coding', development: 'coding',
+  'side project': 'coding',
+  office: 'work', job: 'work',
+  'hanging out': 'friends', socializing: 'friends',
+  'family dinner': 'family', parents: 'family',
+  calls: 'meetings', standup: 'meetings', 'stand-up': 'meetings',
+  book: 'reading', books: 'reading',
+  netflix: 'watching', tv: 'watching', movie: 'watching',
+};
+
+function normalizeTag(tag: string): string {
+  return TAG_SYNONYMS[tag] ?? tag;
+}
+
 interface DaySignal {
   tags: Set<string>;
   keywordTags: string[];
@@ -31,11 +49,12 @@ function buildDayMap(entries: JournalEntry[]): Map<string, DaySignal> {
       days.set(key, day);
     }
     if (e.activityTags) {
-      for (const t of e.activityTags) day.tags.add(t);
+      for (const t of e.activityTags) day.tags.add(normalizeTag(t));
     }
     if (e.keywordTags) {
       for (const t of e.keywordTags) {
-        if (!day.keywordTags.includes(t)) day.keywordTags.push(t);
+        const norm = normalizeTag(t);
+        if (!day.keywordTags.includes(norm)) day.keywordTags.push(norm);
       }
     }
     if (e.moodScore !== null && e.moodScore !== undefined) {
@@ -136,20 +155,21 @@ function computeRecurringTopics(entries: JournalEntry[]): CorrelationTip[] {
   const recent = entries
     .filter(e => e.keywordTags && e.keywordTags.length > 0)
     .slice(0, 10);
-  if (recent.length < 5) return [];
+  if (recent.length < 4) return [];
 
   const tagCounts = new Map<string, number>();
   for (const e of recent) {
     for (const t of e.keywordTags!) {
-      if (SCHEDULE_TAGS.has(t) || SOCIAL_TAGS.has(t)) continue;
-      tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+      const norm = normalizeTag(t);
+      if (SCHEDULE_TAGS.has(norm) || SOCIAL_TAGS.has(norm)) continue;
+      tagCounts.set(norm, (tagCounts.get(norm) ?? 0) + 1);
     }
   }
 
   const tips: CorrelationTip[] = [];
   for (const [tag, count] of tagCounts) {
     const ratio = count / recent.length;
-    if (ratio >= 0.6 && count >= 3) {
+    if (ratio >= 0.4 && count >= 3) {
       tips.push({
         tag,
         withTagAvg: 0,
@@ -179,12 +199,15 @@ function computeSentimentTrend(entries: JournalEntry[]): CorrelationTip[] {
 
   if (Math.abs(delta) < MIN_MOOD_DELTA) return [];
 
+  const moodHistory = [...prior, ...recent3].reverse();
+
   return [{
     tag: 'mood trend',
     withTagAvg: round1(recentAvg),
     withoutTagAvg: round1(priorAvg),
     dayCount: recent3.length + prior.length,
     category: 'trend',
+    moodHistory,
     message: delta > 0
       ? 'Your mood has been trending upward recently.'
       : 'Your mood has been dipping a bit recently — take care of yourself.',
@@ -194,7 +217,7 @@ function computeSentimentTrend(entries: JournalEntry[]): CorrelationTip[] {
 const OBSERVATION_SKIP = new Set([
   ...SCHEDULE_TAGS, ...SOCIAL_TAGS,
   'light day', 'quiet day', 'reflective', 'self expression',
-  'low energy', 'energized', 'productive', 'tired',
+  'low energy',
 ]);
 
 function computeObservationalStats(days: Map<string, DaySignal>): CorrelationTip[] {
@@ -234,6 +257,7 @@ function computeObservationalStats(days: Map<string, DaySignal>): CorrelationTip
       withTagAvg: 0,
       withoutTagAvg: 0,
       dayCount: count,
+      totalDays,
       category: 'observation',
       message,
     });

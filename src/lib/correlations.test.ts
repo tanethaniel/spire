@@ -48,6 +48,24 @@ describe('tipsUnlocked', () => {
   });
 });
 
+describe('tag normalization', () => {
+  it('merges synonym tags into canonical forms', () => {
+    const entries = [
+      entry('2026-06-01', 2, ['workout']),
+      entry('2026-06-02', 2, ['exercise']),
+      entry('2026-06-03', 2, ['gym']),
+      entry('2026-06-04', -1, ['work']),
+      entry('2026-06-05', -1, ['work']),
+      entry('2026-06-06', -1, ['work']),
+      entry('2026-06-07', 0, ['work']),
+    ];
+    const tips = computeCorrelations(entries);
+    const gym = tips.find(t => t.tag === 'gym');
+    expect(gym).toBeDefined();
+    expect(gym!.dayCount).toBe(3);
+  });
+});
+
 describe('computeCorrelations', () => {
   it('returns nothing before the minimum days are reached', () => {
     const entries = [

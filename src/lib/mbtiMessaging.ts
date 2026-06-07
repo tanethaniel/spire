@@ -102,12 +102,23 @@ function flavorTrend(tip: CorrelationTip, dim: MbtiDimensions): string {
     : "You've been carrying a heavier load lately — be kind to yourself.";
 }
 
+function flavorObservation(tip: CorrelationTip, dim: MbtiDimensions): string {
+  const { tag, dayCount, totalDays } = tip;
+  const total = totalDays ?? dayCount;
+
+  if (dim.info === 'S') {
+    return `${cap(tag)} showed up on ${dayCount} of your last ${total} days — a consistent pattern.`;
+  }
+  return `${cap(tag)} keeps showing up — something about it clearly matters to you.`;
+}
+
 const FLAVOR_FNS: Record<string, (tip: CorrelationTip, dim: MbtiDimensions) => string> = {
   activity: flavorActivity,
   schedule: flavorSchedule,
   social: flavorSocial,
   recurring: flavorRecurring,
   trend: flavorTrend,
+  observation: flavorObservation,
 };
 
 export function applyMbtiFlavor(tips: CorrelationTip[], mbti: string): CorrelationTip[] {
