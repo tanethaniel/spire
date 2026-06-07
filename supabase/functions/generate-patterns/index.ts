@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const MAX_PATTERNS_PER_DAY = 5;
-const MAX_CANDIDATES = 6;
+const MAX_CANDIDATES = 10;
 
 const TRANSCRIPT_FIELDS = [
   'q1_transcript', 'q2_transcript', 'q3_transcript',
@@ -173,7 +173,7 @@ function buildCandidates(
     if (!value) continue;
     const days = distinctDaysFromDates(sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean));
     const pct = entries.length > 0 ? sigs.length / entries.length : 0;
-    if (days >= 3 || pct >= 0.4) {
+    if (days >= 2 || pct >= 0.3) {
       const dates = sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean);
       const { confidence, reason } = assignConfidence(sigs.length, days, weekSpan(dates));
       candidates.push({
@@ -203,7 +203,7 @@ function buildCandidates(
     const daysWithTag = distinctDaysFromDates(
       sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean),
     );
-    if (daysWithTag < 3) continue;
+    if (daysWithTag < 2) continue;
 
     const withTagMoods: number[] = [];
     const withoutTagMoods: number[] = [];
@@ -215,7 +215,7 @@ function buildCandidates(
         withoutTagMoods.push(e.mood_score);
       }
     }
-    if (withoutTagMoods.length < 3) continue;
+    if (withoutTagMoods.length < 2) continue;
     const avgWith = withTagMoods.reduce((a, b) => a + b, 0) / withTagMoods.length;
     const avgWithout = withoutTagMoods.reduce((a, b) => a + b, 0) / withoutTagMoods.length;
     const delta = avgWith - avgWithout;
@@ -331,7 +331,7 @@ function buildCandidates(
     const days = distinctDaysFromDates(
       relSignals.map(s => s.journal_entries?.created_at || '').filter(Boolean),
     );
-    if (days < 3) continue;
+    if (days < 2) continue;
 
     // Find co-occurring emotion/need/self_belief signals on same entries
     const relEntryIds = new Set(relSignals.map(s => s.entry_id));
@@ -462,7 +462,7 @@ function buildCandidates(
   }
   for (const [emotion, ents] of emotionCounts) {
     const days = distinctDaysFromDates(ents.map(e => e.created_at));
-    if (days < 3) continue;
+    if (days < 2) continue;
     const dates = ents.map(e => e.created_at);
     const { confidence, reason } = assignConfidence(ents.length, days, weekSpan(dates));
     const entryIdSet = new Set(ents.map(e => e.id));
