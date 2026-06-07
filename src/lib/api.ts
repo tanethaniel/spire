@@ -275,6 +275,39 @@ export async function extractEntrySignals(entryId: string): Promise<void> {
   }
 }
 
+export async function backfillEntrySignals(): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: entries } = await supabase
+    .from('journal_entries')
+    .select('id')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (!entries || entries.length === 0) return 0;
+
+  const { data: existing } = await supabase
+    .from('entry_signals')
+    .select('journal_entry_id')
+    .eq('user_id', user.id);
+  const hasSignals = new Set((existing ?? []).map(r => r.journal_entry_id));
+
+  const missing = entries.filter(e => !hasSignals.has(e.id));
+  if (missing.length === 0) return 0;
+
+  let extracted = 0;
+  for (const entry of missing) {
+    try {
+      await extractEntrySignals(entry.id);
+      extracted++;
+    } catch {
+      console.error(`[backfill] failed for entry ${entry.id}`);
+    }
+  }
+  return extracted;
+}
+
 export async function generatePatterns(forceRefresh = false): Promise<PatternNote[]> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PatternNote, PatternFeedback, PatternStatus } from '../types/session';
-import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns } from '../lib/api';
+import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals } from '../lib/api';
 
 export function usePatternNotes(authed: boolean, interpretationEnabled: boolean) {
   const [patterns, setPatterns] = useState<PatternNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const backfillRanRef = useRef(false);
 
   useEffect(() => {
     if (!authed || !interpretationEnabled) {
@@ -15,7 +16,29 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     }
     let cancelled = false;
     fetchPatternNotes()
-      .then(notes => { if (!cancelled) setPatterns(notes); })
+      .then(async (notes) => {
+        if (cancelled) return;
+        setPatterns(notes);
+        // If no patterns exist and we haven't backfilled yet, extract
+        // signals from older entries and generate patterns automatically.
+        if (notes.length === 0 && !backfillRanRef.current) {
+          backfillRanRef.current = true;
+          try {
+            const extracted = await backfillEntrySignals();
+            if (extracted > 0) {
+              const generated = await generatePatterns(true);
+              if (!cancelled && generated.length > 0) {
+                setPatterns(generated);
+              } else if (!cancelled) {
+                const fetched = await fetchPatternNotes();
+                setPatterns(fetched);
+              }
+            }
+          } catch (err) {
+            console.error('[usePatternNotes] backfill failed:', err);
+          }
+        }
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

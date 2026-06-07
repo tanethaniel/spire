@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 // Maximum number of extractions a user can perform per day
-const MAX_EXTRACTIONS_PER_DAY = 10;
+const MAX_EXTRACTIONS_PER_DAY = 50;
 
 // Maximum number of signals allowed per entry
 const MAX_SIGNALS_PER_ENTRY = 30;
