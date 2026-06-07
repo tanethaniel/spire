@@ -341,6 +341,10 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
                       ? `Mentioned in ${tip.dayCount} recent sessions`
                       : tip.category === 'trend'
                       ? `Over the last ${tip.dayCount} days`
+                      : tip.category === 'emotion'
+                      ? `Based on ${tip.dayCount} sessions`
+                      : tip.category === 'dayofweek'
+                      ? `Across ${tip.dayCount} ${tip.tag}s`
                       : `Across ${tip.dayCount} days with "${tip.tag}"`}
                   </div>
                 </div>

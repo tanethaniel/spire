@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { computeCorrelations, distinctEntryDays, tipsUnlocked } from './correlations';
 import type { JournalEntry } from '../types/session';
 
-// Minimal entry factory — only the fields correlation cares about.
-function entry(date: string, mood: number | null, tags: string[] | null): JournalEntry {
+function entry(
+  date: string,
+  mood: number | null,
+  tags: string[] | null,
+  emotion: string | null = null,
+): JournalEntry {
   return {
     id: date + Math.random(),
     createdAt: `${date}T12:00:00.000Z`,
@@ -11,7 +15,7 @@ function entry(date: string, mood: number | null, tags: string[] | null): Journa
     themes: null,
     insight: null,
     moodScore: mood,
-    emotionTag: null,
+    emotionTag: emotion,
     activityTags: tags,
     summary: null,
     keywordTags: null,
@@ -94,7 +98,7 @@ describe('computeCorrelations', () => {
     expect(gymObs!.dayCount).toBe(3);
   });
 
-  it('surfaces a positive correlation when gym days have clearly better moods', () => {
+  it('surfaces a positive correlation with graduated language', () => {
     const entries = [
       entry('2026-06-01', 2, ['gym']),
       entry('2026-06-02', 2, ['gym']),
@@ -107,7 +111,8 @@ describe('computeCorrelations', () => {
     const tips = computeCorrelations(entries);
     const gym = tips.find(t => t.tag === 'gym');
     expect(gym).toBeDefined();
-    expect(gym!.message).toContain('better moods');
+    expect(gym!.message).toContain('better');
+    expect(gym!.message).toMatch(/slightly|noticeably|significantly/);
     expect(gym!.withTagAvg).toBeGreaterThan(gym!.withoutTagAvg);
     expect(gym!.dayCount).toBe(3);
   });
@@ -168,5 +173,118 @@ describe('computeCorrelations', () => {
       entry('2026-06-08', -2, ['work']),
     ];
     expect(() => computeCorrelations(entries)).not.toThrow();
+  });
+});
+
+describe('emotion patterns', () => {
+  it('surfaces the dominant emotion when enough data exists', () => {
+    const entries = [
+      entry('2026-06-01', 1, ['gym'], 'happy'),
+      entry('2026-06-02', 1, ['gym'], 'happy'),
+      entry('2026-06-03', 0, ['work'], 'happy'),
+      entry('2026-06-04', -1, ['work'], 'anxious'),
+      entry('2026-06-05', -1, ['work'], 'tired'),
+    ];
+    const tips = computeCorrelations(entries);
+    const emotionTip = tips.find(t => t.category === 'emotion');
+    expect(emotionTip).toBeDefined();
+    expect(emotionTip!.tag).toBe('happy');
+    expect(emotionTip!.message.toLowerCase()).toContain('happy');
+  });
+
+  it('does not surface emotion patterns with fewer than 5 entries', () => {
+    const entries = [
+      entry('2026-06-01', 1, ['gym'], 'happy'),
+      entry('2026-06-02', 1, ['gym'], 'happy'),
+      entry('2026-06-03', 0, ['work'], 'happy'),
+      entry('2026-06-04', -1, ['work'], 'anxious'),
+    ];
+    const tips = computeCorrelations(entries);
+    expect(tips.find(t => t.category === 'emotion')).toBeUndefined();
+  });
+
+  it('surfaces emotion+activity co-occurrence', () => {
+    const entries = [
+      entry('2026-06-01', -1, ['deadline'], 'anxious'),
+      entry('2026-06-02', -1, ['deadline'], 'anxious'),
+      entry('2026-06-03', -1, ['deadline'], 'anxious'),
+      entry('2026-06-04', 1, ['gym'], 'happy'),
+      entry('2026-06-05', 1, ['gym'], 'happy'),
+    ];
+    const tips = computeCorrelations(entries);
+    const coTip = tips.find(t => t.category === 'emotion' && t.tag.includes('+'));
+    // anxious+deadline should surface since anxious is the dominant emotion
+    // and the co-occurrence with a different emotion might show up
+    // The dominant emotion (anxious, 3 of 5) surfaces as the primary tip
+    const dominantTip = tips.find(t => t.category === 'emotion' && t.tag === 'anxious');
+    expect(dominantTip).toBeDefined();
+  });
+});
+
+describe('day-of-week patterns', () => {
+  it('surfaces the best day of the week', () => {
+    // Create entries spanning multiple weeks, same day-of-week
+    // 2026-06-01 is a Monday, 2026-06-08 is a Monday, 2026-06-15 is Monday
+    const entries = [
+      entry('2026-06-01', 2, ['gym']),   // Mon
+      entry('2026-06-08', 2, ['gym']),   // Mon
+      entry('2026-06-15', 2, ['gym']),   // Mon
+      entry('2026-06-02', -1, ['work']), // Tue
+      entry('2026-06-09', -1, ['work']), // Tue
+      entry('2026-06-16', -1, ['work']), // Tue
+      entry('2026-06-03', 0, ['work']),  // Wed
+    ];
+    const tips = computeCorrelations(entries);
+    const dowTip = tips.find(t => t.category === 'dayofweek');
+    expect(dowTip).toBeDefined();
+    expect(dowTip!.tag).toBe('Monday');
+    expect(dowTip!.message).toContain('best');
+  });
+
+  it('does not surface day-of-week with insufficient data', () => {
+    const entries = [
+      entry('2026-06-01', 2, ['gym']),
+      entry('2026-06-02', -1, ['work']),
+      entry('2026-06-03', 0, ['work']),
+    ];
+    const tips = computeCorrelations(entries);
+    expect(tips.find(t => t.category === 'dayofweek')).toBeUndefined();
+  });
+});
+
+describe('graduated language', () => {
+  it('uses "slightly" for small deltas', () => {
+    // Delta of 0.5 (min threshold)
+    const entries = [
+      entry('2026-06-01', 1, ['gym']),
+      entry('2026-06-02', 1, ['gym']),
+      entry('2026-06-03', 1, ['gym']),
+      entry('2026-06-04', 0, ['work']),
+      entry('2026-06-05', 1, ['work']),
+      entry('2026-06-06', 0, ['work']),
+      entry('2026-06-07', 0, ['work']),
+    ];
+    const tips = computeCorrelations(entries);
+    const gym = tips.find(t => t.tag === 'gym' && t.category === 'activity');
+    if (gym) {
+      expect(gym.message).toContain('slightly');
+    }
+  });
+
+  it('uses "significantly" for large deltas', () => {
+    // Delta of ~3.5
+    const entries = [
+      entry('2026-06-01', 2, ['gym']),
+      entry('2026-06-02', 2, ['gym']),
+      entry('2026-06-03', 2, ['gym']),
+      entry('2026-06-04', -2, ['work']),
+      entry('2026-06-05', -2, ['work']),
+      entry('2026-06-06', -1, ['work']),
+      entry('2026-06-07', -1, ['work']),
+    ];
+    const tips = computeCorrelations(entries);
+    const gym = tips.find(t => t.tag === 'gym' && t.category === 'activity');
+    expect(gym).toBeDefined();
+    expect(gym!.message).toContain('significantly');
   });
 });

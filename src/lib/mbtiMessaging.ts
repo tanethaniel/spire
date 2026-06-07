@@ -112,6 +112,38 @@ function flavorObservation(tip: CorrelationTip, dim: MbtiDimensions): string {
   return `${cap(tag)} keeps showing up — something about it clearly matters to you.`;
 }
 
+function flavorEmotion(tip: CorrelationTip, dim: MbtiDimensions): string {
+  const { tag, dayCount } = tip;
+  const isCoOccurrence = tag.includes('+');
+
+  if (isCoOccurrence) {
+    const [emotion, activity] = tag.split('+');
+    if (dim.info === 'S') {
+      return `In ${dayCount} sessions, ${activity} coincided with feeling ${emotion} — a consistent pattern.`;
+    }
+    return `There's a link between ${activity} and feeling ${emotion} — it comes up often.`;
+  }
+
+  if (dim.decision === 'F') {
+    return `${cap(tag)} has been your most frequent feeling — it's worth sitting with what that means to you.`;
+  }
+  return `${cap(tag)} is your dominant emotion — ${dayCount} sessions and counting.`;
+}
+
+function flavorDayOfWeek(tip: CorrelationTip, dim: MbtiDimensions): string {
+  const positive = tip.withTagAvg > tip.withoutTagAvg;
+  const { tag } = tip;
+
+  if (dim.lifestyle === 'J') {
+    return positive
+      ? `${tag}s consistently bring out your best — your rhythm seems to favor this day.`
+      : `${tag}s tend to be harder — knowing this, you could plan lighter.`;
+  }
+  return positive
+    ? `${tag}s seem to be your sweet spot — something about that day works for you.`
+    : `${tag}s are rougher than average — maybe worth mixing things up on those days.`;
+}
+
 const FLAVOR_FNS: Record<string, (tip: CorrelationTip, dim: MbtiDimensions) => string> = {
   activity: flavorActivity,
   schedule: flavorSchedule,
@@ -119,6 +151,8 @@ const FLAVOR_FNS: Record<string, (tip: CorrelationTip, dim: MbtiDimensions) => s
   recurring: flavorRecurring,
   trend: flavorTrend,
   observation: flavorObservation,
+  emotion: flavorEmotion,
+  dayofweek: flavorDayOfWeek,
 };
 
 export function applyMbtiFlavor(tips: CorrelationTip[], mbti: string): CorrelationTip[] {

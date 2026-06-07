@@ -89,7 +89,7 @@ export interface CorrelationTip {
   withTagAvg: number;
   withoutTagAvg: number;
   dayCount: number;
-  category?: 'activity' | 'schedule' | 'social' | 'recurring' | 'trend' | 'observation';
+  category?: 'activity' | 'schedule' | 'social' | 'recurring' | 'trend' | 'observation' | 'emotion' | 'dayofweek';
   totalDays?: number;
   moodHistory?: number[];
 }
