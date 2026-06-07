@@ -102,6 +102,7 @@ serve(async (req) => {
         themes: [],
         insight: null,
         mood_score: null,
+        emotion_tag: null,
         activity_tags: [],
         summary: null,
         keyword_tags: [],
@@ -169,6 +170,19 @@ Rules for summary:
 - Never reference the session, app, or missing questions
 - If answers are very brief, still produce a warm summary of what was shared
 
+Rules for emotion_tag:
+- Pick exactly one from: "happy", "sad", "angry", "tired", "anxious", "bored", "focused"
+- Choose the single emotion that best captures the user's overall emotional state for this session
+- Base it on the full transcript, especially Q2 (emotions), but consider tone across all answers
+- If the user seems content, satisfied, or joyful → "happy"
+- If the user seems down, disappointed, or grieving → "sad"
+- If the user seems frustrated, irritated, or upset → "angry"
+- If the user seems exhausted, drained, or low-energy → "tired"
+- If the user seems worried, nervous, or stressed → "anxious"
+- If the user seems disengaged, restless, or understimulated → "bored"
+- If the user seems determined, productive, or locked-in → "focused"
+- If the user did not discuss emotions at all or Q2 was skipped, return null
+
 Rules for keyword_tags:
 - 0 to 10 lowercase tags capturing context, schedule type, social dynamics, energy, and recurring topics
 - Include concrete activities (like activity_tags), plus schedule descriptors ("busy", "balanced", "light day"), social context ("alone", "with friends", "family time"), energy or state ("tired", "energized", "stressed", "relaxed"), and recurring themes ("work pressure", "creative flow", "relationship tension")
@@ -179,7 +193,7 @@ Rules for keyword_tags:
 - Every tag must trace back to something the user said — no inferred or assumed tags
 
 Return JSON with this exact shape and no other text:
-{"themes": ["Theme 1"], "insight": "Your insight here", "mood_score": 0, "activity_tags": ["tag1"], "summary": "Your summary here", "keyword_tags": ["tag1", "tag2"]}`,
+{"themes": ["Theme 1"], "insight": "Your insight here", "mood_score": 0, "emotion_tag": "happy", "activity_tags": ["tag1"], "summary": "Your summary here", "keyword_tags": ["tag1", "tag2"]}`,
         messages: [{
           role: 'user',
           content: `Here are the journal transcripts to analyze:\n\n<transcripts>\n${filledTranscripts}\n</transcripts>`,
@@ -245,10 +259,17 @@ Return JSON with this exact shape and no other text:
       ? parsed.insight.trim().slice(0, 500)
       : null;
 
+    const VALID_EMOTIONS = new Set(['happy', 'sad', 'angry', 'tired', 'anxious', 'bored', 'focused']);
+    const emotionTag: string | null = typeof parsed.emotion_tag === 'string'
+        && VALID_EMOTIONS.has(parsed.emotion_tag.toLowerCase())
+      ? parsed.emotion_tag.toLowerCase()
+      : null;
+
     return new Response(JSON.stringify({
       themes,
       insight,
       mood_score: moodScore,
+      emotion_tag: emotionTag,
       activity_tags: activityTags,
       summary,
       keyword_tags: keywordTags,

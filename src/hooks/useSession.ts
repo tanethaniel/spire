@@ -206,6 +206,7 @@ export function useSession() {
         themes: null,
         insight: null,
         mood_score: null,
+        emotion_tag: null,
         activity_tags: null,
         summary: null,
         keyword_tags: null,
@@ -217,7 +218,7 @@ export function useSession() {
     }
 
     try {
-      const { themes, insight, mood_score, activity_tags, summary, keyword_tags } = await analyzeSession(transcripts);
+      const { themes, insight, mood_score, emotion_tag, activity_tags, summary, keyword_tags } = await analyzeSession(transcripts);
 
       setSession(prev => ({
         ...prev,
@@ -233,6 +234,7 @@ export function useSession() {
         themes,
         insight,
         mood_score,
+        emotion_tag,
         activity_tags,
         summary,
         keyword_tags,
@@ -250,6 +252,7 @@ export function useSession() {
         themes: null,
         insight: null,
         mood_score: null,
+        emotion_tag: null,
         activity_tags: null,
         summary: null,
         keyword_tags: null,

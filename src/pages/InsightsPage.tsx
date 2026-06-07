@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { JournalEntry } from '../types/session';
-import { TIPS_MIN_DAYS } from '../types/session';
+import { TIPS_MIN_DAYS, EMOTION_FACE } from '../types/session';
+import type { EmotionTag } from '../types/session';
 import { computeCorrelations, distinctEntryDays, tipsUnlocked } from '../lib/correlations';
 import { applyMbtiFlavor } from '../lib/mbtiMessaging';
 import { dayKey, currentStreak, avgSessionDuration } from '../lib/stats';
@@ -52,14 +53,16 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
     completenessByDay.set(k, Math.max(completenessByDay.get(k) ?? 0, score));
   }
 
-  // Average mood per day for mood calendar view
-  const moodByDay = new Map<string, { sum: number; count: number }>();
+  // Average mood + dominant emotion per day for mood calendar view
+  const moodByDay = new Map<string, { sum: number; count: number; emotion: EmotionTag | null }>();
   for (const e of answered) {
-    if (e.moodScore === null || e.moodScore === undefined) continue;
     const k = dayKey(new Date(e.createdAt));
-    const cur = moodByDay.get(k) ?? { sum: 0, count: 0 };
-    cur.sum += e.moodScore;
-    cur.count += 1;
+    const cur = moodByDay.get(k) ?? { sum: 0, count: 0, emotion: null };
+    if (e.moodScore !== null && e.moodScore !== undefined) {
+      cur.sum += e.moodScore;
+      cur.count += 1;
+    }
+    if (e.emotionTag && !cur.emotion) cur.emotion = e.emotionTag;
     moodByDay.set(k, cur);
   }
 
@@ -77,7 +80,7 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
   const totalCells = HEATMAP_WEEKS * 7;
   const startOffset = totalCells - 1 - endOffset;
 
-  const cells: { key: string; has: boolean; completeness: number; mood: number | null; isToday: boolean }[] = [];
+  const cells: { key: string; has: boolean; completeness: number; mood: number | null; emotion: EmotionTag | null; isToday: boolean }[] = [];
   const todayKey = dayKey(today);
   for (let i = 0; i < totalCells; i++) {
     const d = new Date();
@@ -88,7 +91,8 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
       key: k,
       has: entryDayKeys.has(k),
       completeness: completenessByDay.get(k) ?? 0,
-      mood: moodData ? Math.round(moodData.sum / moodData.count) : null,
+      mood: moodData && moodData.count > 0 ? Math.round(moodData.sum / moodData.count) : null,
+      emotion: moodData?.emotion ?? null,
       isToday: k === todayKey,
     });
   }
@@ -144,6 +148,28 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
                 <div key={`lbl-${i}`} style={styles.dayLabel}>{label}</div>
               ))}
               {cells.map(c => {
+                if (calendarMode === 'mood' && c.emotion) {
+                  return (
+                    <div
+                      key={c.key}
+                      title={`${c.key} · ${c.emotion}`}
+                      style={{
+                        ...styles.cell,
+                        background: 'transparent',
+                        opacity: 1,
+                        transition: 'opacity 0.3s',
+                        ...(c.isToday ? { boxShadow: 'inset 0 0 0 1.5px var(--accent-primary)' } : {}),
+                      }}
+                    >
+                      <img
+                        src={EMOTION_FACE[c.emotion]}
+                        alt={c.emotion}
+                        style={styles.moodFace}
+                      />
+                    </div>
+                  );
+                }
+
                 let bg: string;
                 let cellOpacity: number;
                 if (calendarMode === 'completeness') {
@@ -398,7 +424,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10, fontWeight: 600, color: 'var(--text-ghost)',
     textAlign: 'center', paddingBottom: 4,
   },
-  cell: { aspectRatio: '1', borderRadius: 6 },
+  cell: {
+    aspectRatio: '1', borderRadius: 6,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  moodFace: { width: '100%', height: '100%', objectFit: 'cover' as const, borderRadius: 6 },
   heatmapLegend: { fontSize: 11, color: 'var(--text-ghost)', marginTop: 8 },
   moodLegend: { display: 'flex', alignItems: 'center', gap: 6 },
   legendDots: { display: 'flex', gap: 3 },

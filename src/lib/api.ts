@@ -89,6 +89,7 @@ export interface AnalysisResult {
   themes: string[];
   insight: string | null;
   mood_score: number | null;
+  emotion_tag: string | null;
   activity_tags: string[];
   summary: string | null;
   keyword_tags: string[];
@@ -113,6 +114,7 @@ export async function saveJournalEntry(entry: {
   themes: string[] | null;
   insight: string | null;
   mood_score: number | null;
+  emotion_tag: string | null;
   activity_tags: string[] | null;
   summary: string | null;
   keyword_tags: string[] | null;
@@ -137,6 +139,7 @@ export async function saveJournalEntry(entry: {
     themes: entry.themes,
     insight: entry.insight,
     mood_score: entry.mood_score,
+    emotion_tag: entry.emotion_tag,
     activity_tags: entry.activity_tags,
     summary: entry.summary,
     keyword_tags: entry.keyword_tags,
@@ -237,6 +240,7 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
     themes: row.themes ? filterMetaThemes(row.themes) : row.themes,
     insight: filterMetaInsight(row.insight),
     moodScore: row.mood_score ?? null,
+    emotionTag: row.emotion_tag ?? null,
     activityTags: row.activity_tags ?? null,
     summary: filterMetaSummary(row.summary),
     keywordTags: row.keyword_tags ?? null,

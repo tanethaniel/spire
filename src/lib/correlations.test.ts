@@ -11,6 +11,7 @@ function entry(date: string, mood: number | null, tags: string[] | null): Journa
     themes: null,
     insight: null,
     moodScore: mood,
+    emotionTag: null,
     activityTags: tags,
     summary: null,
     keywordTags: null,

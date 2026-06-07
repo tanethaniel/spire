@@ -52,6 +52,20 @@ export interface UserSettings {
   goal: string | null;
 }
 
+export type EmotionTag = 'happy' | 'sad' | 'angry' | 'tired' | 'anxious' | 'bored' | 'focused';
+
+export const EMOTION_TAGS: EmotionTag[] = ['happy', 'sad', 'angry', 'tired', 'anxious', 'bored', 'focused'];
+
+export const EMOTION_FACE: Record<EmotionTag, string> = {
+  sad: '/moods/sad.png',
+  angry: '/moods/angry.png',
+  tired: '/moods/tired.png',
+  happy: '/moods/happy.png',
+  anxious: '/moods/anxious.png',
+  focused: '/moods/focused.png',
+  bored: '/moods/bored.png',
+};
+
 // A persisted past session, as read back for History and Insights.
 export interface JournalEntry {
   id: string;
@@ -60,6 +74,7 @@ export interface JournalEntry {
   themes: string[] | null;
   insight: string | null;
   moodScore: number | null;      // -2..+2, null in Log mode
+  emotionTag: EmotionTag | null;  // closest matching emotion face
   activityTags: string[] | null; // normalized tags, null in Log mode
   summary: string | null;        // one-sentence session summary, null in Log mode
   keywordTags: string[] | null;  // richer tags for pattern recognition, null in Log mode
