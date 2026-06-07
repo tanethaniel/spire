@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { PatternNote } from '../types/session';
 
 interface PatternNoteCardProps {
@@ -21,10 +21,12 @@ function formatQuoteDate(iso: string): string {
 }
 
 export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, onFeedback }: PatternNoteCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const firstQuote = pattern.supportingQuotes?.[0] ?? null;
 
-  const handleCardClick = () => {
-    onOpen(pattern.id);
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(prev => !prev);
   };
 
   const stopAndCall = (e: React.MouseEvent, fn: () => void) => {
@@ -39,7 +41,7 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, onFeedback
   ];
 
   return (
-    <div style={styles.card} onClick={handleCardClick}>
+    <div style={{ ...styles.card, marginBottom: 12 }} onClick={toggleExpand}>
       {/* Confidence badge */}
       <div style={styles.badge}>
         {pattern.confidence === 'early_signal' && <span style={styles.badgeDot} />}
@@ -47,23 +49,75 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, onFeedback
       </div>
 
       {/* Title */}
-      <div style={styles.title}>{pattern.title}</div>
+      <div style={expanded ? styles.titleExpanded : styles.title}>{pattern.title}</div>
 
       {/* Note */}
-      <div style={styles.note}>{pattern.note}</div>
+      <div style={expanded ? styles.noteExpanded : styles.note}>{pattern.note}</div>
 
-      {/* First quote */}
-      {firstQuote && (
+      {/* Expanded content */}
+      {expanded && (
+        <>
+          {/* All quotes */}
+          {pattern.supportingQuotes && pattern.supportingQuotes.length > 0 && (
+            <div style={styles.quotesSection}>
+              {pattern.supportingQuotes.map((q, i) => (
+                <div key={i} style={styles.quoteBlock}>
+                  <div style={styles.quoteText}>"{q.quote}"</div>
+                  <div style={styles.quoteDate}>{formatQuoteDate(q.date)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Goal connection */}
+          {pattern.goalConnection && (
+            <div style={styles.goalConnection}>{pattern.goalConnection}</div>
+          )}
+
+          {/* Personality framing / suggestion */}
+          {pattern.personalityFraming && (
+            <div style={styles.personalityFraming}>{pattern.personalityFraming}</div>
+          )}
+
+          {/* Suggested experiment */}
+          {pattern.suggestedExperiment && (
+            <div style={styles.experimentBlock}>
+              <div style={styles.experimentLabel}>Try this week</div>
+              <div style={styles.experimentText}>{pattern.suggestedExperiment}</div>
+            </div>
+          )}
+
+          {/* Reflection prompt */}
+          {pattern.reflectionPrompt && (
+            <div style={styles.reflectionPrompt}>{pattern.reflectionPrompt}</div>
+          )}
+
+          {/* View full details link */}
+          <button
+            style={styles.detailsLink}
+            onClick={e => stopAndCall(e, () => onOpen(pattern.id))}
+          >
+            View full details
+          </button>
+        </>
+      )}
+
+      {/* Collapsed: show first quote preview */}
+      {!expanded && firstQuote && (
         <div style={styles.quoteBlock}>
-          <div style={styles.quoteText}>{firstQuote.quote}</div>
+          <div style={styles.quoteText}>"{firstQuote.quote}"</div>
           <div style={styles.quoteDate}>{formatQuoteDate(firstQuote.date)}</div>
         </div>
       )}
 
-      {/* Goal connection */}
-      {pattern.goalConnection && (
-        <div style={styles.goalConnection}>{pattern.goalConnection}</div>
+      {!expanded && pattern.goalConnection && (
+        <div style={styles.goalConnectionCollapsed}>{pattern.goalConnection}</div>
       )}
+
+      {/* Expand/collapse hint */}
+      <div style={styles.expandHint}>
+        {expanded ? 'Tap to collapse' : 'Tap to read more'}
+      </div>
 
       {/* Action row */}
       <div style={styles.actionRow} onClick={e => e.stopPropagation()}>
@@ -90,7 +144,6 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, onFeedback
             onClick={e => stopAndCall(e, () => onSave(pattern.id))}
             aria-label="Save"
           >
-            {/* Bookmark icon */}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
@@ -100,7 +153,6 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, onFeedback
             onClick={e => stopAndCall(e, () => onDismiss(pattern.id))}
             aria-label="Dismiss"
           >
-            {/* X icon */}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -125,7 +177,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'transform 0.15s, box-shadow 0.15s',
   },
-  // Confidence badge
   badge: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -147,7 +198,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--text-ghost)',
     flexShrink: 0,
   },
-  // Title
   title: {
     fontSize: 17,
     fontWeight: 700,
@@ -160,18 +210,36 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     letterSpacing: -0.2,
   },
-  // Note
+  titleExpanded: {
+    fontSize: 17,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    lineHeight: 1.3,
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
   note: {
     fontSize: 14,
     color: 'var(--text-secondary)',
     lineHeight: 1.6,
     marginBottom: 12,
     display: '-webkit-box',
-    WebkitLineClamp: 4,
+    WebkitLineClamp: 3,
     WebkitBoxOrient: 'vertical' as const,
     overflow: 'hidden',
   },
-  // Quote
+  noteExpanded: {
+    fontSize: 14,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.6,
+    marginBottom: 12,
+  },
+  quotesSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    marginBottom: 14,
+  },
   quoteBlock: {
     borderLeft: '2px solid var(--accent-primary)',
     paddingLeft: 12,
@@ -188,17 +256,76 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-ghost)',
     marginTop: 4,
   },
-  // Goal connection
   goalConnection: {
     fontSize: 13,
     color: 'var(--accent-primary)',
     fontStyle: 'italic' as const,
     marginBottom: 14,
+    lineHeight: 1.5,
+  },
+  goalConnectionCollapsed: {
+    fontSize: 13,
+    color: 'var(--accent-primary)',
+    fontStyle: 'italic' as const,
+    marginBottom: 12,
     overflow: 'hidden',
     textOverflow: 'ellipsis' as const,
     whiteSpace: 'nowrap' as const,
   },
-  // Action row
+  personalityFraming: {
+    fontSize: 13,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.5,
+    marginBottom: 14,
+    padding: '10px 12px',
+    background: 'rgba(107,191,168,0.08)',
+    borderRadius: 10,
+    border: '1px solid rgba(107,191,168,0.15)',
+  },
+  experimentBlock: {
+    marginBottom: 14,
+    padding: '10px 12px',
+    background: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.12)',
+  },
+  experimentLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.06em',
+    color: 'var(--accent-primary)',
+    marginBottom: 4,
+  },
+  experimentText: {
+    fontSize: 13,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.5,
+  },
+  reflectionPrompt: {
+    fontSize: 13,
+    color: 'var(--text-muted)',
+    fontStyle: 'italic' as const,
+    lineHeight: 1.5,
+    marginBottom: 14,
+  },
+  detailsLink: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--accent-primary)',
+    cursor: 'pointer',
+    marginBottom: 8,
+  },
+  expandHint: {
+    fontSize: 11,
+    color: 'var(--text-ghost)',
+    textAlign: 'center' as const,
+    marginBottom: 10,
+    letterSpacing: '0.02em',
+  },
   actionRow: {
     display: 'flex',
     alignItems: 'flex-end',
