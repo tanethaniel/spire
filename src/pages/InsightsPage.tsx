@@ -201,16 +201,7 @@ export function InsightsPage({ entries, loading, onOpenProfile, avatarUrl, userN
             <div style={styles.heatmapLegend}>
               {calendarMode === 'completeness'
                 ? 'Last 5 weeks'
-                : (
-                  <span style={styles.moodLegend}>
-                    Last 5 weeks · Mood
-                    <span style={styles.legendDots}>
-                      {[-2, -1, 0, 1, 2].map(m => (
-                        <span key={m} style={{ ...styles.legendDot, background: MOOD_COLOR[m] }} />
-                      ))}
-                    </span>
-                  </span>
-                )}
+                : 'Last 5 weeks · Mood'}
             </div>
 
             {/* Patterns */}
