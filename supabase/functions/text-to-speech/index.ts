@@ -12,7 +12,7 @@ const corsHeaders = {
 const DEFAULT_VOICE = Deno.env.get('OPENAI_TTS_VOICE') || 'shimmer';
 const DEFAULT_MODEL = Deno.env.get('OPENAI_TTS_MODEL') || 'gpt-4o-mini-tts';
 const TONE = 'Speak in a warm, calm, gentle and unhurried tone, like a thoughtful friend guiding a quiet reflection. Pause naturally between phrases. Vary your rhythm — don\'t rush.';
-const MAX_TTS_PER_DAY = 15;
+const MAX_TTS_PER_DAY = 50;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

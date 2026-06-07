@@ -79,9 +79,8 @@ export function useTTS() {
       cacheRef.current.delete(questionIndex);
     }
 
-    // Fallback: static WAV file (only if text matches the default question)
-    const defaultText = QUESTIONS[questionIndex]?.question;
-    const fallbackSrc = (text === defaultText) ? FALLBACK_AUDIO[questionIndex] : undefined;
+    // Fallback: static WAV file
+    const fallbackSrc = FALLBACK_AUDIO[questionIndex];
     if (fallbackSrc) {
       try {
         const audio = new Audio(fallbackSrc);
