@@ -52,9 +52,9 @@ export interface UserSettings {
   goal: string | null;
 }
 
-export type EmotionTag = 'happy' | 'sad' | 'angry' | 'tired' | 'anxious' | 'bored' | 'focused';
+export type EmotionTag = 'happy' | 'sad' | 'angry' | 'tired' | 'anxious' | 'bored' | 'focused' | 'okay' | 'peaceful';
 
-export const EMOTION_TAGS: EmotionTag[] = ['happy', 'sad', 'angry', 'tired', 'anxious', 'bored', 'focused'];
+export const EMOTION_TAGS: EmotionTag[] = ['happy', 'sad', 'angry', 'tired', 'anxious', 'bored', 'focused', 'okay', 'peaceful'];
 
 export const EMOTION_FACE: Record<EmotionTag, string> = {
   sad: '/moods/sad.png',
@@ -64,6 +64,8 @@ export const EMOTION_FACE: Record<EmotionTag, string> = {
   anxious: '/moods/anxious.png',
   focused: '/moods/focused.png',
   bored: '/moods/bored.png',
+  okay: '/moods/okay.png',
+  peaceful: '/moods/peaceful.png',
 };
 
 // A persisted past session, as read back for History and Insights.

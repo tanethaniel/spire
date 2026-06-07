@@ -171,7 +171,7 @@ Rules for summary:
 - If answers are very brief, still produce a warm summary of what was shared
 
 Rules for emotion_tag:
-- Pick exactly one from: "happy", "sad", "angry", "tired", "anxious", "bored", "focused"
+- Pick exactly one from: "happy", "sad", "angry", "tired", "anxious", "bored", "focused", "okay", "peaceful"
 - Choose the single emotion that best captures the user's overall emotional state for this session
 - Base it on the full transcript, especially Q2 (emotions), but consider tone across all answers
 - If the user seems content, satisfied, or joyful → "happy"
@@ -181,6 +181,8 @@ Rules for emotion_tag:
 - If the user seems worried, nervous, or stressed → "anxious"
 - If the user seems disengaged, restless, or understimulated → "bored"
 - If the user seems determined, productive, or locked-in → "focused"
+- If the user seems fine, neutral, or just okay — nothing strongly positive or negative → "okay"
+- If the user seems calm, serene, relaxed, or at ease → "peaceful"
 - If the user did not discuss emotions at all or Q2 was skipped, return null
 
 Rules for keyword_tags:
@@ -259,7 +261,7 @@ Return JSON with this exact shape and no other text:
       ? parsed.insight.trim().slice(0, 500)
       : null;
 
-    const VALID_EMOTIONS = new Set(['happy', 'sad', 'angry', 'tired', 'anxious', 'bored', 'focused']);
+    const VALID_EMOTIONS = new Set(['happy', 'sad', 'angry', 'tired', 'anxious', 'bored', 'focused', 'okay', 'peaceful']);
     const emotionTag: string | null = typeof parsed.emotion_tag === 'string'
         && VALID_EMOTIONS.has(parsed.emotion_tag.toLowerCase())
       ? parsed.emotion_tag.toLowerCase()
