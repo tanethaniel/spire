@@ -15,32 +15,38 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
       return;
     }
     let cancelled = false;
-    fetchPatternNotes()
-      .then(async (notes) => {
+    (async () => {
+      try {
+        const notes = await fetchPatternNotes();
         if (cancelled) return;
         setPatterns(notes);
-        // If no patterns exist and we haven't backfilled yet, extract
-        // signals from older entries and generate patterns automatically.
+
         if (notes.length === 0 && !backfillRanRef.current) {
           backfillRanRef.current = true;
-          try {
-            const extracted = await backfillEntrySignals();
-            if (extracted > 0) {
-              const generated = await generatePatterns(true);
-              if (!cancelled && generated.length > 0) {
+          console.log('[patterns] No patterns found, starting backfill…');
+          setLoading(true);
+          const extracted = await backfillEntrySignals();
+          console.log(`[patterns] Backfilled signals for ${extracted} entries`);
+          if (extracted > 0) {
+            console.log('[patterns] Generating patterns…');
+            const generated = await generatePatterns(true);
+            console.log(`[patterns] Generated ${generated.length} patterns`);
+            if (!cancelled) {
+              if (generated.length > 0) {
                 setPatterns(generated);
-              } else if (!cancelled) {
+              } else {
                 const fetched = await fetchPatternNotes();
                 setPatterns(fetched);
               }
             }
-          } catch (err) {
-            console.error('[usePatternNotes] backfill failed:', err);
           }
         }
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
+      } catch (err) {
+        console.error('[patterns] failed:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, [authed, interpretationEnabled]);
 

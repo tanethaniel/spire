@@ -279,30 +279,47 @@ export async function backfillEntrySignals(): Promise<number> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data: entries } = await supabase
+  const { data: entries, error: entriesErr } = await supabase
     .from('journal_entries')
     .select('id')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(30);
-  if (!entries || entries.length === 0) return 0;
+  if (entriesErr) {
+    console.error('[backfill] failed to fetch entries:', entriesErr);
+    return 0;
+  }
+  if (!entries || entries.length === 0) {
+    console.log('[backfill] no entries found');
+    return 0;
+  }
+  console.log(`[backfill] found ${entries.length} entries`);
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from('entry_signals')
     .select('journal_entry_id')
     .eq('user_id', user.id);
+  if (existingErr) {
+    console.error('[backfill] failed to check existing signals:', existingErr);
+  }
   const hasSignals = new Set((existing ?? []).map(r => r.journal_entry_id));
+  console.log(`[backfill] ${hasSignals.size} entries already have signals`);
 
   const missing = entries.filter(e => !hasSignals.has(e.id));
-  if (missing.length === 0) return 0;
+  if (missing.length === 0) {
+    console.log('[backfill] all entries already have signals');
+    return 0;
+  }
+  console.log(`[backfill] extracting signals for ${missing.length} entries…`);
 
   let extracted = 0;
   for (const entry of missing) {
     try {
       await extractEntrySignals(entry.id);
       extracted++;
-    } catch {
-      console.error(`[backfill] failed for entry ${entry.id}`);
+      console.log(`[backfill] extracted signals for entry ${entry.id} (${extracted}/${missing.length})`);
+    } catch (err) {
+      console.error(`[backfill] failed for entry ${entry.id}:`, err);
     }
   }
   return extracted;
