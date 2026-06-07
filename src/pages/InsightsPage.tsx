@@ -419,7 +419,7 @@ const styles: Record<string, React.CSSProperties> = {
     aspectRatio: '1', borderRadius: 6,
     display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  moodFace: { width: '100%', height: '100%', objectFit: 'cover' as const, borderRadius: 6 },
+  moodFace: { width: '90%', height: '90%', objectFit: 'cover' as const, borderRadius: '50%' },
   heatmapLegend: { fontSize: 11, color: 'var(--text-ghost)', marginTop: 8 },
   moodLegend: { display: 'flex', alignItems: 'center', gap: 6 },
   legendDots: { display: 'flex', gap: 3 },
