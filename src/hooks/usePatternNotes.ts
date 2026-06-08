@@ -25,17 +25,17 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
         if (notes.length === 0 && !backfillRanRef.current) {
           backfillRanRef.current = true;
           setLoading(true);
-          const analyzed = await backfillAnalysis();
-          const extracted = await backfillEntrySignals();
-          if (analyzed > 0 || extracted > 0) {
-            const generated = await generatePatterns(true);
-            if (!cancelled) {
-              lastGeneratedRef.current = new Date().toISOString();
-              if (generated.length > 0) {
-                setPatterns(generated);
-              } else {
-                setPatterns(await fetchPatternNotes());
-              }
+          try { await backfillAnalysis(); } catch { /* continue */ }
+          try { await backfillEntrySignals(); } catch { /* continue */ }
+          // Always attempt generation — even if backfill found nothing,
+          // there may be entries with existing analysis that can produce patterns.
+          const generated = await generatePatterns(true);
+          if (!cancelled) {
+            lastGeneratedRef.current = new Date().toISOString();
+            if (generated.length > 0) {
+              setPatterns(generated);
+            } else {
+              setPatterns(await fetchPatternNotes());
             }
           }
         }
