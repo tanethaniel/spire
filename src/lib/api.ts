@@ -120,7 +120,6 @@ export async function saveJournalEntry(entry: {
   keyword_tags: string[] | null;
   event_context: CalendarEvent[] | null;
   duration_ms: number;
-  emotion_tag: string | null;
 }): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -261,7 +260,7 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
   });
 }
 
-// --- Pattern Notes ---
+// --- Signal Extraction & Pattern Generation ---
 
 export async function extractEntrySignals(entryId: string): Promise<void> {
   const headers = await getAuthHeaders();
@@ -273,62 +272,6 @@ export async function extractEntrySignals(entryId: string): Promise<void> {
   if (!res.ok) {
     console.error('[extractEntrySignals] failed:', res.status);
   }
-}
-
-export async function backfillEntrySignals(): Promise<number> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { data: entries, error: entriesErr } = await supabase
-    .from('journal_entries')
-    .select('id')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(30);
-  if (entriesErr) {
-    console.error('[backfill] failed to fetch entries:', entriesErr);
-    return 0;
-  }
-  if (!entries || entries.length === 0) {
-    console.log('[backfill] no entries found');
-    return 0;
-  }
-  console.log(`[backfill] found ${entries.length} entries`);
-
-  const { data: existing, error: existingErr } = await supabase
-    .from('entry_signals')
-    .select('journal_entry_id')
-    .eq('user_id', user.id);
-  if (existingErr) {
-    console.error('[backfill] failed to check existing signals:', existingErr);
-  }
-  const hasSignals = new Set((existing ?? []).map(r => r.journal_entry_id));
-  console.log(`[backfill] ${hasSignals.size} entries already have signals`);
-
-  const missing = entries.filter(e => !hasSignals.has(e.id));
-  if (missing.length === 0) {
-    console.log('[backfill] all entries already have signals');
-    return 0;
-  }
-  console.log(`[backfill] extracting signals for ${missing.length} entries…`);
-
-  let extracted = 0;
-  const BATCH_SIZE = 3;
-  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
-    const batch = missing.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map(entry => extractEntrySignals(entry.id).then(() => entry.id)),
-    );
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        extracted++;
-        console.log(`[backfill] extracted signals for entry ${r.value} (${extracted}/${missing.length})`);
-      } else {
-        console.error(`[backfill] failed for an entry:`, r.reason);
-      }
-    }
-  }
-  return extracted;
 }
 
 export async function generatePatterns(forceRefresh = false): Promise<PatternNote[]> {
@@ -384,30 +327,117 @@ export async function updatePatternStatus(
 }
 
 function mapPatternNote(row: Record<string, unknown>): PatternNote {
+  const quotes = row.supporting_quotes;
+  let parsedQuotes: PatternNote['supportingQuotes'] = null;
+  if (Array.isArray(quotes)) {
+    parsedQuotes = quotes.map((q: Record<string, unknown>) => ({
+      text: String(q.quote ?? q.text ?? ''),
+      entryDate: String(q.date ?? q.entryDate ?? ''),
+    }));
+  }
+
   return {
-    id: row.id as string,
-    patternType: row.pattern_type as string,
-    title: row.title as string,
-    note: row.note as string,
-    goalConnection: (row.goal_connection as string) ?? null,
-    personalityFraming: (row.personality_framing as string) ?? null,
-    evidenceSummary: (row.evidence_summary as string) ?? null,
-    confidence: row.confidence as PatternNote['confidence'],
-    confidenceReason: (row.confidence_reason as string) ?? null,
-    evidenceCount: (row.evidence_count as number) ?? null,
-    entryCount: (row.entry_count as number) ?? null,
-    dateRangeStart: (row.date_range_start as string) ?? null,
-    dateRangeEnd: (row.date_range_end as string) ?? null,
-    supportingQuotes: (row.supporting_quotes as PatternNote['supportingQuotes']) ?? null,
-    relatedCalendarContext: (row.related_calendar_context as Record<string, unknown>) ?? null,
-    relatedTags: (row.related_tags as string[]) ?? null,
-    moodDelta: (row.mood_delta as number) ?? null,
-    reflectionPrompt: (row.reflection_prompt as string) ?? null,
-    suggestedExperiment: (row.suggested_experiment as string) ?? null,
+    id: String(row.id),
+    patternType: String(row.pattern_type ?? ''),
+    title: String(row.title ?? ''),
+    note: String(row.note ?? ''),
+    goalConnection: row.goal_connection as string | null,
+    personalityFraming: row.personality_framing as string | null,
+    evidenceSummary: row.evidence_summary as string | null,
+    confidence: (row.confidence as PatternNote['confidence']) ?? 'early_signal',
+    confidenceReason: row.confidence_reason as string | null,
+    evidenceCount: row.evidence_count as number | null,
+    entryCount: row.entry_count as number | null,
+    dateRangeStart: row.date_range_start as string | null,
+    dateRangeEnd: row.date_range_end as string | null,
+    supportingQuotes: parsedQuotes,
+    relatedCalendarContext: row.related_calendar_context as Record<string, unknown> | null,
+    relatedTags: row.related_tags as string[] | null,
+    moodDelta: row.mood_delta as number | null,
+    reflectionPrompt: row.reflection_prompt as string | null,
+    suggestedExperiment: row.suggested_experiment as string | null,
     suggestedIfThenPlan: (row.suggested_if_then_plan as PatternNote['suggestedIfThenPlan']) ?? null,
-    status: row.status as PatternNote['status'],
+    status: (row.status as PatternNote['status']) ?? 'active',
     userFeedback: (row.user_feedback as PatternNote['userFeedback']) ?? null,
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
+    createdAt: String(row.created_at ?? ''),
+    updatedAt: String(row.updated_at ?? ''),
   };
+}
+
+export async function backfillAnalysis(): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: entries, error } = await supabase
+    .from('journal_entries')
+    .select('id, q1_transcript, q2_transcript, q3_transcript, q4_transcript, q5_transcript, q6_transcript, mood_score')
+    .eq('user_id', user.id)
+    .is('mood_score', null)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error || !entries || entries.length === 0) return 0;
+
+  let filled = 0;
+  for (const entry of entries) {
+    const transcripts = [
+      entry.q1_transcript, entry.q2_transcript, entry.q3_transcript,
+      entry.q4_transcript, entry.q5_transcript, entry.q6_transcript,
+    ];
+    if (!transcripts.some(Boolean)) continue;
+
+    try {
+      const result = await analyzeSession(transcripts);
+      const { error: updateErr } = await supabase
+        .from('journal_entries')
+        .update({
+          themes: result.themes,
+          insight: result.insight,
+          mood_score: result.mood_score,
+          activity_tags: result.activity_tags,
+          summary: result.summary,
+          keyword_tags: result.keyword_tags,
+        })
+        .eq('id', entry.id);
+      if (!updateErr) filled++;
+    } catch (err) {
+      console.error(`[backfillAnalysis] failed for entry ${entry.id}:`, err);
+    }
+  }
+  return filled;
+}
+
+export async function backfillEntrySignals(): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: entries } = await supabase
+    .from('journal_entries')
+    .select('id')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (!entries || entries.length === 0) return 0;
+
+  const { data: existing } = await supabase
+    .from('entry_signals')
+    .select('journal_entry_id')
+    .eq('user_id', user.id);
+  const hasSignals = new Set((existing ?? []).map(r => r.journal_entry_id));
+
+  const missing = entries.filter(e => !hasSignals.has(e.id));
+  if (missing.length === 0) return 0;
+
+  let extracted = 0;
+  const BATCH_SIZE = 3;
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    const batch = missing.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(entry => extractEntrySignals(entry.id).then(() => entry.id)),
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') extracted++;
+    }
+  }
+  return extracted;
 }

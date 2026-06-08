@@ -141,18 +141,6 @@ serve(async (req) => {
       });
     }
 
-    // Privacy gate: if interpretation is disabled, return early
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('interpretation_enabled')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (settings && settings.interpretation_enabled === false) {
-      return new Response(JSON.stringify({ signals: [] }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const body = await req.json();
     const entryId = body?.entry_id;
 

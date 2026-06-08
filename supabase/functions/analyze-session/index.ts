@@ -39,20 +39,8 @@ serve(async (req) => {
       });
     }
 
-    // Privacy gate: in Log mode the user has opted out of interpretation.
-    // Refuse server-side so transcripts are never sent to the analysis model,
-    // even if a client mistakenly calls this endpoint.
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('interpretation_enabled')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (settings && settings.interpretation_enabled === false) {
-      return new Response(JSON.stringify({ error: 'Interpretation disabled', disabled: true }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Analysis always runs to populate mood/tags/themes for pattern detection.
+    // The client controls whether insights are displayed to the user.
 
     // Rate limit: count sessions completed today
     const todayStart = new Date();

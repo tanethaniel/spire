@@ -182,12 +182,9 @@ export function useSession() {
     });
   }, [session.currentQuestion, updateRound]);
 
-  // `interpret` reflects the user's Interpreted/Log preference. In Log mode we
-  // never call analyze-session, so transcripts are never sent for analysis.
-  //
-  // Reads session data from refs (kept in sync above) so the callback is stable
-  // (empty dep array → never recreated → effect never re-fires from reference
-  // change). The analysisRanRef guard is a belt-and-suspenders safety net.
+  // Always run AI analysis to populate mood/tags/themes — these feed the
+  // pattern pipeline. The `interpret` flag controls whether insights are
+  // shown to the user on the result screen, not whether analysis happens.
   const runAnalysis = useCallback(async (interpret: boolean) => {
     if (analysisRanRef.current) return;
     analysisRanRef.current = true;
@@ -213,77 +210,48 @@ export function useSession() {
       patternGenRef.current = p;
     };
 
-    if (!interpret) {
-      const entryId = await saveJournalEntry({
-        sessionId,
-        transcripts,
-        themes: null,
-        insight: null,
-        mood_score: null,
-        emotion_tag: null,
-        activity_tags: null,
-        summary: null,
-        keyword_tags: null,
-        event_context: calendarEvents,
-        duration_ms: durationMs,
-      });
-      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
-      trackEvent({ event: 'session_completed', duration_ms: durationMs });
-      triggerPatterns(entryId);
-      return;
-    }
+    let analysis: {
+      themes: string[] | null;
+      insight: string | null;
+      mood_score: number | null;
+      emotion_tag: string | null;
+      activity_tags: string[] | null;
+      summary: string | null;
+      keyword_tags: string[] | null;
+    } = { themes: null, insight: null, mood_score: null, emotion_tag: null, activity_tags: null, summary: null, keyword_tags: null };
 
     try {
-      const { themes, insight, mood_score, emotion_tag, activity_tags, summary, keyword_tags } = await analyzeSession(transcripts);
-
-      const entryId = await saveJournalEntry({
-        sessionId,
-        transcripts,
-        themes,
-        insight,
-        mood_score,
-        emotion_tag,
-        activity_tags,
-        summary,
-        keyword_tags,
-        event_context: calendarEvents,
-        duration_ms: durationMs,
-      });
-
-      setSession(prev => ({
-        ...prev,
-        state: SessionState.RESULT,
-        themes,
-        insight,
-        completedAt,
-      }));
-
-      trackEvent({ event: 'session_completed', duration_ms: durationMs });
-      triggerPatterns(entryId);
+      const result = await analyzeSession(transcripts);
+      analysis = result;
     } catch (err) {
-      console.error('[runAnalysis] analysis or save failed:', err);
-      let entryId: string | null = null;
-      try {
-        entryId = await saveJournalEntry({
-          sessionId,
-          transcripts,
-          themes: null,
-          insight: null,
-          mood_score: null,
-          emotion_tag: null,
-          activity_tags: null,
-          summary: null,
-          keyword_tags: null,
-          event_context: calendarEvents,
-          duration_ms: durationMs,
-        });
-      } catch (saveErr) {
-        console.error('[runAnalysis] fallback save also failed:', saveErr);
-      }
-
-      setSession(prev => ({ ...prev, state: SessionState.RESULT, completedAt }));
-      triggerPatterns(entryId);
+      console.error('[runAnalysis] analysis failed, saving entry without analysis:', err);
     }
+
+    // In Log mode, show result without insights; in Interpreted mode, show them
+    setSession(prev => ({
+      ...prev,
+      state: SessionState.RESULT,
+      themes: interpret ? analysis.themes : null,
+      insight: interpret ? analysis.insight : null,
+      completedAt,
+    }));
+
+    const entryId = await saveJournalEntry({
+      sessionId,
+      transcripts,
+      themes: analysis.themes,
+      insight: analysis.insight,
+      mood_score: analysis.mood_score,
+      emotion_tag: analysis.emotion_tag,
+      activity_tags: analysis.activity_tags,
+      summary: analysis.summary,
+      keyword_tags: analysis.keyword_tags,
+      event_context: calendarEvents,
+      duration_ms: durationMs,
+    });
+
+    trackEvent({ event: 'session_completed', duration_ms: durationMs });
+    triggerPatterns(entryId);
   }, []);
 
   const resetSession = useCallback(() => {

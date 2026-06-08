@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PatternNote, PatternFeedback, PatternStatus } from '../types/session';
-import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals } from '../lib/api';
+import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
 
 export function usePatternNotes(authed: boolean, interpretationEnabled: boolean) {
   const [patterns, setPatterns] = useState<PatternNote[]>([]);
@@ -25,9 +25,11 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
           backfillRanRef.current = true;
           console.log('[patterns] No patterns found, starting backfill…');
           setLoading(true);
+          const analyzed = await backfillAnalysis();
+          console.log(`[patterns] Backfilled analysis for ${analyzed} entries`);
           const extracted = await backfillEntrySignals();
           console.log(`[patterns] Backfilled signals for ${extracted} entries`);
-          if (extracted > 0) {
+          if (analyzed > 0 || extracted > 0) {
             console.log('[patterns] Generating patterns…');
             const generated = await generatePatterns(true);
             console.log(`[patterns] Generated ${generated.length} patterns`);
