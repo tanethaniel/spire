@@ -116,14 +116,6 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
           </div>
         )}
 
-        {/* If-Then Plan */}
-        {pattern.suggestedIfThenPlan && (
-          <div style={styles.experimentBox}>
-            <div style={styles.sectionLabel}>IF-THEN PLAN</div>
-            <div style={styles.experimentText}>{pattern.suggestedIfThenPlan.fullText}</div>
-          </div>
-        )}
-
         {/* Feedback */}
         <div style={styles.feedbackSection}>
           <div style={styles.feedbackLabel}>Does this feel true?</div>
@@ -165,13 +157,12 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 390,
     maxHeight: '80vh',
     overflowY: 'auto' as const,
-    background: 'var(--bg-surface)',
-    backdropFilter: 'blur(24px)',
-    WebkitBackdropFilter: 'blur(24px)',
-    border: '1px solid var(--border-glass)',
-    borderTop: '1px solid rgba(255,255,255,0.35)',
+    background: 'rgba(255, 255, 255, 0.85)',
+    backdropFilter: 'blur(40px)',
+    WebkitBackdropFilter: 'blur(40px)',
+    border: '1px solid rgba(255,255,255,0.6)',
     borderRadius: 20,
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3), var(--glass-shadow)',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.2)',
     padding: '20px 20px 16px',
     animation: 'scaleIn 0.2s ease-out',
   },
@@ -184,10 +175,10 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'rgba(255,255,255,0.12)',
-    border: '1px solid var(--border-glass)',
+    background: 'rgba(0,0,0,0.06)',
+    border: '1px solid rgba(0,0,0,0.08)',
     borderRadius: 8,
-    color: 'var(--text-muted)',
+    color: '#6B7580',
     cursor: 'pointer',
     padding: 0,
   },
@@ -206,8 +197,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.06em',
-    color: 'var(--text-ghost)',
-    background: 'rgba(255,255,255,0.15)',
+    color: '#6B7580',
+    background: 'rgba(0,0,0,0.06)',
     borderRadius: 8,
     padding: '3px 8px',
   },
@@ -215,7 +206,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 5,
     height: 5,
     borderRadius: '50%',
-    background: 'var(--text-ghost)',
+    background: '#8A9298',
     flexShrink: 0,
   },
   topActions: {
@@ -228,9 +219,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 4,
     fontSize: 11,
     fontWeight: 600,
-    color: 'var(--text-muted)',
+    color: '#6B7580',
     background: 'transparent',
-    border: '1px solid var(--border-glass)',
+    border: '1px solid rgba(0,0,0,0.1)',
     borderRadius: 8,
     padding: '4px 10px',
     cursor: 'pointer',
@@ -240,14 +231,14 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: 20,
     fontWeight: 700,
-    color: 'var(--text-primary)',
+    color: '#1A2026',
     lineHeight: 1.3,
     letterSpacing: -0.3,
     marginBottom: 10,
   },
   noteText: {
     fontSize: 14,
-    color: 'var(--text-secondary)',
+    color: '#3A4248',
     lineHeight: 1.6,
     marginBottom: 14,
   },
@@ -264,12 +255,12 @@ const styles: Record<string, React.CSSProperties> = {
   quoteText: {
     fontSize: 13,
     fontStyle: 'italic' as const,
-    color: 'var(--text-muted)',
+    color: '#5A6268',
     lineHeight: 1.5,
   },
   quoteDate: {
     fontSize: 11,
-    color: 'var(--text-ghost)',
+    color: '#8A9298',
     marginTop: 3,
   },
   sectionLabel: {
@@ -277,48 +268,48 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.06em',
-    color: 'var(--text-ghost)',
+    color: '#8A9298',
     marginBottom: 6,
   },
   personalityBox: {
     padding: '12px 14px',
-    background: 'rgba(107,191,168,0.08)',
+    background: 'rgba(107,191,168,0.1)',
     borderRadius: 12,
-    border: '1px solid rgba(107,191,168,0.15)',
+    border: '1px solid rgba(107,191,168,0.2)',
     marginBottom: 12,
   },
   personalityText: {
     fontSize: 13,
-    color: 'var(--text-secondary)',
+    color: '#3A4248',
     lineHeight: 1.5,
   },
   reflectionPrompt: {
     fontSize: 13,
-    color: 'var(--text-muted)',
+    color: '#5A6268',
     fontStyle: 'italic' as const,
     lineHeight: 1.5,
   },
   experimentBox: {
     padding: '12px 14px',
-    background: 'rgba(255,255,255,0.06)',
+    background: 'rgba(0,0,0,0.03)',
     borderRadius: 12,
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: '1px solid rgba(0,0,0,0.06)',
     marginBottom: 12,
   },
   experimentText: {
     fontSize: 13,
-    color: 'var(--text-secondary)',
+    color: '#3A4248',
     lineHeight: 1.5,
   },
   feedbackSection: {
-    borderTop: '1px solid rgba(255,255,255,0.12)',
+    borderTop: '1px solid rgba(0,0,0,0.08)',
     paddingTop: 12,
     marginTop: 4,
   },
   feedbackLabel: {
     fontSize: 13,
     fontWeight: 600,
-    color: 'var(--text-primary)',
+    color: '#1A2026',
     marginBottom: 8,
   },
   feedbackRow: {
@@ -328,9 +319,9 @@ const styles: Record<string, React.CSSProperties> = {
   feedbackBtn: {
     fontSize: 13,
     fontWeight: 500,
-    color: 'var(--text-muted)',
+    color: '#6B7580',
     background: 'transparent',
-    border: '1px solid var(--border-glass)',
+    border: '1px solid rgba(0,0,0,0.1)',
     borderRadius: 12,
     padding: '8px 16px',
     cursor: 'pointer',

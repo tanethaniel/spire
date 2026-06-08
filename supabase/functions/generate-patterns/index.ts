@@ -645,8 +645,7 @@ Return JSON only:
   "note": "max 280 chars, 2-3 sentences. Observational and warm — describe the pattern you see, grounded in evidence. No coaching, no generic advice, no 'this is worth tracking' language.",
   "personality_framing": "max 280 chars, SPECIFIC MBTI-based actionable suggestion, or null",
   "reflection_prompt": "max 180 chars, a specific question for the user to sit with",
-  "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week",
-  "suggested_if_then_plan": {"if_cue": "specific trigger", "then_response": "specific action", "full_text": "max 240 chars"} or null
+  "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week"
 }`;
 
 interface FeedbackEntry {
@@ -914,7 +913,7 @@ serve(async (req) => {
         mood_delta: candidate.mood_delta,
         reflection_prompt: llmResult.reflection_prompt || null,
         suggested_experiment: llmResult.suggested_experiment || null,
-        suggested_if_then_plan: llmResult.suggested_if_then_plan || null,
+        suggested_if_then_plan: null,
         status: 'active',
         updated_at: new Date().toISOString(),
       };
