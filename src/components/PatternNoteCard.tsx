@@ -27,11 +27,14 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss }: PatternN
         </div>
         <div style={styles.topActions} onClick={e => e.stopPropagation()}>
           <button
-            style={styles.iconBtn}
+            style={{
+              ...styles.iconBtn,
+              ...(pattern.status === 'saved' ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
+            }}
             onClick={() => onSave(pattern.id)}
-            aria-label="Save"
+            aria-label={pattern.status === 'saved' ? 'Unsave' : 'Save'}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={pattern.status === 'saved' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
           </button>

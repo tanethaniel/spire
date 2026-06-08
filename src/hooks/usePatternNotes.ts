@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PatternNote, PatternFeedback, PatternStatus } from '../types/session';
-import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
+import { fetchPatternNotes, fetchAllPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
 
 export function usePatternNotes(authed: boolean, interpretationEnabled: boolean) {
   const [patterns, setPatterns] = useState<PatternNote[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const backfillRanRef = useRef(false);
 
   useEffect(() => {
@@ -52,10 +52,24 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     return () => { cancelled = true; };
   }, [authed, interpretationEnabled]);
 
-  const refresh = useCallback(async () => {
+  const reset = useCallback(async () => {
     if (!interpretationEnabled) return;
-    setRefreshing(true);
+    setLoading(true);
     try {
+      const all = await fetchAllPatternNotes();
+      setPatterns(all);
+    } catch {
+      // keep existing
+    } finally {
+      setLoading(false);
+    }
+  }, [interpretationEnabled]);
+
+  const update = useCallback(async () => {
+    if (!interpretationEnabled) return;
+    setUpdating(true);
+    try {
+      await backfillEntrySignals();
       const notes = await generatePatterns(true);
       if (notes.length > 0) {
         setPatterns(notes);
@@ -66,7 +80,7 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     } catch {
       // keep existing patterns
     } finally {
-      setRefreshing(false);
+      setUpdating(false);
     }
   }, [interpretationEnabled]);
 
@@ -75,14 +89,18 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, userFeedback: feedback } : p));
   }, []);
 
-  const setStatus = useCallback(async (patternId: string, status: PatternStatus) => {
-    await updatePatternStatus(patternId, status);
-    if (status === 'dismissed' || status === 'archived') {
-      setPatterns(prev => prev.filter(p => p.id !== patternId));
-    } else {
-      setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status } : p));
-    }
+  const toggleSave = useCallback(async (patternId: string) => {
+    const pattern = patterns.find(p => p.id === patternId);
+    if (!pattern) return;
+    const nextStatus: PatternStatus = pattern.status === 'saved' ? 'active' : 'saved';
+    await updatePatternStatus(patternId, nextStatus);
+    setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status: nextStatus } : p));
+  }, [patterns]);
+
+  const dismiss = useCallback(async (patternId: string) => {
+    await updatePatternStatus(patternId, 'dismissed');
+    setPatterns(prev => prev.filter(p => p.id !== patternId));
   }, []);
 
-  return { patterns, loading, refreshing, refresh, submitFeedback, setStatus };
+  return { patterns, loading, updating, reset, update, submitFeedback, toggleSave, dismiss };
 }

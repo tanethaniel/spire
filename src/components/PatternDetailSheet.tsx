@@ -48,14 +48,18 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
             {CONFIDENCE_LABELS[pattern.confidence]}
           </div>
           <div style={styles.topActions}>
-            {pattern.status !== 'saved' && (
-              <button style={styles.actionChip} onClick={() => onSave(pattern.id)}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                </svg>
-                Save
-              </button>
-            )}
+            <button
+              style={{
+                ...styles.actionChip,
+                ...(pattern.status === 'saved' ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
+              }}
+              onClick={() => onSave(pattern.id)}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={pattern.status === 'saved' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+              {pattern.status === 'saved' ? 'Saved' : 'Save'}
+            </button>
             <button style={styles.actionChip} onClick={() => onDismiss(pattern.id)}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -157,12 +161,13 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 390,
     maxHeight: '80vh',
     overflowY: 'auto' as const,
-    background: 'rgba(255, 255, 255, 0.85)',
+    background: 'rgba(255, 255, 255, 0.55)',
     backdropFilter: 'blur(40px)',
     WebkitBackdropFilter: 'blur(40px)',
-    border: '1px solid rgba(255,255,255,0.6)',
+    border: '1px solid rgba(255,255,255,0.5)',
+    borderTop: '1px solid rgba(255,255,255,0.65)',
     borderRadius: 20,
-    boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.2)',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.15)',
     padding: '20px 20px 16px',
     animation: 'scaleIn 0.2s ease-out',
   },

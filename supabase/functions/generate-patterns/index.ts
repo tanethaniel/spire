@@ -855,8 +855,15 @@ serve(async (req) => {
         feedback: p.user_feedback!,
       }));
 
-    // Archive old active patterns that will be replaced by fresh candidates
+    // Archive old active patterns that will be replaced by fresh candidates.
+    // Saved patterns are updated in-place (not archived) so they stay in the saved section.
     const candidateTypes = new Set(candidates.map(c => c.type));
+    const savedByType = new Map<string, string>();
+    for (const p of existingPatterns) {
+      if (p.status === 'saved' && candidateTypes.has(p.pattern_type)) {
+        savedByType.set(p.pattern_type, p.id);
+      }
+    }
     for (const pType of candidateTypes) {
       await supabase
         .from('pattern_insights')
@@ -892,8 +899,7 @@ serve(async (req) => {
       const earliestDate = allDates[0] || null;
       const latestDate = allDates[allDates.length - 1] || null;
 
-      const row = {
-        user_id: user.id,
+      const fields = {
         pattern_type: candidate.type,
         title: llmResult.title,
         note: llmResult.note,
@@ -914,15 +920,32 @@ serve(async (req) => {
         reflection_prompt: llmResult.reflection_prompt || null,
         suggested_experiment: llmResult.suggested_experiment || null,
         suggested_if_then_plan: null,
-        status: 'active',
         updated_at: new Date().toISOString(),
       };
 
-      const { data: saved, error: saveError } = await supabase
-        .from('pattern_insights')
-        .insert(row)
-        .select()
-        .single();
+      const existingSavedId = savedByType.get(candidate.type);
+      let saved: Record<string, unknown> | null = null;
+      let saveError: { message: string } | null = null;
+
+      if (existingSavedId) {
+        // Update saved pattern in-place — keeps saved status
+        const result = await supabase
+          .from('pattern_insights')
+          .update(fields)
+          .eq('id', existingSavedId)
+          .select()
+          .single();
+        saved = result.data;
+        saveError = result.error;
+      } else {
+        const result = await supabase
+          .from('pattern_insights')
+          .insert({ ...fields, user_id: user.id, status: 'active' })
+          .select()
+          .single();
+        saved = result.data;
+        saveError = result.error;
+      }
 
       if (saveError) {
         console.error(`[generate-patterns] Failed to save pattern "${candidate.signal}":`, saveError);

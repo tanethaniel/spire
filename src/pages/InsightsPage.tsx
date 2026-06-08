@@ -17,8 +17,9 @@ interface InsightsPageProps {
   interpretationEnabled: boolean;
   patterns: PatternNote[];
   patternsLoading: boolean;
-  patternsRefreshing: boolean;
-  onRefreshPatterns: () => void;
+  patternsUpdating: boolean;
+  onResetPatterns: () => void;
+  onUpdatePatterns: () => void;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
   onPatternDismiss: (id: string) => void;
@@ -51,8 +52,8 @@ type CalendarMode = 'completeness' | 'mood';
 
 export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
-  interpretationEnabled, patterns, patternsLoading, patternsRefreshing,
-  onRefreshPatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
+  interpretationEnabled, patterns, patternsLoading, patternsUpdating,
+  onResetPatterns, onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPattern, setSelectedPattern] = useState<PatternNote | null>(null);
@@ -223,13 +224,22 @@ export function InsightsPage({
             <div style={{ ...styles.sectionLabel, marginTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Patterns</span>
               {interpretationEnabled && patterns.length > 0 && (
-                <button
-                  style={styles.refreshBtn}
-                  onClick={onRefreshPatterns}
-                  disabled={patternsRefreshing}
-                >
-                  {patternsRefreshing ? 'Refreshing…' : 'Refresh'}
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    style={styles.headerAction}
+                    onClick={onResetPatterns}
+                    disabled={patternsUpdating}
+                  >
+                    Reset
+                  </button>
+                  <button
+                    style={{ ...styles.headerAction, color: 'var(--accent-primary)' }}
+                    onClick={onUpdatePatterns}
+                    disabled={patternsUpdating}
+                  >
+                    {patternsUpdating ? 'Updating…' : 'Update'}
+                  </button>
+                </div>
               )}
             </div>
             {!interpretationEnabled ? (
@@ -404,15 +414,10 @@ const styles: Record<string, React.CSSProperties> = {
   lockIcon: { fontSize: 24, color: 'var(--accent-primary)', marginBottom: 8 },
   lockTitle: { fontSize: 16, fontWeight: 600, marginBottom: 6 },
   lockSub: { fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 14 },
-  refreshBtn: {
+  headerAction: {
     background: 'none', border: 'none', padding: 0,
-    fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)',
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
     cursor: 'pointer', textTransform: 'uppercase' as const, letterSpacing: '0.05em',
-  },
-  refreshBtnLarge: {
-    background: 'var(--accent-primary)', border: 'none', borderRadius: 10,
-    padding: '10px 20px', fontSize: 14, fontWeight: 600, color: '#fff',
-    cursor: 'pointer', marginTop: 4,
   },
   progressTrack: {
     height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.25)', overflow: 'hidden',

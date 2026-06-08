@@ -305,6 +305,28 @@ export async function fetchPatternNotes(): Promise<PatternNote[]> {
   return (data ?? []).map(mapPatternNote);
 }
 
+export async function fetchAllPatternNotes(): Promise<PatternNote[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Restore dismissed/archived patterns back to active
+  await supabase
+    .from('pattern_insights')
+    .update({ status: 'active', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .in('status', ['dismissed', 'archived']);
+
+  const { data, error } = await supabase
+    .from('pattern_insights')
+    .select('*')
+    .eq('user_id', user.id)
+    .in('status', ['active', 'saved'])
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  return (data ?? []).map(mapPatternNote);
+}
+
 export async function updatePatternFeedback(
   patternId: string,
   feedback: PatternFeedback,

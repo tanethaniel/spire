@@ -74,7 +74,7 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
-  const { patterns, loading: patternsLoading, refreshing: patternsRefreshing, refresh: refreshPatterns, submitFeedback, setStatus } = usePatternNotes(authed, interpretationEnabled);
+  const { patterns, loading: patternsLoading, updating: patternsUpdating, reset: resetPatterns, update: updatePatterns, submitFeedback, toggleSave, dismiss } = usePatternNotes(authed, interpretationEnabled);
 
   const profileUser = authSession ? {
     name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
@@ -123,11 +123,11 @@ function App() {
     setView('home');
     const pending = patternGenRef.current;
     if (pending) {
-      pending.then(() => refreshPatterns()).catch(() => refreshPatterns());
+      pending.then(() => updatePatterns()).catch(() => updatePatterns());
     } else {
-      refreshPatterns();
+      updatePatterns();
     }
-  }, [resetSession, refreshEntries, refreshPatterns, patternGenRef]);
+  }, [resetSession, refreshEntries, updatePatterns, patternGenRef]);
 
   const handleBack = useCallback(() => {
     resetSession();
@@ -276,11 +276,12 @@ function App() {
               interpretationEnabled={interpretationEnabled}
               patterns={patterns}
               patternsLoading={patternsLoading}
-              patternsRefreshing={patternsRefreshing}
-              onRefreshPatterns={refreshPatterns}
+              patternsUpdating={patternsUpdating}
+              onResetPatterns={resetPatterns}
+              onUpdatePatterns={updatePatterns}
               onPatternFeedback={submitFeedback}
-              onPatternSave={(id) => setStatus(id, 'saved')}
-              onPatternDismiss={(id) => setStatus(id, 'dismissed')}
+              onPatternSave={(id) => toggleSave(id)}
+              onPatternDismiss={(id) => dismiss(id)}
             />
           )}
         </div>
