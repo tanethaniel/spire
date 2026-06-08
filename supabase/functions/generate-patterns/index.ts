@@ -558,32 +558,43 @@ function buildCandidates(
     }
   }
 
-  // --- Filter candidates ---
-  const dismissedPatterns = existingPatterns.filter(p => p.status === 'dismissed');
-  const activePatterns = existingPatterns.filter(p => p.status === 'active');
-
-  const filtered = candidates.filter(c => {
-    // Skip if dismissed pattern exists with same type + overlapping tags
-    for (const d of dismissedPatterns) {
-      if (d.pattern_type === c.type && d.related_tags?.some(t => c.tags.includes(t))) {
-        return false;
-      }
+  // --- Deduplicate candidates by primary signal ---
+  // Multiple candidate types can fire for the same signal (e.g. "coding"
+  // triggers recurring_theme + mood_driver + activity_mood_link).
+  // Keep the strongest candidate per signal.
+  const confidenceOrder: Record<string, number> = { strong_pattern: 0, emerging_pattern: 1, early_signal: 2 };
+  const bestBySignal = new Map<string, Candidate>();
+  for (const c of candidates) {
+    const key = c.signal.toLowerCase();
+    const existing = bestBySignal.get(key);
+    if (!existing) {
+      bestBySignal.set(key, c);
+      continue;
     }
-    // Skip if identical active pattern exists (unless force_refresh)
-    if (!forceRefresh) {
-      for (const a of activePatterns) {
-        if (a.pattern_type === c.type && a.related_tags?.some(t => c.tags.includes(t))) {
-          return false;
-        }
+    const cScore = (confidenceOrder[c.confidence] ?? 3) * 100 - c.quotes.length;
+    const eScore = (confidenceOrder[existing.confidence] ?? 3) * 100 - existing.quotes.length;
+    if (cScore < eScore) {
+      bestBySignal.set(key, c);
+    }
+  }
+  const deduped = [...bestBySignal.values()];
+
+  // --- Filter against existing patterns ---
+  const dismissedPatterns = existingPatterns.filter(p => p.status === 'dismissed');
+
+  const filtered = deduped.filter(c => {
+    // Never resurface dismissed patterns (reset handles that separately)
+    for (const d of dismissedPatterns) {
+      if (d.related_tags?.some(t => c.tags.includes(t))) {
+        return false;
       }
     }
     return true;
   });
 
   // Sort: strong > emerging > early, then by evidence count
-  const confidenceOrder = { strong_pattern: 0, emerging_pattern: 1, early_signal: 2 };
   filtered.sort((a, b) => {
-    const co = confidenceOrder[a.confidence] - confidenceOrder[b.confidence];
+    const co = (confidenceOrder[a.confidence] ?? 3) - (confidenceOrder[b.confidence] ?? 3);
     if (co !== 0) return co;
     return b.quotes.length - a.quotes.length;
   });
@@ -855,22 +866,32 @@ serve(async (req) => {
         feedback: p.user_feedback!,
       }));
 
-    // Archive old active patterns that will be replaced by fresh candidates.
-    // Saved patterns are updated in-place (not archived) so they stay in the saved section.
-    const candidateTypes = new Set(candidates.map(c => c.type));
-    const savedByType = new Map<string, string>();
-    for (const p of existingPatterns) {
-      if (p.status === 'saved' && candidateTypes.has(p.pattern_type)) {
-        savedByType.set(p.pattern_type, p.id);
+    // Match each candidate to an existing pattern by overlapping tags.
+    // Saved patterns get updated in-place. Active patterns get archived and replaced.
+    const matchedExisting = new Map<string, { id: string; status: string }>();
+
+    for (const c of candidates) {
+      const cTagsLower = c.tags.map(t => t.toLowerCase());
+      for (const p of existingPatterns) {
+        if (p.status !== 'active' && p.status !== 'saved') continue;
+        const pTags = (p.related_tags ?? []).map(t => t.toLowerCase());
+        if (pTags.some(t => cTagsLower.includes(t))) {
+          matchedExisting.set(c.signal.toLowerCase(), { id: p.id, status: p.status });
+          break;
+        }
       }
     }
-    for (const pType of candidateTypes) {
+
+    // Archive active patterns that will be replaced by fresh candidates
+    const toArchive = [...matchedExisting.values()]
+      .filter(m => m.status === 'active')
+      .map(m => m.id);
+    if (toArchive.length > 0) {
       await supabase
         .from('pattern_insights')
         .update({ status: 'archived', updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
-        .eq('pattern_type', pType)
-        .eq('status', 'active');
+        .in('id', toArchive);
     }
 
     // Run all LLM calls in parallel for speed
@@ -923,16 +944,16 @@ serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      const existingSavedId = savedByType.get(candidate.type);
+      const match = matchedExisting.get(candidate.signal.toLowerCase());
       let saved: Record<string, unknown> | null = null;
       let saveError: { message: string } | null = null;
 
-      if (existingSavedId) {
+      if (match && match.status === 'saved') {
         // Update saved pattern in-place — keeps saved status
         const result = await supabase
           .from('pattern_insights')
           .update(fields)
-          .eq('id', existingSavedId)
+          .eq('id', match.id)
           .select()
           .single();
         saved = result.data;

@@ -309,22 +309,53 @@ export async function fetchAllPatternNotes(): Promise<PatternNote[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Restore dismissed/archived patterns back to active
-  await supabase
-    .from('pattern_insights')
-    .update({ status: 'active', updated_at: new Date().toISOString() })
-    .eq('user_id', user.id)
-    .in('status', ['dismissed', 'archived']);
-
-  const { data, error } = await supabase
+  // Fetch everything
+  const { data: all, error: fetchErr } = await supabase
     .from('pattern_insights')
     .select('*')
     .eq('user_id', user.id)
-    .in('status', ['active', 'saved'])
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (fetchErr) throw fetchErr;
 
-  return (data ?? []).map(mapPatternNote);
+  const rows = all ?? [];
+  const activeSaved = rows.filter(r => r.status === 'active' || r.status === 'saved');
+  const hidden = rows.filter(r => r.status === 'dismissed' || r.status === 'archived');
+
+  // Build a set of tag fingerprints from active/saved patterns to avoid duplicates
+  const coveredTags = new Set<string>();
+  for (const p of activeSaved) {
+    if (Array.isArray(p.related_tags)) {
+      for (const t of p.related_tags) coveredTags.add(String(t).toLowerCase());
+    }
+  }
+
+  // Restore hidden patterns only if they don't overlap with existing ones
+  const toRestore: string[] = [];
+  for (const p of hidden) {
+    const tags: string[] = Array.isArray(p.related_tags) ? p.related_tags.map(String) : [];
+    const overlaps = tags.some(t => coveredTags.has(t.toLowerCase()));
+    if (!overlaps) {
+      toRestore.push(p.id);
+      for (const t of tags) coveredTags.add(t.toLowerCase());
+    }
+  }
+
+  if (toRestore.length > 0) {
+    await supabase
+      .from('pattern_insights')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .in('id', toRestore);
+  }
+
+  // Return the combined set
+  const restoredIds = new Set(toRestore);
+  const result = [
+    ...activeSaved,
+    ...hidden.filter(p => restoredIds.has(p.id)),
+  ];
+
+  return result.map(mapPatternNote);
 }
 
 export async function updatePatternFeedback(
