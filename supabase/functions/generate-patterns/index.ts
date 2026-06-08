@@ -140,8 +140,7 @@ function buildCandidates(
   signals: SignalRow[],
   calendarSignals: CalendarSignal[],
   existingPatterns: PatternInsight[],
-  goal: string | null,
-  forceRefresh: boolean,
+  _goal: string | null,
 ): Candidate[] {
   const candidates: Candidate[] = [];
 
@@ -837,7 +836,7 @@ serve(async (req) => {
 
     // 3. Deterministic Candidate Generation
     const candidates = buildCandidates(
-      entries, signals, calendarSignals, existingPatterns, goal, forceRefresh,
+      entries, signals, calendarSignals, existingPatterns, goal,
     );
 
     if (candidates.length === 0) {
@@ -857,7 +856,8 @@ serve(async (req) => {
       });
     }
 
-    // Build feedback history from previous patterns the user responded to
+    // Build feedback history from previous patterns the user responded to.
+    // Feedback influences future cards, not existing ones.
     const feedbackHistory: FeedbackEntry[] = existingPatterns
       .filter(p => p.user_feedback && p.title)
       .map(p => ({
@@ -866,43 +866,40 @@ serve(async (req) => {
         feedback: p.user_feedback!,
       }));
 
-    // Match each candidate to an existing pattern by overlapping tags.
-    // Saved patterns get updated in-place. Active patterns get archived and replaced.
-    const matchedExisting = new Map<string, { id: string; status: string }>();
+    // Saved patterns are locked — skip candidates that overlap with them.
+    // Active patterns get archived and replaced by fresh candidates.
+    const savedPatternsList = existingPatterns.filter(p => p.status === 'saved');
+    const activePatternsList = existingPatterns.filter(p => p.status === 'active');
 
-    for (const c of candidates) {
-      const cTagsLower = c.tags.map(t => t.toLowerCase());
-      for (const p of existingPatterns) {
-        if (p.status !== 'active' && p.status !== 'saved') continue;
-        const pTags = (p.related_tags ?? []).map(t => t.toLowerCase());
-        if (pTags.some(t => cTagsLower.includes(t))) {
-          matchedExisting.set(c.signal.toLowerCase(), { id: p.id, status: p.status });
-          break;
-        }
-      }
+    const savedTagsLower = new Set<string>();
+    for (const p of savedPatternsList) {
+      for (const t of (p.related_tags ?? [])) savedTagsLower.add(t.toLowerCase());
     }
 
-    // Archive active patterns that will be replaced by fresh candidates
-    const toArchive = [...matchedExisting.values()]
-      .filter(m => m.status === 'active')
-      .map(m => m.id);
-    if (toArchive.length > 0) {
+    // Filter out candidates that overlap with saved patterns
+    const unsavedCandidates = candidates.filter(c => {
+      return !c.tags.some(t => savedTagsLower.has(t.toLowerCase()));
+    });
+
+    // Archive ALL active (non-saved) patterns — they'll be replaced by fresh generation
+    const activeIds = activePatternsList.map(p => p.id);
+    if (activeIds.length > 0) {
       await supabase
         .from('pattern_insights')
         .update({ status: 'archived', updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
-        .in('id', toArchive);
+        .in('id', activeIds);
     }
 
-    // Run all LLM calls in parallel for speed
+    // Run LLM calls for non-saved candidates
     const llmResults = await Promise.allSettled(
-      candidates.map(candidate =>
+      unsavedCandidates.map(candidate =>
         writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory)
           .then(result => ({ candidate, result }))
       ),
     );
 
-    const savedPatterns: Record<string, unknown>[] = [];
+    const insertedPatterns: Record<string, unknown>[] = [];
 
     for (const outcome of llmResults) {
       if (outcome.status === 'rejected' || !outcome.value.result) {
@@ -920,7 +917,8 @@ serve(async (req) => {
       const earliestDate = allDates[0] || null;
       const latestDate = allDates[allDates.length - 1] || null;
 
-      const fields = {
+      const row = {
+        user_id: user.id,
         pattern_type: candidate.type,
         title: llmResult.title,
         note: llmResult.note,
@@ -941,43 +939,26 @@ serve(async (req) => {
         reflection_prompt: llmResult.reflection_prompt || null,
         suggested_experiment: llmResult.suggested_experiment || null,
         suggested_if_then_plan: null,
+        status: 'active',
         updated_at: new Date().toISOString(),
       };
 
-      const match = matchedExisting.get(candidate.signal.toLowerCase());
-      let saved: Record<string, unknown> | null = null;
-      let saveError: { message: string } | null = null;
+      const { data: inserted, error: insertError } = await supabase
+        .from('pattern_insights')
+        .insert(row)
+        .select()
+        .single();
 
-      if (match && match.status === 'saved') {
-        // Update saved pattern in-place — keeps saved status
-        const result = await supabase
-          .from('pattern_insights')
-          .update(fields)
-          .eq('id', match.id)
-          .select()
-          .single();
-        saved = result.data;
-        saveError = result.error;
-      } else {
-        const result = await supabase
-          .from('pattern_insights')
-          .insert({ ...fields, user_id: user.id, status: 'active' })
-          .select()
-          .single();
-        saved = result.data;
-        saveError = result.error;
-      }
-
-      if (saveError) {
-        console.error(`[generate-patterns] Failed to save pattern "${candidate.signal}":`, saveError);
-      } else if (saved) {
-        savedPatterns.push(saved);
+      if (insertError) {
+        console.error(`[generate-patterns] Failed to save pattern "${candidate.signal}":`, insertError);
+      } else if (inserted) {
+        insertedPatterns.push(inserted);
       }
     }
 
-    console.log(`[generate-patterns] Generated ${savedPatterns.length} patterns for user ${user.id}`);
+    console.log(`[generate-patterns] Generated ${insertedPatterns.length} patterns for user ${user.id}`);
 
-    return new Response(JSON.stringify({ patterns: savedPatterns }), {
+    return new Response(JSON.stringify({ patterns: insertedPatterns }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

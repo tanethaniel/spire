@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PatternNote, PatternFeedback, PatternStatus } from '../types/session';
-import { fetchPatternNotes, fetchAllPatternNotes, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
+import type { PatternNote, PatternFeedback } from '../types/session';
+import { fetchPatternNotes, resetAllPatterns, updatePatternFeedback, updatePatternStatus, generatePatterns, backfillEntrySignals, backfillAnalysis, getLatestEntryDate } from '../lib/api';
 
 export function usePatternNotes(authed: boolean, interpretationEnabled: boolean) {
   const [patterns, setPatterns] = useState<PatternNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const backfillRanRef = useRef(false);
+  const lastGeneratedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!authed || !interpretationEnabled) {
@@ -23,22 +24,17 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
 
         if (notes.length === 0 && !backfillRanRef.current) {
           backfillRanRef.current = true;
-          console.log('[patterns] No patterns found, starting backfill…');
           setLoading(true);
           const analyzed = await backfillAnalysis();
-          console.log(`[patterns] Backfilled analysis for ${analyzed} entries`);
           const extracted = await backfillEntrySignals();
-          console.log(`[patterns] Backfilled signals for ${extracted} entries`);
           if (analyzed > 0 || extracted > 0) {
-            console.log('[patterns] Generating patterns…');
             const generated = await generatePatterns(true);
-            console.log(`[patterns] Generated ${generated.length} patterns`);
             if (!cancelled) {
+              lastGeneratedRef.current = new Date().toISOString();
               if (generated.length > 0) {
                 setPatterns(generated);
               } else {
-                const fetched = await fetchPatternNotes();
-                setPatterns(fetched);
+                setPatterns(await fetchPatternNotes());
               }
             }
           }
@@ -52,11 +48,13 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     return () => { cancelled = true; };
   }, [authed, interpretationEnabled]);
 
+  // Reset: restore dismissed cards to active, move saved back to active.
+  // Keeps feedback. No regeneration.
   const reset = useCallback(async () => {
     if (!interpretationEnabled) return;
     setLoading(true);
     try {
-      const all = await fetchAllPatternNotes();
+      const all = await resetAllPatterns();
       setPatterns(all);
     } catch {
       // keep existing
@@ -65,24 +63,38 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     }
   }, [interpretationEnabled]);
 
+  // Update: regenerate non-saved cards + potentially create new ones.
+  // Skips if no new entries since last generation.
   const update = useCallback(async () => {
     if (!interpretationEnabled) return;
     setUpdating(true);
     try {
+      // Check if there are new entries since last generation
+      if (lastGeneratedRef.current) {
+        const latestEntry = await getLatestEntryDate();
+        if (latestEntry && latestEntry <= lastGeneratedRef.current) {
+          setUpdating(false);
+          return;
+        }
+      }
+
       await backfillEntrySignals();
       const notes = await generatePatterns(true);
-      if (notes.length > 0) {
-        setPatterns(notes);
-      } else {
-        const fetched = await fetchPatternNotes();
-        setPatterns(fetched);
-      }
+      lastGeneratedRef.current = new Date().toISOString();
+
+      // Merge: keep saved patterns from current state, add new active ones
+      const savedFromCurrent = patterns.filter(p => p.status === 'saved');
+      const freshActive = notes.length > 0
+        ? notes.filter((n: PatternNote) => n.status === 'active')
+        : (await fetchPatternNotes()).filter(p => p.status === 'active');
+
+      setPatterns([...freshActive, ...savedFromCurrent]);
     } catch {
       // keep existing patterns
     } finally {
       setUpdating(false);
     }
-  }, [interpretationEnabled]);
+  }, [interpretationEnabled, patterns]);
 
   const submitFeedback = useCallback(async (patternId: string, feedback: PatternFeedback) => {
     await updatePatternFeedback(patternId, feedback);
@@ -92,7 +104,7 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
   const toggleSave = useCallback(async (patternId: string) => {
     const pattern = patterns.find(p => p.id === patternId);
     if (!pattern) return;
-    const nextStatus: PatternStatus = pattern.status === 'saved' ? 'active' : 'saved';
+    const nextStatus = pattern.status === 'saved' ? 'active' : 'saved';
     await updatePatternStatus(patternId, nextStatus);
     setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status: nextStatus } : p));
   }, [patterns]);

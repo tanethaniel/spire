@@ -305,57 +305,72 @@ export async function fetchPatternNotes(): Promise<PatternNote[]> {
   return (data ?? []).map(mapPatternNote);
 }
 
-export async function fetchAllPatternNotes(): Promise<PatternNote[]> {
+// Reset: move ALL dismissed/archived → active, ALL saved → active.
+// Keeps feedback intact. No regeneration, no dedup needed since
+// archived patterns were replaced by active ones (which get flipped too).
+export async function resetAllPatterns(): Promise<PatternNote[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Fetch everything
-  const { data: all, error: fetchErr } = await supabase
+  // Flip everything non-active to active
+  await supabase
+    .from('pattern_insights')
+    .update({ status: 'active', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .in('status', ['dismissed', 'saved']);
+
+  // Now there may be duplicates from archived + active pairs.
+  // Deduplicate: for each signal (related_tags overlap), keep only the newest.
+  const { data: all, error } = await supabase
     .from('pattern_insights')
     .select('*')
     .eq('user_id', user.id)
+    .eq('status', 'active')
     .order('created_at', { ascending: false });
-  if (fetchErr) throw fetchErr;
+  if (error) throw error;
 
   const rows = all ?? [];
-  const activeSaved = rows.filter(r => r.status === 'active' || r.status === 'saved');
-  const hidden = rows.filter(r => r.status === 'dismissed' || r.status === 'archived');
+  const seen = new Set<string>();
+  const keep: typeof rows = [];
+  const toDrop: string[] = [];
 
-  // Build a set of tag fingerprints from active/saved patterns to avoid duplicates
-  const coveredTags = new Set<string>();
-  for (const p of activeSaved) {
-    if (Array.isArray(p.related_tags)) {
-      for (const t of p.related_tags) coveredTags.add(String(t).toLowerCase());
+  for (const row of rows) {
+    const tags: string[] = Array.isArray(row.related_tags) ? row.related_tags : [];
+    const primaryTag = tags[0]?.toLowerCase() ?? row.id;
+
+    if (seen.has(primaryTag)) {
+      toDrop.push(row.id);
+    } else {
+      seen.add(primaryTag);
+      keep.push(row);
     }
   }
 
-  // Restore hidden patterns only if they don't overlap with existing ones
-  const toRestore: string[] = [];
-  for (const p of hidden) {
-    const tags: string[] = Array.isArray(p.related_tags) ? p.related_tags.map(String) : [];
-    const overlaps = tags.some(t => coveredTags.has(t.toLowerCase()));
-    if (!overlaps) {
-      toRestore.push(p.id);
-      for (const t of tags) coveredTags.add(t.toLowerCase());
-    }
-  }
-
-  if (toRestore.length > 0) {
+  // Archive the older duplicates
+  if (toDrop.length > 0) {
     await supabase
       .from('pattern_insights')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
       .eq('user_id', user.id)
-      .in('id', toRestore);
+      .in('id', toDrop);
   }
 
-  // Return the combined set
-  const restoredIds = new Set(toRestore);
-  const result = [
-    ...activeSaved,
-    ...hidden.filter(p => restoredIds.has(p.id)),
-  ];
+  return keep.map(mapPatternNote);
+}
 
-  return result.map(mapPatternNote);
+export async function getLatestEntryDate(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from('journal_entries')
+    .select('created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  return data?.created_at ?? null;
 }
 
 export async function updatePatternFeedback(
