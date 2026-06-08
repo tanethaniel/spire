@@ -269,7 +269,6 @@ export function InsightsPage({
                   <PatternNoteCard
                     key={p.id}
                     pattern={p}
-                    onFeedback={(id, fb) => onPatternFeedback(id, fb)}
                     onSave={(id) => onPatternSave(id)}
                     onDismiss={(id) => onPatternDismiss(id)}
                     onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
@@ -282,7 +281,6 @@ export function InsightsPage({
                       <PatternNoteCard
                         key={p.id}
                         pattern={p}
-                        onFeedback={(id, fb) => onPatternFeedback(id, fb)}
                         onSave={(id) => onPatternSave(id)}
                         onDismiss={(id) => onPatternDismiss(id)}
                         onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
@@ -297,7 +295,6 @@ export function InsightsPage({
                       <PatternNoteCard
                         key={p.id}
                         pattern={p}
-                        onFeedback={(id, fb) => onPatternFeedback(id, fb)}
                         onSave={(id) => onPatternSave(id)}
                         onDismiss={(id) => onPatternDismiss(id)}
                         onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}

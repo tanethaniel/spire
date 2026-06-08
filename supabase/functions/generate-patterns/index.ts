@@ -642,8 +642,7 @@ suggested_experiment MUST be:
 Return JSON only:
 {
   "title": "max 80 chars, warm and specific",
-  "note": "max 450 chars, reflective paragraph grounded in evidence",
-  "goal_connection": "max 260 chars, connects to user's goal, or null",
+  "note": "max 280 chars, 2-3 sentences. Observational and warm — describe the pattern you see, grounded in evidence. No coaching, no generic advice, no 'this is worth tracking' language.",
   "personality_framing": "max 280 chars, SPECIFIC MBTI-based actionable suggestion, or null",
   "reflection_prompt": "max 180 chars, a specific question for the user to sit with",
   "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week",
@@ -899,7 +898,7 @@ serve(async (req) => {
         pattern_type: candidate.type,
         title: llmResult.title,
         note: llmResult.note,
-        goal_connection: llmResult.goal_connection || null,
+        goal_connection: null,
         personality_framing: llmResult.personality_framing || null,
         evidence_summary: candidate.evidence_summary,
         confidence: candidate.confidence,
