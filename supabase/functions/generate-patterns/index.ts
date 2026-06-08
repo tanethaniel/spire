@@ -763,15 +763,9 @@ serve(async (req) => {
     // 1. Auth & Settings
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('goal, mbti, interpretation_enabled')
+      .select('goal, mbti')
       .eq('user_id', user.id)
       .maybeSingle();
-
-    if (settings && settings.interpretation_enabled === false) {
-      return new Response(JSON.stringify({ patterns: [] }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const goal: string | null = settings?.goal || null;
     const mbti: string | null = settings?.mbti || null;

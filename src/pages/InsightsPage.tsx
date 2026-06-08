@@ -265,29 +265,27 @@ export function InsightsPage({
               </div>
             ) : (
               <>
-                {mainPatterns.map((p, i) => (
+                {mainPatterns.map(p => (
                   <PatternNoteCard
                     key={p.id}
                     pattern={p}
-                    index={i}
-                    onFeedback={onPatternFeedback}
-                    onSave={onPatternSave}
-                    onDismiss={onPatternDismiss}
-                    onOpen={() => { setSelectedPattern(p); setDetailOpen(true); }}
+                    onFeedback={(id, fb) => onPatternFeedback(id, fb)}
+                    onSave={(id) => onPatternSave(id)}
+                    onDismiss={(id) => onPatternDismiss(id)}
+                    onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
                   />
                 ))}
                 {earlySignals.length > 0 && (
                   <>
                     <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Things to watch</div>
-                    {earlySignals.map((p, i) => (
+                    {earlySignals.map(p => (
                       <PatternNoteCard
                         key={p.id}
                         pattern={p}
-                        index={i}
-                        onFeedback={onPatternFeedback}
-                        onSave={onPatternSave}
-                        onDismiss={onPatternDismiss}
-                        onOpen={() => { setSelectedPattern(p); setDetailOpen(true); }}
+                        onFeedback={(id, fb) => onPatternFeedback(id, fb)}
+                        onSave={(id) => onPatternSave(id)}
+                        onDismiss={(id) => onPatternDismiss(id)}
+                        onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
                       />
                     ))}
                   </>
@@ -295,15 +293,14 @@ export function InsightsPage({
                 {savedPatterns.length > 0 && (
                   <>
                     <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Saved</div>
-                    {savedPatterns.map((p, i) => (
+                    {savedPatterns.map(p => (
                       <PatternNoteCard
                         key={p.id}
                         pattern={p}
-                        index={i}
-                        onFeedback={onPatternFeedback}
-                        onSave={onPatternSave}
-                        onDismiss={onPatternDismiss}
-                        onOpen={() => { setSelectedPattern(p); setDetailOpen(true); }}
+                        onFeedback={(id, fb) => onPatternFeedback(id, fb)}
+                        onSave={(id) => onPatternSave(id)}
+                        onDismiss={(id) => onPatternDismiss(id)}
+                        onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
                       />
                     ))}
                   </>
@@ -314,6 +311,7 @@ export function InsightsPage({
             {detailOpen && selectedPattern && (
               <PatternDetailSheet
                 pattern={selectedPattern}
+                open={detailOpen}
                 onClose={() => { setDetailOpen(false); setSelectedPattern(null); }}
                 onFeedback={onPatternFeedback}
                 onSave={onPatternSave}

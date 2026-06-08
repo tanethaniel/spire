@@ -125,12 +125,13 @@ export async function saveJournalEntry(entry: {
   if (!user) throw new Error('Not authenticated');
 
   // Dedup on session UUID: skip if this session was already saved.
-  const { count } = await supabase
+  const { data: existing } = await supabase
     .from('journal_entries')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
     .eq('user_id', user.id)
-    .eq('session_id', entry.sessionId);
-  if ((count ?? 0) > 0) return null;
+    .eq('session_id', entry.sessionId)
+    .maybeSingle();
+  if (existing) return existing.id;
 
   const row: Record<string, unknown> = {
     user_id: user.id,
@@ -331,8 +332,8 @@ function mapPatternNote(row: Record<string, unknown>): PatternNote {
   let parsedQuotes: PatternNote['supportingQuotes'] = null;
   if (Array.isArray(quotes)) {
     parsedQuotes = quotes.map((q: Record<string, unknown>) => ({
-      text: String(q.quote ?? q.text ?? ''),
-      entryDate: String(q.date ?? q.entryDate ?? ''),
+      quote: String(q.quote ?? q.text ?? ''),
+      date: String(q.date ?? q.entryDate ?? ''),
     }));
   }
 

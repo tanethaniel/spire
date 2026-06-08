@@ -91,8 +91,8 @@ export type PatternStatus = 'active' | 'saved' | 'watching' | 'dismissed' | 'arc
 export type PatternFeedback = 'true' | 'kind_of' | 'not_really';
 
 export interface PatternQuote {
-  text: string;
-  entryDate: string;
+  quote: string;
+  date: string;
 }
 
 export interface PatternNote {
