@@ -5,6 +5,16 @@ import { fetchPatternNotes, resetAllPatterns, updatePatternFeedback, updatePatte
 const TOAST_STORAGE_KEY = 'spire_archive_toasts';
 const MAX_SAVED = 20;
 
+function dedupeByPrimaryTag(notes: PatternNote[]): PatternNote[] {
+  const seen = new Set<string>();
+  return notes.filter(p => {
+    const tag = (p.relatedTags ?? [])[0]?.toLowerCase() ?? p.id;
+    if (seen.has(tag)) return false;
+    seen.add(tag);
+    return true;
+  });
+}
+
 function loadStoredToasts(): string[] {
   try {
     const raw = localStorage.getItem(TOAST_STORAGE_KEY);
@@ -39,9 +49,9 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
         const notes = await fetchPatternNotes();
         if (cancelled) return;
 
-        const active = notes.filter(p => p.status === 'active' || p.status === 'watching');
-        const saved = notes.filter(p => p.status === 'saved');
-        const archived = notes.filter(p => p.status === 'archived');
+        const active = dedupeByPrimaryTag(notes.filter(p => p.status === 'active' || p.status === 'watching'));
+        const saved = dedupeByPrimaryTag(notes.filter(p => p.status === 'saved'));
+        const archived = dedupeByPrimaryTag(notes.filter(p => p.status === 'archived'));
         setPatterns([...active, ...saved]);
         setArchivedPatterns(archived);
 
@@ -56,9 +66,9 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
               setPatterns(generated);
             } else {
               const fresh = await fetchPatternNotes();
-              const freshActive = fresh.filter(p => p.status === 'active' || p.status === 'watching');
-              const freshSaved = fresh.filter(p => p.status === 'saved');
-              const freshArchived = fresh.filter(p => p.status === 'archived');
+              const freshActive = dedupeByPrimaryTag(fresh.filter(p => p.status === 'active' || p.status === 'watching'));
+              const freshSaved = dedupeByPrimaryTag(fresh.filter(p => p.status === 'saved'));
+              const freshArchived = dedupeByPrimaryTag(fresh.filter(p => p.status === 'archived'));
               setPatterns([...freshActive, ...freshSaved]);
               setArchivedPatterns(freshArchived);
             }
@@ -103,18 +113,17 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
       // Merge: keep saved from current state, add fresh active
       const savedFromCurrent = patterns.filter(p => p.status === 'saved');
       if (result.length > 0) {
-        const freshActive = result.filter(p => p.status === 'active');
         // Re-fetch to get updated active cards (trickle updates in place)
         const allNotes = await fetchPatternNotes();
-        const updatedActive = allNotes.filter(p => p.status === 'active' || p.status === 'watching');
-        const updatedArchived = allNotes.filter(p => p.status === 'archived');
+        const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
+        const updatedArchived = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'archived'));
         setPatterns([...updatedActive, ...savedFromCurrent]);
         setArchivedPatterns(updatedArchived);
       } else {
         // No new results, but re-fetch in case updates happened
         const allNotes = await fetchPatternNotes();
-        const updatedActive = allNotes.filter(p => p.status === 'active' || p.status === 'watching');
-        const updatedArchived = allNotes.filter(p => p.status === 'archived');
+        const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
+        const updatedArchived = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'archived'));
         setPatterns([...updatedActive, ...savedFromCurrent]);
         setArchivedPatterns(updatedArchived);
       }
