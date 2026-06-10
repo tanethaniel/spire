@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface RecordButtonProps {
   disabled: boolean;
@@ -20,6 +20,37 @@ export function RecordButton({ disabled, recording, locked, onStart, onStop, onL
   const lockProgress = Math.min(dragX / LOCK_THRESHOLD, 1);
   const isLocking = dragX > 10;
 
+  // --- Mouse drag via window listeners (prevents mouseLeave cutting the drag short) ---
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!activeRef.current || lockedRef.current) return;
+    const dx = Math.max(0, e.clientX - startXRef.current);
+    setDragX(dx);
+
+    if (dx >= LOCK_THRESHOLD) {
+      lockedRef.current = true;
+      setDragX(0);
+      onLock();
+    }
+  }, [onLock]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!activeRef.current) return;
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    if (lockedRef.current) return;
+    activeRef.current = false;
+    setDragX(0);
+    onStop();
+  }, [onStop, handleMouseMove]);
+
+  // Clean up window listeners on unmount
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
+
   const handleDown = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     if (disabled) return;
     e.preventDefault();
@@ -30,12 +61,18 @@ export function RecordButton({ disabled, recording, locked, onStart, onStop, onL
     startXRef.current = clientX;
     setDragX(0);
     onStart();
-  }, [disabled, onStart]);
 
-  const handleMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    // For mouse: attach move/up to window so drag works outside the button
+    if (!('touches' in e)) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+  }, [disabled, onStart, handleMouseMove, handleMouseUp]);
+
+  // Touch-specific handlers (touch events track globally by default)
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!activeRef.current || lockedRef.current) return;
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const dx = Math.max(0, clientX - startXRef.current);
+    const dx = Math.max(0, e.touches[0].clientX - startXRef.current);
     setDragX(dx);
 
     if (dx >= LOCK_THRESHOLD) {
@@ -45,9 +82,9 @@ export function RecordButton({ disabled, recording, locked, onStart, onStop, onL
     }
   }, [onLock]);
 
-  const handleUp = useCallback(() => {
+  const handleTouchEnd = useCallback(() => {
     if (!activeRef.current) return;
-    if (lockedRef.current) return; // locked — don't stop
+    if (lockedRef.current) return;
     activeRef.current = false;
     setDragX(0);
     onStop();
@@ -108,12 +145,9 @@ export function RecordButton({ disabled, recording, locked, onStart, onStop, onL
               transform: `translateX(${Math.min(dragX * 0.4, 24)}px)`,
             }}
             onTouchStart={handleDown}
-            onTouchMove={handleMove}
-            onTouchEnd={handleUp}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             onMouseDown={handleDown}
-            onMouseMove={handleMove}
-            onMouseUp={handleUp}
-            onMouseLeave={handleUp}
             disabled={disabled}
             aria-label={recording ? 'Release to stop' : 'Hold to record'}
             aria-pressed={recording}
