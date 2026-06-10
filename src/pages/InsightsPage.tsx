@@ -21,7 +21,7 @@ interface InsightsPageProps {
   savedCount: number;
   patternsLoading: boolean;
   archivedToasts: string[];
-  onDismissToast: (index: number) => void;
+  onDismissToast: (title: string) => void;
   onResetPatterns: () => void;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
@@ -62,8 +62,7 @@ export function InsightsPage({
   onResetPatterns, onPatternFeedback, onPatternSave, onPatternArchive,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
-  const [selectedPattern, setSelectedPattern] = useState<PatternNote | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
 
@@ -100,9 +99,10 @@ export function InsightsPage({
 
   const saveDisabled = savedCount >= MAX_SAVED;
   const patternsUnlocked = totalEntries >= MIN_ENTRIES_FOR_PATTERNS && totalDays >= MIN_DAYS_FOR_PATTERNS;
-  const unlockProgress = Math.min(100, ((totalEntries / MIN_ENTRIES_FOR_PATTERNS + totalDays / MIN_DAYS_FOR_PATTERNS) / 2) * 100);
+  const unlockProgress = Math.min(totalEntries / MIN_ENTRIES_FOR_PATTERNS, totalDays / MIN_DAYS_FOR_PATTERNS) * 100;
 
-  // Determine if the selected pattern is from archived
+  const allPatterns = [...patterns, ...archivedPatterns];
+  const selectedPattern = selectedPatternId ? allPatterns.find(p => p.id === selectedPatternId) ?? null : null;
   const selectedIsArchived = selectedPattern ? archivedPatterns.some(p => p.id === selectedPattern.id) : false;
 
   // Build heatmap cells aligned to Monday start.
@@ -130,8 +130,7 @@ export function InsightsPage({
   }
 
   const openDetail = (p: PatternNote) => {
-    setSelectedPattern(p);
-    setDetailOpen(true);
+    setSelectedPatternId(p.id);
   };
 
   return (
@@ -255,13 +254,13 @@ export function InsightsPage({
             </div>
 
             {/* Archive toasts */}
-            {archivedToasts.map((title, i) => (
+            {archivedToasts.map(title => (
               <ArchiveToast
-                key={`toast-${i}`}
+                key={title}
                 title={title}
-                onDismiss={() => onDismissToast(i)}
+                onDismiss={() => onDismissToast(title)}
                 onViewArchive={() => {
-                  onDismissToast(i);
+                  onDismissToast(title);
                   setArchivedOpen(true);
                 }}
               />
@@ -347,6 +346,7 @@ export function InsightsPage({
                         onSave={onPatternSave}
                         onArchive={onPatternArchive}
                         onOpen={() => openDetail(p)}
+                        saveDisabled={saveDisabled}
                       />
                     ))}
                   </>
@@ -376,18 +376,16 @@ export function InsightsPage({
               </>
             )}
 
-            {detailOpen && selectedPattern && (
-              <PatternDetailSheet
-                pattern={selectedPattern}
-                open={detailOpen}
-                onClose={() => { setDetailOpen(false); setSelectedPattern(null); }}
-                onFeedback={onPatternFeedback}
-                onSave={onPatternSave}
-                onArchive={selectedIsArchived ? undefined : onPatternArchive}
-                saveDisabled={saveDisabled}
-                isArchived={selectedIsArchived}
-              />
-            )}
+            <PatternDetailSheet
+              pattern={selectedPattern}
+              open={!!selectedPattern}
+              onClose={() => setSelectedPatternId(null)}
+              onFeedback={onPatternFeedback}
+              onSave={onPatternSave}
+              onArchive={selectedIsArchived ? undefined : onPatternArchive}
+              saveDisabled={saveDisabled}
+              isArchived={selectedIsArchived}
+            />
           </>
         )}
       </div>

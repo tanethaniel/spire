@@ -102,35 +102,29 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     if (!interpretationEnabled) return;
     try {
       await backfillEntrySignals();
-      const { patterns: result, archivedTitles } = await generatePatterns(true);
+      const { archivedTitles } = await generatePatterns(true);
 
       if (archivedTitles.length > 0) {
-        const newToasts = [...archivedToasts, ...archivedTitles];
-        setArchivedToasts(newToasts);
-        storeToasts(newToasts);
+        setArchivedToasts(prev => {
+          const next = [...prev, ...archivedTitles];
+          storeToasts(next);
+          return next;
+        });
       }
 
-      // Merge: keep saved from current state, add fresh active
-      const savedFromCurrent = patterns.filter(p => p.status === 'saved');
-      if (result.length > 0) {
-        // Re-fetch to get updated active cards (trickle updates in place)
-        const allNotes = await fetchPatternNotes();
-        const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
-        const updatedArchived = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'archived'));
-        setPatterns([...updatedActive, ...savedFromCurrent]);
-        setArchivedPatterns(updatedArchived);
-      } else {
-        // No new results, but re-fetch in case updates happened
-        const allNotes = await fetchPatternNotes();
-        const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
-        const updatedArchived = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'archived'));
-        setPatterns([...updatedActive, ...savedFromCurrent]);
-        setArchivedPatterns(updatedArchived);
-      }
+      const allNotes = await fetchPatternNotes();
+      const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
+      const updatedArchived = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'archived'));
+
+      setPatterns(prev => {
+        const savedFromCurrent = prev.filter(p => p.status === 'saved');
+        return [...updatedActive, ...savedFromCurrent];
+      });
+      setArchivedPatterns(updatedArchived);
     } catch (err) {
       console.error('[patterns] trickle failed:', err);
     }
-  }, [interpretationEnabled, patterns, archivedToasts]);
+  }, [interpretationEnabled]);
 
   const submitFeedback = useCallback(async (patternId: string, feedback: PatternFeedback) => {
     await updatePatternFeedback(patternId, feedback);
@@ -138,40 +132,51 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
   }, []);
 
   const toggleSave = useCallback(async (patternId: string) => {
-    const pattern = patterns.find(p => p.id === patternId)
-      ?? archivedPatterns.find(p => p.id === patternId);
-    if (!pattern) return;
+    let targetPattern: PatternNote | undefined;
+    let currentSavedCount = 0;
 
-    if (pattern.status !== 'saved') {
-      // Check saved cap
-      const savedCount = patterns.filter(p => p.status === 'saved').length;
-      if (savedCount >= MAX_SAVED) return;
+    setPatterns(prev => {
+      targetPattern = prev.find(p => p.id === patternId);
+      currentSavedCount = prev.filter(p => p.status === 'saved').length;
+      return prev;
+    });
+
+    if (!targetPattern) {
+      setArchivedPatterns(prev => {
+        targetPattern = prev.find(p => p.id === patternId);
+        return prev;
+      });
     }
 
-    const nextStatus = pattern.status === 'saved' ? 'active' : 'saved';
+    if (!targetPattern) return;
+
+    if (targetPattern.status !== 'saved' && currentSavedCount >= MAX_SAVED) return;
+
+    const nextStatus = targetPattern.status === 'saved' ? 'active' : 'saved';
     await updatePatternStatus(patternId, nextStatus);
 
-    if (pattern.status === 'archived') {
-      // Saving from archive: move to patterns list
+    if (targetPattern.status === 'archived') {
       setArchivedPatterns(prev => prev.filter(p => p.id !== patternId));
-      setPatterns(prev => [...prev, { ...pattern, status: 'saved' }]);
+      setPatterns(prev => [...prev, { ...targetPattern!, status: 'saved' }]);
     } else {
-      setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status: nextStatus } : p));
+      setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status: nextStatus as PatternNote['status'] } : p));
     }
-  }, [patterns, archivedPatterns]);
+  }, []);
 
   const archive = useCallback(async (patternId: string) => {
     await updatePatternStatus(patternId, 'archived');
-    const pattern = patterns.find(p => p.id === patternId);
-    setPatterns(prev => prev.filter(p => p.id !== patternId));
-    if (pattern) {
-      setArchivedPatterns(prev => [{ ...pattern, status: 'archived' }, ...prev]);
-    }
-  }, [patterns]);
+    setPatterns(prev => {
+      const pattern = prev.find(p => p.id === patternId);
+      if (pattern) {
+        setArchivedPatterns(ap => [{ ...pattern, status: 'archived' }, ...ap]);
+      }
+      return prev.filter(p => p.id !== patternId);
+    });
+  }, []);
 
-  const dismissToast = useCallback((index: number) => {
+  const dismissToast = useCallback((title: string) => {
     setArchivedToasts(prev => {
-      const next = prev.filter((_, i) => i !== index);
+      const next = prev.filter(t => t !== title);
       storeToasts(next);
       return next;
     });

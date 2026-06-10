@@ -154,7 +154,7 @@ function buildCandidates(
   signals: SignalRow[],
   calendarSignals: CalendarSignal[],
   existingPatterns: PatternInsight[],
-  _goal: string | null,
+  goal: string | null,
 ): Candidate[] {
   const candidates: Candidate[] = [];
 
@@ -733,8 +733,10 @@ async function clusterCandidates(
     if (!Array.isArray(groups) || groups.length === 0) return candidates;
 
     return groups.map(group => {
-      if (group.length === 1) return candidates[group[0]];
-      return mergeCandidates(group.map(i => candidates[i]).filter(Boolean));
+      const valid = group.filter(i => typeof i === 'number' && i >= 0 && i < candidates.length);
+      if (valid.length === 0) return null;
+      if (valid.length === 1) return candidates[valid[0]];
+      return mergeCandidates(valid.map(i => candidates[i]));
     }).filter(Boolean) as Candidate[];
   } catch (err) {
     console.error('[generate-patterns] Clustering failed, using unmerged candidates:', err);
@@ -1101,7 +1103,8 @@ serve(async (req) => {
           suggested_experiment: llmResult.suggested_experiment || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', pattern.id);
+        .eq('id', pattern.id)
+        .eq('status', 'active');
 
       if (!updateError) {
         const { data: updated } = await supabase

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface ArchiveToastProps {
   title: string;
@@ -7,10 +7,13 @@ interface ArchiveToastProps {
 }
 
 export function ArchiveToast({ title, onDismiss, onViewArchive }: ArchiveToastProps) {
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 5000);
+    const timer = setTimeout(() => dismissRef.current(), 5000);
     return () => clearTimeout(timer);
-  }, [onDismiss]);
+  }, [title]);
 
   return (
     <div style={styles.toast}>
