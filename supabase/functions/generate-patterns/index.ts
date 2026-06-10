@@ -672,6 +672,118 @@ Return JSON only:
   "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week"
 }`;
 
+const CLUSTER_PROMPT = `You are grouping pattern candidates for a voice journaling app. Given a list of candidate patterns, group ones that describe essentially the same theme or insight — even if worded differently or detected by different methods.
+
+Rules:
+1. Two candidates are "similar" if they describe the same underlying insight from the user's life (e.g. "friends lift mood" and "happiness around people" are the same theme)
+2. Be aggressive about merging — fewer, stronger insights are better than many overlapping ones
+3. Only keep candidates separate if they represent genuinely distinct life patterns
+4. Return ONLY a JSON array of groups, where each group is an array of candidate indices (0-based)
+
+Example input: 3 candidates about [friends+mood, work+stress, people+happiness]
+Example output: [[0, 2], [1]]
+(candidates 0 and 2 merged because both are about social connections → positive mood)
+
+Return JSON array only, no explanation.`;
+
+async function clusterCandidates(
+  candidates: Candidate[],
+  anthropicKey: string,
+): Promise<Candidate[]> {
+  if (candidates.length <= 1) return candidates;
+
+  const summaries = candidates.map((c, i) => ({
+    index: i,
+    signal: c.signal,
+    type: c.type,
+    evidence_summary: c.evidence_summary,
+    tags: c.tags,
+    confidence: c.confidence,
+  }));
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 256,
+        system: CLUSTER_PROMPT,
+        messages: [{ role: 'user', content: JSON.stringify(summaries) }],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[generate-patterns] Clustering LLM error: ${response.status}`);
+      return candidates;
+    }
+
+    const result = await response.json();
+    const text = result?.content?.[0]?.text;
+    if (!text) return candidates;
+
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return candidates;
+
+    const groups: number[][] = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(groups) || groups.length === 0) return candidates;
+
+    return groups.map(group => {
+      if (group.length === 1) return candidates[group[0]];
+      return mergeCandidates(group.map(i => candidates[i]).filter(Boolean));
+    }).filter(Boolean) as Candidate[];
+  } catch (err) {
+    console.error('[generate-patterns] Clustering failed, using unmerged candidates:', err);
+    return candidates;
+  }
+}
+
+function mergeCandidates(group: Candidate[]): Candidate {
+  const confidenceOrder: Record<string, number> = { strong_pattern: 0, emerging_pattern: 1, early_signal: 2 };
+  group.sort((a, b) => (confidenceOrder[a.confidence] ?? 3) - (confidenceOrder[b.confidence] ?? 3));
+
+  const best = group[0];
+  const allQuotes = new Map<string, typeof best.quotes[0]>();
+  const allEntryIds = new Set<string>();
+  const allTags = new Set<string>();
+  const allDates: string[] = [];
+
+  for (const c of group) {
+    for (const q of c.quotes) {
+      const key = q.quote.slice(0, 60);
+      if (!allQuotes.has(key)) allQuotes.set(key, q);
+    }
+    for (const id of c.entry_ids) allEntryIds.add(id);
+    for (const t of c.tags) allTags.add(t);
+    allDates.push(...c.quotes.map(q => q.date).filter(Boolean));
+  }
+
+  const distinctDays = new Set(allDates.map(d => d.slice(0, 10))).size;
+  const weeks = weekSpan(allDates);
+  const entryCount = allEntryIds.size;
+  const { confidence, reason } = assignConfidence(entryCount, distinctDays, weeks);
+
+  const evidenceParts = group.map(c => c.evidence_summary).filter(Boolean);
+
+  return {
+    type: best.type,
+    signal: group.map(c => c.signal).join(' + '),
+    confidence: (confidenceOrder[confidence] ?? 3) <= (confidenceOrder[best.confidence] ?? 3) ? confidence : best.confidence,
+    confidence_reason: reason,
+    supporting_days: distinctDays,
+    mood_delta: best.mood_delta,
+    calendar_context: best.calendar_context,
+    quotes: [...allQuotes.values()],
+    entry_ids: [...allEntryIds],
+    tags: [...allTags],
+    evidence_summary: evidenceParts.join(' Additionally, '),
+  };
+}
+
 interface FeedbackEntry {
   pattern_type: string;
   title: string;
@@ -899,7 +1011,11 @@ serve(async (req) => {
     });
 
     const maxCandidates = mode === 'trickle' ? MAX_CANDIDATES_TRICKLE : MAX_CANDIDATES_FULL;
-    const limitedCandidates = unsavedCandidates.slice(0, maxCandidates);
+
+    // Cluster semantically similar candidates before limiting
+    const clusteredCandidates = await clusterCandidates(unsavedCandidates, anthropicKey);
+    console.log(`[generate-patterns] Clustered ${unsavedCandidates.length} candidates → ${clusteredCandidates.length} groups`);
+    const limitedCandidates = clusteredCandidates.slice(0, maxCandidates);
 
     // --- Auto-archive stale cards (trickle mode only) ---
     const archivedTitles: string[] = [];
