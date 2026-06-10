@@ -8,10 +8,10 @@ const corsHeaders = {
 };
 
 const MAX_PATTERNS_PER_DAY = 5;
-const MAX_CANDIDATES_FULL = 10;
-const MAX_CANDIDATES_TRICKLE = 5;
+const MAX_CANDIDATES = 10;
 const MAX_ACTIVE_CARDS = 7;
 const AUTO_ARCHIVE_DAYS = 14;
+const MIN_ACTIVE_FLOOR = 2;
 
 const TRANSCRIPT_FIELDS = [
   'q1_transcript', 'q2_transcript', 'q3_transcript',
@@ -884,14 +884,12 @@ serve(async (req) => {
     // Parse request body
     let forceRefresh = false;
     let lookbackDays = 30;
-    let mode: 'trickle' | 'full' = 'trickle';
     try {
       const body = await req.json();
       if (body?.force_refresh === true) forceRefresh = true;
       if (typeof body?.lookback_days === 'number' && body.lookback_days > 0) {
         lookbackDays = body.lookback_days;
       }
-      if (body?.mode === 'full') mode = 'full';
     } catch {
       // Empty body is fine, use defaults
     }
@@ -998,124 +996,70 @@ serve(async (req) => {
     const savedPatternsList = existingPatterns.filter(p => p.status === 'saved');
     let activePatternsList = existingPatterns.filter(p => p.status === 'active');
 
-    const savedPrimaryTags = new Set<string>();
+    const savedTagsLower = new Set<string>();
     for (const p of savedPatternsList) {
-      const primary = (p.related_tags ?? [])[0]?.toLowerCase();
-      if (primary) savedPrimaryTags.add(primary);
+      for (const t of (p.related_tags ?? [])) savedTagsLower.add(t.toLowerCase());
     }
 
-    // Filter out candidates that overlap with saved patterns (by primary tag)
+    // Filter out candidates that overlap with saved patterns (any tag overlap)
     const unsavedCandidates = candidates.filter(c => {
-      const primaryTag = c.tags[0]?.toLowerCase();
-      return !primaryTag || !savedPrimaryTags.has(primaryTag);
+      return !c.tags.some(t => savedTagsLower.has(t.toLowerCase()));
     });
-
-    const maxCandidates = mode === 'trickle' ? MAX_CANDIDATES_TRICKLE : MAX_CANDIDATES_FULL;
 
     // Cluster semantically similar candidates before limiting
     const clusteredCandidates = await clusterCandidates(unsavedCandidates, anthropicKey);
     console.log(`[generate-patterns] Clustered ${unsavedCandidates.length} candidates → ${clusteredCandidates.length} groups`);
-    const limitedCandidates = clusteredCandidates.slice(0, maxCandidates);
+    const limitedCandidates = clusteredCandidates.slice(0, MAX_CANDIDATES);
 
-    // --- Auto-archive stale cards (trickle mode only) ---
+    // --- Auto-archive stale cards ---
+    // Safety: never auto-archive if it would leave fewer than MIN_ACTIVE_FLOOR active cards
     const archivedTitles: string[] = [];
-    if (mode === 'trickle') {
-      const staleThreshold = new Date();
-      staleThreshold.setDate(staleThreshold.getDate() - AUTO_ARCHIVE_DAYS);
-      const staleCards = activePatternsList.filter(p => {
-        const interactedAt = p.last_interacted_at ? new Date(p.last_interacted_at) : null;
-        return !p.user_feedback && interactedAt && interactedAt < staleThreshold;
-      });
-      if (staleCards.length > 0) {
-        await supabase
-          .from('pattern_insights')
-          .update({ status: 'archived', updated_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .in('id', staleCards.map(p => p.id));
-        for (const p of staleCards) {
-          if (p.title) archivedTitles.push(p.title);
-        }
-        activePatternsList = activePatternsList.filter(p => !staleCards.some(s => s.id === p.id));
+    const staleThreshold = new Date();
+    staleThreshold.setDate(staleThreshold.getDate() - AUTO_ARCHIVE_DAYS);
+    const staleCards = activePatternsList.filter(p => {
+      const interactedAt = p.last_interacted_at ? new Date(p.last_interacted_at) : null;
+      return !p.user_feedback && interactedAt && interactedAt < staleThreshold;
+    });
+    const safeToArchive = Math.max(0, activePatternsList.length - MIN_ACTIVE_FLOOR);
+    const archiveCount = Math.min(staleCards.length, safeToArchive);
+    if (archiveCount > 0) {
+      const toArchive = staleCards.slice(0, archiveCount);
+      await supabase
+        .from('pattern_insights')
+        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .in('id', toArchive.map(p => p.id));
+      for (const p of toArchive) {
+        if (p.title) archivedTitles.push(p.title);
       }
+      activePatternsList = activePatternsList.filter(p => !toArchive.some(s => s.id === p.id));
     }
 
-    if (mode === 'full') {
-      // FULL mode: archive all active, insert fresh (original behavior)
-      const activeIds = activePatternsList.map(p => p.id);
-      if (activeIds.length > 0) {
-        await supabase
-          .from('pattern_insights')
-          .update({ status: 'archived', updated_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .in('id', activeIds);
-      }
-
-      const llmResults = await Promise.allSettled(
-        limitedCandidates.map(candidate =>
-          writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory)
-            .then(result => ({ candidate, result }))
-        ),
-      );
-
-      const insertedPatterns: Record<string, unknown>[] = [];
-      for (const outcome of llmResults) {
-        if (outcome.status === 'rejected' || !outcome.value.result) continue;
-        const { candidate, result: llmResult } = outcome.value;
-        const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
-        const row = {
-          user_id: user.id,
-          pattern_type: candidate.type,
-          title: llmResult.title,
-          note: llmResult.note,
-          goal_connection: null,
-          personality_framing: llmResult.personality_framing || null,
-          evidence_summary: candidate.evidence_summary,
-          confidence: candidate.confidence,
-          confidence_reason: candidate.confidence_reason,
-          evidence_count: candidate.quotes.length,
-          entry_count: candidate.supporting_days,
-          date_range_start: allDates[0] || null,
-          date_range_end: allDates[allDates.length - 1] || null,
-          supporting_entry_ids: candidate.entry_ids,
-          supporting_quotes: candidate.quotes,
-          related_calendar_context: candidate.calendar_context,
-          related_tags: candidate.tags,
-          mood_delta: candidate.mood_delta,
-          reflection_prompt: llmResult.reflection_prompt || null,
-          suggested_experiment: llmResult.suggested_experiment || null,
-          suggested_if_then_plan: null,
-          status: 'active',
-          updated_at: new Date().toISOString(),
-        };
-        const { data: inserted, error: insertError } = await supabase
-          .from('pattern_insights').insert(row).select().single();
-        if (!insertError && inserted) insertedPatterns.push(inserted);
-      }
-
-      console.log(`[generate-patterns] Full mode: generated ${insertedPatterns.length} patterns`);
-      return new Response(JSON.stringify({ patterns: insertedPatterns, archived_titles: archivedTitles }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // --- TRICKLE mode ---
-    // Build index of active patterns by primary tag
-    const activePrimaryTagIndex = new Map<string, PatternInsight>();
+    // Build index of active patterns — map every tag to its pattern for matching
+    const activeTagIndex = new Map<string, PatternInsight>();
     for (const p of activePatternsList) {
-      const primary = (p.related_tags ?? [])[0]?.toLowerCase();
-      if (primary) activePrimaryTagIndex.set(primary, p);
+      for (const t of (p.related_tags ?? [])) {
+        activeTagIndex.set(t.toLowerCase(), p);
+      }
     }
 
     const toUpdate: { pattern: PatternInsight; candidate: Candidate }[] = [];
     const toInsert: Candidate[] = [];
+    const alreadyMatched = new Set<string>();
 
     for (const candidate of limitedCandidates) {
-      const primaryTag = candidate.tags[0]?.toLowerCase();
-      if (!primaryTag) continue;
+      // Find matching active pattern by ANY tag overlap (not just primary)
+      let matchingActive: PatternInsight | undefined;
+      for (const tag of candidate.tags) {
+        const match = activeTagIndex.get(tag.toLowerCase());
+        if (match && !alreadyMatched.has(match.id)) {
+          matchingActive = match;
+          break;
+        }
+      }
 
-      const matchingActive = activePrimaryTagIndex.get(primaryTag);
       if (matchingActive) {
-        // Check if evidence actually changed
+        alreadyMatched.add(matchingActive.id);
         const oldEntryIds = new Set(matchingActive.supporting_entry_ids ?? []);
         const hasNewEvidence = candidate.entry_ids.some(id => !oldEntryIds.has(id));
         if (hasNewEvidence) {

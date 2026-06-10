@@ -277,13 +277,12 @@ export async function extractEntrySignals(entryId: string): Promise<void> {
 
 export async function generatePatterns(
   forceRefresh = false,
-  mode: 'trickle' | 'full' = 'trickle',
 ): Promise<{ patterns: PatternNote[]; archivedTitles: string[] }> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ force_refresh: forceRefresh, mode }),
+    body: JSON.stringify({ force_refresh: forceRefresh }),
   });
   if (!res.ok) {
     console.error('[generatePatterns] failed:', res.status);
@@ -322,15 +321,13 @@ export async function resetAllPatterns(): Promise<PatternNote[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Only restore archived from the last 2 weeks — leave saved untouched
-  const twoWeeksAgo = new Date();
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+  // Restore all archived patterns to active — leave saved untouched
+  // The cap below limits how many become visible
   await supabase
     .from('pattern_insights')
     .update({ status: 'active', updated_at: new Date().toISOString() })
     .eq('user_id', user.id)
-    .eq('status', 'archived')
-    .gte('updated_at', twoWeeksAgo.toISOString());
+    .eq('status', 'archived');
 
   // Fetch all active, deduplicate by primary tag, enforce cap of 7
   const { data: all, error } = await supabase

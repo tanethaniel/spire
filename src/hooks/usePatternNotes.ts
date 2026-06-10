@@ -60,7 +60,7 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
           setLoading(true);
           try { await backfillAnalysis(); } catch { /* continue */ }
           try { await backfillEntrySignals(); } catch { /* continue */ }
-          const { patterns: generated } = await generatePatterns(true, 'full');
+          const { patterns: generated } = await generatePatterns(true);
           if (!cancelled) {
             if (generated.length > 0) {
               setPatterns(generated);
@@ -102,7 +102,7 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     if (!interpretationEnabled) return;
     try {
       await backfillEntrySignals();
-      const { patterns: result, archivedTitles } = await generatePatterns(true, 'trickle');
+      const { patterns: result, archivedTitles } = await generatePatterns(true);
 
       if (archivedTitles.length > 0) {
         const newToasts = [...archivedToasts, ...archivedTitles];
