@@ -6,6 +6,7 @@ import { distinctEntryDays } from '../lib/correlations';
 import { dayKey, currentStreak, avgSessionDuration } from '../lib/stats';
 import { PatternNoteCard } from '../components/PatternNoteCard';
 import { PatternDetailSheet } from '../components/PatternDetailSheet';
+import { ArchiveToast } from '../components/ArchiveToast';
 
 interface InsightsPageProps {
   entries: JournalEntry[];
@@ -16,18 +17,22 @@ interface InsightsPageProps {
   mbti: string | null;
   interpretationEnabled: boolean;
   patterns: PatternNote[];
+  archivedPatterns: PatternNote[];
+  savedCount: number;
   patternsLoading: boolean;
-  patternsUpdating: boolean;
+  archivedToasts: string[];
+  onDismissToast: (index: number) => void;
   onResetPatterns: () => void;
-  onUpdatePatterns: () => void;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
-  onPatternDismiss: (id: string) => void;
+  onPatternArchive: (id: string) => void;
 }
 
 const HEATMAP_WEEKS = 5;
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const MIN_DAYS_FOR_PATTERNS = 3;
+const MIN_ENTRIES_FOR_PATTERNS = 7;
+const MIN_DAYS_FOR_PATTERNS = 5;
+const MAX_SAVED = 20;
 
 // 6 shades: 1/6 answered = warm yellow → 6/6 = deep green
 const COMPLETENESS_COLOR: Record<number, string> = {
@@ -52,12 +57,15 @@ type CalendarMode = 'completeness' | 'mood';
 
 export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
-  interpretationEnabled, patterns, patternsLoading, patternsUpdating,
-  onResetPatterns, onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
+  interpretationEnabled, patterns, archivedPatterns, savedCount, patternsLoading,
+  archivedToasts, onDismissToast,
+  onResetPatterns, onPatternFeedback, onPatternSave, onPatternArchive,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPattern, setSelectedPattern] = useState<PatternNote | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
@@ -83,11 +91,19 @@ export function InsightsPage({
 
   const streak = currentStreak(entryDayKeys);
   const totalDays = distinctEntryDays(answered);
+  const totalEntries = answered.length;
   const avgDuration = avgSessionDuration(answered);
 
   const mainPatterns = patterns.filter(p => p.confidence !== 'early_signal' && p.status !== 'saved');
   const earlySignals = patterns.filter(p => p.confidence === 'early_signal' && p.status !== 'saved');
   const savedPatterns = patterns.filter(p => p.status === 'saved');
+
+  const saveDisabled = savedCount >= MAX_SAVED;
+  const patternsUnlocked = totalEntries >= MIN_ENTRIES_FOR_PATTERNS && totalDays >= MIN_DAYS_FOR_PATTERNS;
+  const unlockProgress = Math.min(100, ((totalEntries / MIN_ENTRIES_FOR_PATTERNS + totalDays / MIN_DAYS_FOR_PATTERNS) / 2) * 100);
+
+  // Determine if the selected pattern is from archived
+  const selectedIsArchived = selectedPattern ? archivedPatterns.some(p => p.id === selectedPattern.id) : false;
 
   // Build heatmap cells aligned to Monday start.
   const today = new Date();
@@ -112,6 +128,11 @@ export function InsightsPage({
       isToday: k === todayKey,
     });
   }
+
+  const openDetail = (p: PatternNote) => {
+    setSelectedPattern(p);
+    setDetailOpen(true);
+  };
 
   return (
     <div style={styles.page}>
@@ -224,24 +245,28 @@ export function InsightsPage({
             <div style={{ ...styles.sectionLabel, marginTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Patterns</span>
               {interpretationEnabled && patterns.length > 0 && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    style={styles.headerAction}
-                    onClick={onResetPatterns}
-                    disabled={patternsUpdating}
-                  >
-                    Reset
-                  </button>
-                  <button
-                    style={{ ...styles.headerAction, color: 'var(--accent-primary)' }}
-                    onClick={onUpdatePatterns}
-                    disabled={patternsUpdating}
-                  >
-                    {patternsUpdating ? 'Updating…' : 'Update'}
-                  </button>
-                </div>
+                <button
+                  style={styles.headerAction}
+                  onClick={onResetPatterns}
+                >
+                  Reset
+                </button>
               )}
             </div>
+
+            {/* Archive toasts */}
+            {archivedToasts.map((title, i) => (
+              <ArchiveToast
+                key={`toast-${i}`}
+                title={title}
+                onDismiss={() => onDismissToast(i)}
+                onViewArchive={() => {
+                  onDismissToast(i);
+                  setArchivedOpen(true);
+                }}
+              />
+            ))}
+
             {!interpretationEnabled ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
@@ -254,19 +279,21 @@ export function InsightsPage({
               <div style={styles.lockedCard}>
                 <div style={styles.lockTitle}>Loading patterns…</div>
               </div>
-            ) : totalDays < MIN_DAYS_FOR_PATTERNS ? (
+            ) : !patternsUnlocked ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
                 <div style={styles.lockTitle}>Patterns unlock soon</div>
                 <div style={styles.lockSub}>
-                  Spire needs a few days of reflections to spot patterns in your journal.
+                  Spire needs {MIN_ENTRIES_FOR_PATTERNS} entries across {MIN_DAYS_FOR_PATTERNS} days to spot patterns in your journal.
                 </div>
                 <div style={styles.progressTrack}>
-                  <div style={{ ...styles.progressFill, width: `${Math.min(100, (totalDays / MIN_DAYS_FOR_PATTERNS) * 100)}%` }} />
+                  <div style={{ ...styles.progressFill, width: `${unlockProgress}%` }} />
                 </div>
-                <div style={styles.progressText}>{totalDays} of {MIN_DAYS_FOR_PATTERNS} days</div>
+                <div style={styles.progressText}>
+                  {totalEntries} of {MIN_ENTRIES_FOR_PATTERNS} entries · {totalDays} of {MIN_DAYS_FOR_PATTERNS} days
+                </div>
               </div>
-            ) : patterns.length === 0 ? (
+            ) : patterns.length === 0 && archivedPatterns.length === 0 ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockTitle}>No patterns yet</div>
                 <div style={styles.lockSub}>
@@ -275,15 +302,19 @@ export function InsightsPage({
               </div>
             ) : (
               <>
+                {/* Main patterns (strong + emerging, active) */}
                 {mainPatterns.map(p => (
                   <PatternNoteCard
                     key={p.id}
                     pattern={p}
-                    onSave={(id) => onPatternSave(id)}
-                    onDismiss={(id) => onPatternDismiss(id)}
-                    onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
+                    onSave={onPatternSave}
+                    onArchive={onPatternArchive}
+                    onOpen={() => openDetail(p)}
+                    saveDisabled={saveDisabled}
                   />
                 ))}
+
+                {/* Things to watch (early_signal, active) */}
                 {earlySignals.length > 0 && (
                   <>
                     <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Things to watch</div>
@@ -291,23 +322,53 @@ export function InsightsPage({
                       <PatternNoteCard
                         key={p.id}
                         pattern={p}
-                        onSave={(id) => onPatternSave(id)}
-                        onDismiss={(id) => onPatternDismiss(id)}
-                        onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
+                        onSave={onPatternSave}
+                        onArchive={onPatternArchive}
+                        onOpen={() => openDetail(p)}
+                        saveDisabled={saveDisabled}
                       />
                     ))}
                   </>
                 )}
+
+                {/* Saved (collapsible) */}
                 {savedPatterns.length > 0 && (
                   <>
-                    <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Saved</div>
-                    {savedPatterns.map(p => (
+                    <button style={styles.collapsibleHeader} onClick={() => setSavedOpen(o => !o)}>
+                      <span>Saved ({savedCount}/{MAX_SAVED})</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: savedOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    {savedOpen && savedPatterns.map(p => (
                       <PatternNoteCard
                         key={p.id}
                         pattern={p}
-                        onSave={(id) => onPatternSave(id)}
-                        onDismiss={(id) => onPatternDismiss(id)}
-                        onOpen={(_id) => { setSelectedPattern(p); setDetailOpen(true); }}
+                        onSave={onPatternSave}
+                        onArchive={onPatternArchive}
+                        onOpen={() => openDetail(p)}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Archived (collapsible, read-only) */}
+                {archivedPatterns.length > 0 && (
+                  <>
+                    <button style={styles.collapsibleHeader} onClick={() => setArchivedOpen(o => !o)}>
+                      <span>Archived</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: archivedOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    {archivedOpen && archivedPatterns.map(p => (
+                      <PatternNoteCard
+                        key={p.id}
+                        pattern={p}
+                        onSave={onPatternSave}
+                        onOpen={() => openDetail(p)}
+                        isArchived
+                        saveDisabled={saveDisabled}
                       />
                     ))}
                   </>
@@ -322,7 +383,9 @@ export function InsightsPage({
                 onClose={() => { setDetailOpen(false); setSelectedPattern(null); }}
                 onFeedback={onPatternFeedback}
                 onSave={onPatternSave}
-                onDismiss={onPatternDismiss}
+                onArchive={selectedIsArchived ? undefined : onPatternArchive}
+                saveDisabled={saveDisabled}
+                isArchived={selectedIsArchived}
               />
             )}
           </>
@@ -424,6 +487,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   progressFill: { height: '100%', background: 'var(--accent-primary)', transition: 'width 0.3s' },
   progressText: { fontSize: 12, color: 'var(--text-ghost)', marginTop: 8 },
+  collapsibleHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    width: '100%', padding: '12px 0',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' as const,
+    color: 'var(--text-muted)',
+  },
   tipCard: {
     position: 'relative', overflow: 'hidden',
     background: 'rgba(255,255,255,0.15)',

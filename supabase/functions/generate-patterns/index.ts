@@ -8,7 +8,10 @@ const corsHeaders = {
 };
 
 const MAX_PATTERNS_PER_DAY = 5;
-const MAX_CANDIDATES = 10;
+const MAX_CANDIDATES_FULL = 10;
+const MAX_CANDIDATES_TRICKLE = 5;
+const MAX_ACTIVE_CARDS = 7;
+const AUTO_ARCHIVE_DAYS = 14;
 
 const TRANSCRIPT_FIELDS = [
   'q1_transcript', 'q2_transcript', 'q3_transcript',
@@ -105,7 +108,18 @@ interface PatternInsight {
   user_feedback: string | null;
   title: string | null;
   note: string | null;
+  supporting_entry_ids: string[] | null;
+  confidence: string | null;
+  evidence_count: number | null;
+  updated_at: string | null;
+  last_interacted_at: string | null;
 }
+
+const CONFIDENCE_RANK: Record<string, number> = {
+  strong_pattern: 3,
+  emerging_pattern: 2,
+  early_signal: 1,
+};
 
 function toDateStr(d: string): string {
   return d.slice(0, 10);
@@ -598,7 +612,7 @@ function buildCandidates(
     return b.quotes.length - a.quotes.length;
   });
 
-  return filtered.slice(0, MAX_CANDIDATES);
+  return filtered;
 }
 
 const SYSTEM_PROMPT = `You are writing a personalized Pattern Note for Spire, a private voice journaling app. The system has already assembled deterministic evidence. Your job is to write a warm, grounded, actionable reflection note based only on the provided evidence.
@@ -758,12 +772,14 @@ serve(async (req) => {
     // Parse request body
     let forceRefresh = false;
     let lookbackDays = 30;
+    let mode: 'trickle' | 'full' = 'trickle';
     try {
       const body = await req.json();
       if (body?.force_refresh === true) forceRefresh = true;
       if (typeof body?.lookback_days === 'number' && body.lookback_days > 0) {
         lookbackDays = body.lookback_days;
       }
+      if (body?.mode === 'full') mode = 'full';
     } catch {
       // Empty body is fine, use defaults
     }
@@ -818,7 +834,7 @@ serve(async (req) => {
         .gte('date', cutoff.toISOString().slice(0, 10)),
       supabase
         .from('pattern_insights')
-        .select('id, pattern_type, related_tags, status, user_feedback, title, note')
+        .select('id, pattern_type, related_tags, status, user_feedback, title, note, supporting_entry_ids, confidence, evidence_count, updated_at, last_interacted_at')
         .eq('user_id', user.id),
     ]);
 
@@ -867,56 +883,202 @@ serve(async (req) => {
       }));
 
     // Saved patterns are locked — skip candidates that overlap with them.
-    // Active patterns get archived and replaced by fresh candidates.
     const savedPatternsList = existingPatterns.filter(p => p.status === 'saved');
-    const activePatternsList = existingPatterns.filter(p => p.status === 'active');
+    let activePatternsList = existingPatterns.filter(p => p.status === 'active');
 
-    const savedTagsLower = new Set<string>();
+    const savedPrimaryTags = new Set<string>();
     for (const p of savedPatternsList) {
-      for (const t of (p.related_tags ?? [])) savedTagsLower.add(t.toLowerCase());
+      const primary = (p.related_tags ?? [])[0]?.toLowerCase();
+      if (primary) savedPrimaryTags.add(primary);
     }
 
-    // Filter out candidates that overlap with saved patterns
+    // Filter out candidates that overlap with saved patterns (by primary tag)
     const unsavedCandidates = candidates.filter(c => {
-      return !c.tags.some(t => savedTagsLower.has(t.toLowerCase()));
+      const primaryTag = c.tags[0]?.toLowerCase();
+      return !primaryTag || !savedPrimaryTags.has(primaryTag);
     });
 
-    // Archive ALL active (non-saved) patterns — they'll be replaced by fresh generation
-    const activeIds = activePatternsList.map(p => p.id);
-    if (activeIds.length > 0) {
-      await supabase
-        .from('pattern_insights')
-        .update({ status: 'archived', updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .in('id', activeIds);
+    const maxCandidates = mode === 'trickle' ? MAX_CANDIDATES_TRICKLE : MAX_CANDIDATES_FULL;
+    const limitedCandidates = unsavedCandidates.slice(0, maxCandidates);
+
+    // --- Auto-archive stale cards (trickle mode only) ---
+    const archivedTitles: string[] = [];
+    if (mode === 'trickle') {
+      const staleThreshold = new Date();
+      staleThreshold.setDate(staleThreshold.getDate() - AUTO_ARCHIVE_DAYS);
+      const staleCards = activePatternsList.filter(p => {
+        const interactedAt = p.last_interacted_at ? new Date(p.last_interacted_at) : null;
+        return !p.user_feedback && interactedAt && interactedAt < staleThreshold;
+      });
+      if (staleCards.length > 0) {
+        await supabase
+          .from('pattern_insights')
+          .update({ status: 'archived', updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .in('id', staleCards.map(p => p.id));
+        for (const p of staleCards) {
+          if (p.title) archivedTitles.push(p.title);
+        }
+        activePatternsList = activePatternsList.filter(p => !staleCards.some(s => s.id === p.id));
+      }
     }
 
-    // Run LLM calls for non-saved candidates
-    const llmResults = await Promise.allSettled(
-      unsavedCandidates.map(candidate =>
-        writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory)
-          .then(result => ({ candidate, result }))
-      ),
-    );
-
-    const insertedPatterns: Record<string, unknown>[] = [];
-
-    for (const outcome of llmResults) {
-      if (outcome.status === 'rejected' || !outcome.value.result) {
-        const sig = outcome.status === 'fulfilled' ? outcome.value.candidate.signal : 'unknown';
-        console.error(`[generate-patterns] Skipping candidate "${sig}" — LLM failed`);
-        continue;
+    if (mode === 'full') {
+      // FULL mode: archive all active, insert fresh (original behavior)
+      const activeIds = activePatternsList.map(p => p.id);
+      if (activeIds.length > 0) {
+        await supabase
+          .from('pattern_insights')
+          .update({ status: 'archived', updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .in('id', activeIds);
       }
 
-      const { candidate, result: llmResult } = outcome.value;
+      const llmResults = await Promise.allSettled(
+        limitedCandidates.map(candidate =>
+          writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory)
+            .then(result => ({ candidate, result }))
+        ),
+      );
 
-      const allDates = candidate.quotes
-        .map(q => q.date)
-        .filter(Boolean)
-        .sort();
-      const earliestDate = allDates[0] || null;
-      const latestDate = allDates[allDates.length - 1] || null;
+      const insertedPatterns: Record<string, unknown>[] = [];
+      for (const outcome of llmResults) {
+        if (outcome.status === 'rejected' || !outcome.value.result) continue;
+        const { candidate, result: llmResult } = outcome.value;
+        const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
+        const row = {
+          user_id: user.id,
+          pattern_type: candidate.type,
+          title: llmResult.title,
+          note: llmResult.note,
+          goal_connection: null,
+          personality_framing: llmResult.personality_framing || null,
+          evidence_summary: candidate.evidence_summary,
+          confidence: candidate.confidence,
+          confidence_reason: candidate.confidence_reason,
+          evidence_count: candidate.quotes.length,
+          entry_count: candidate.supporting_days,
+          date_range_start: allDates[0] || null,
+          date_range_end: allDates[allDates.length - 1] || null,
+          supporting_entry_ids: candidate.entry_ids,
+          supporting_quotes: candidate.quotes,
+          related_calendar_context: candidate.calendar_context,
+          related_tags: candidate.tags,
+          mood_delta: candidate.mood_delta,
+          reflection_prompt: llmResult.reflection_prompt || null,
+          suggested_experiment: llmResult.suggested_experiment || null,
+          suggested_if_then_plan: null,
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        };
+        const { data: inserted, error: insertError } = await supabase
+          .from('pattern_insights').insert(row).select().single();
+        if (!insertError && inserted) insertedPatterns.push(inserted);
+      }
 
+      console.log(`[generate-patterns] Full mode: generated ${insertedPatterns.length} patterns`);
+      return new Response(JSON.stringify({ patterns: insertedPatterns, archived_titles: archivedTitles }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // --- TRICKLE mode ---
+    // Build index of active patterns by primary tag
+    const activePrimaryTagIndex = new Map<string, PatternInsight>();
+    for (const p of activePatternsList) {
+      const primary = (p.related_tags ?? [])[0]?.toLowerCase();
+      if (primary) activePrimaryTagIndex.set(primary, p);
+    }
+
+    const toUpdate: { pattern: PatternInsight; candidate: Candidate }[] = [];
+    const toInsert: Candidate[] = [];
+
+    for (const candidate of limitedCandidates) {
+      const primaryTag = candidate.tags[0]?.toLowerCase();
+      if (!primaryTag) continue;
+
+      const matchingActive = activePrimaryTagIndex.get(primaryTag);
+      if (matchingActive) {
+        // Check if evidence actually changed
+        const oldEntryIds = new Set(matchingActive.supporting_entry_ids ?? []);
+        const hasNewEvidence = candidate.entry_ids.some(id => !oldEntryIds.has(id));
+        if (hasNewEvidence) {
+          toUpdate.push({ pattern: matchingActive, candidate });
+        }
+      } else {
+        toInsert.push(candidate);
+      }
+    }
+
+    const resultPatterns: Record<string, unknown>[] = [];
+
+    // Update existing active cards in place
+    for (const { pattern, candidate } of toUpdate) {
+      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
+      if (!llmResult) continue;
+
+      const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
+      const { error: updateError } = await supabase
+        .from('pattern_insights')
+        .update({
+          pattern_type: candidate.type,
+          title: llmResult.title,
+          note: llmResult.note,
+          personality_framing: llmResult.personality_framing || null,
+          evidence_summary: candidate.evidence_summary,
+          confidence: candidate.confidence,
+          confidence_reason: candidate.confidence_reason,
+          evidence_count: candidate.quotes.length,
+          entry_count: candidate.supporting_days,
+          date_range_start: allDates[0] || null,
+          date_range_end: allDates[allDates.length - 1] || null,
+          supporting_entry_ids: candidate.entry_ids,
+          supporting_quotes: candidate.quotes,
+          related_calendar_context: candidate.calendar_context,
+          related_tags: candidate.tags,
+          mood_delta: candidate.mood_delta,
+          reflection_prompt: llmResult.reflection_prompt || null,
+          suggested_experiment: llmResult.suggested_experiment || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', pattern.id);
+
+      if (!updateError) {
+        const { data: updated } = await supabase
+          .from('pattern_insights').select().eq('id', pattern.id).single();
+        if (updated) resultPatterns.push(updated);
+      }
+    }
+
+    // Insert genuinely new cards (respecting cap)
+    let currentActiveCount = activePatternsList.length;
+    for (const candidate of toInsert) {
+      if (currentActiveCount >= MAX_ACTIVE_CARDS) {
+        // Archive the weakest active card to make room
+        const weakest = [...activePatternsList]
+          .sort((a, b) => {
+            const rankDiff = (CONFIDENCE_RANK[a.confidence ?? ''] ?? 0) - (CONFIDENCE_RANK[b.confidence ?? ''] ?? 0);
+            if (rankDiff !== 0) return rankDiff;
+            const timeDiff = new Date(a.updated_at ?? 0).getTime() - new Date(b.updated_at ?? 0).getTime();
+            if (timeDiff !== 0) return timeDiff;
+            return (a.evidence_count ?? 0) - (b.evidence_count ?? 0);
+          })[0];
+
+        if (weakest) {
+          await supabase
+            .from('pattern_insights')
+            .update({ status: 'archived', updated_at: new Date().toISOString() })
+            .eq('id', weakest.id);
+          if (weakest.title) archivedTitles.push(weakest.title);
+          activePatternsList = activePatternsList.filter(p => p.id !== weakest.id);
+          currentActiveCount--;
+        }
+      }
+
+      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
+      if (!llmResult) continue;
+
+      const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
       const row = {
         user_id: user.id,
         pattern_type: candidate.type,
@@ -929,8 +1091,8 @@ serve(async (req) => {
         confidence_reason: candidate.confidence_reason,
         evidence_count: candidate.quotes.length,
         entry_count: candidate.supporting_days,
-        date_range_start: earliestDate,
-        date_range_end: latestDate,
+        date_range_start: allDates[0] || null,
+        date_range_end: allDates[allDates.length - 1] || null,
         supporting_entry_ids: candidate.entry_ids,
         supporting_quotes: candidate.quotes,
         related_calendar_context: candidate.calendar_context,
@@ -942,23 +1104,17 @@ serve(async (req) => {
         status: 'active',
         updated_at: new Date().toISOString(),
       };
-
       const { data: inserted, error: insertError } = await supabase
-        .from('pattern_insights')
-        .insert(row)
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error(`[generate-patterns] Failed to save pattern "${candidate.signal}":`, insertError);
-      } else if (inserted) {
-        insertedPatterns.push(inserted);
+        .from('pattern_insights').insert(row).select().single();
+      if (!insertError && inserted) {
+        resultPatterns.push(inserted);
+        currentActiveCount++;
       }
     }
 
-    console.log(`[generate-patterns] Generated ${insertedPatterns.length} patterns for user ${user.id}`);
+    console.log(`[generate-patterns] Trickle: ${toUpdate.length} updated, ${toInsert.length} new candidates, ${resultPatterns.length} result patterns`);
 
-    return new Response(JSON.stringify({ patterns: insertedPatterns }), {
+    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

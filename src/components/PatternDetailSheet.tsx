@@ -7,7 +7,9 @@ interface PatternDetailSheetProps {
   onClose: () => void;
   onFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onSave: (id: string) => void;
-  onDismiss: (id: string) => void;
+  onArchive?: (id: string) => void;
+  saveDisabled?: boolean;
+  isArchived?: boolean;
 }
 
 const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
@@ -21,7 +23,7 @@ function formatQuoteDate(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onDismiss }: PatternDetailSheetProps) {
+export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onArchive, saveDisabled, isArchived }: PatternDetailSheetProps) {
   if (!open || !pattern) return null;
 
   const feedbackOptions: { value: 'true' | 'kind_of' | 'not_really'; label: string }[] = [
@@ -41,7 +43,7 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
           </svg>
         </button>
 
-        {/* Top row: confidence pill + save/dismiss */}
+        {/* Top row: confidence pill + save/archive */}
         <div style={styles.topRow}>
           <div style={styles.badge}>
             {pattern.confidence === 'early_signal' && <span style={styles.badgeDot} />}
@@ -52,21 +54,28 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
               style={{
                 ...styles.actionChip,
                 ...(pattern.status === 'saved' ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
+                ...(saveDisabled && pattern.status !== 'saved' ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
               }}
-              onClick={() => onSave(pattern.id)}
+              onClick={() => {
+                if (saveDisabled && pattern.status !== 'saved') return;
+                onSave(pattern.id);
+              }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill={pattern.status === 'saved' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
               </svg>
               {pattern.status === 'saved' ? 'Saved' : 'Save'}
             </button>
-            <button style={styles.actionChip} onClick={() => onDismiss(pattern.id)}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-              Dismiss
-            </button>
+            {!isArchived && onArchive && (
+              <button style={styles.actionChip} onClick={() => onArchive(pattern.id)}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="21 8 21 21 3 21 3 8" />
+                  <rect x="1" y="3" width="22" height="5" />
+                  <line x1="10" y1="12" x2="14" y2="12" />
+                </svg>
+                Archive
+              </button>
+            )}
           </div>
         </div>
 

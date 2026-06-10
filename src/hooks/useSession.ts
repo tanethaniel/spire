@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { SessionState, type CalendarEvent, type QuestionRound, type SessionData, QUESTIONS, getQ1WithContext } from '../types/session';
 import { getSupportedMimeType } from '../lib/audio';
 import { saveAudio, deleteAudio } from '../lib/audioDb';
-import { processEntry, analyzeSession, saveJournalEntry, extractEntrySignals, generatePatterns } from '../lib/api';
+import { processEntry, analyzeSession, saveJournalEntry, extractEntrySignals } from '../lib/api';
 import { trackEvent } from '../lib/events';
 
 function createInitialRounds(): QuestionRound[] {
@@ -201,10 +201,9 @@ export function useSession() {
     const triggerPatterns = (entryId: string | null) => {
       if (!entryId) return;
       const p = extractEntrySignals(entryId)
-        .then(() => generatePatterns(true))
         .then(() => { patternGenRef.current = null; })
         .catch(err => {
-          console.error('[patterns] background generation failed:', err);
+          console.error('[patterns] signal extraction failed:', err);
           patternGenRef.current = null;
         });
       patternGenRef.current = p;

@@ -275,19 +275,25 @@ export async function extractEntrySignals(entryId: string): Promise<void> {
   }
 }
 
-export async function generatePatterns(forceRefresh = false): Promise<PatternNote[]> {
+export async function generatePatterns(
+  forceRefresh = false,
+  mode: 'trickle' | 'full' = 'trickle',
+): Promise<{ patterns: PatternNote[]; archivedTitles: string[] }> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ force_refresh: forceRefresh }),
+    body: JSON.stringify({ force_refresh: forceRefresh, mode }),
   });
   if (!res.ok) {
     console.error('[generatePatterns] failed:', res.status);
-    return [];
+    return { patterns: [], archivedTitles: [] };
   }
   const data = await res.json();
-  return (data.patterns ?? []).map(mapPatternNote);
+  return {
+    patterns: (data.patterns ?? []).map(mapPatternNote),
+    archivedTitles: data.archived_titles ?? [],
+  };
 }
 
 export async function fetchPatternNotes(): Promise<PatternNote[]> {
@@ -298,29 +304,35 @@ export async function fetchPatternNotes(): Promise<PatternNote[]> {
     .from('pattern_insights')
     .select('*')
     .eq('user_id', user.id)
-    .in('status', ['active', 'saved', 'watching'])
+    .in('status', ['active', 'saved', 'watching', 'archived'])
     .order('created_at', { ascending: false });
   if (error) throw error;
 
   return (data ?? []).map(mapPatternNote);
 }
 
-// Reset: move ALL dismissed/archived → active, ALL saved → active.
-// Keeps feedback intact. No regeneration, no dedup needed since
-// archived patterns were replaced by active ones (which get flipped too).
+const MAX_ACTIVE_CARDS = 7;
+const CONFIDENCE_RANK: Record<string, number> = {
+  strong_pattern: 3,
+  emerging_pattern: 2,
+  early_signal: 1,
+};
+
 export async function resetAllPatterns(): Promise<PatternNote[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Flip everything non-active to active
+  // Only restore archived from the last 2 weeks — leave saved untouched
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
   await supabase
     .from('pattern_insights')
     .update({ status: 'active', updated_at: new Date().toISOString() })
     .eq('user_id', user.id)
-    .in('status', ['dismissed', 'saved']);
+    .eq('status', 'archived')
+    .gte('updated_at', twoWeeksAgo.toISOString());
 
-  // Now there may be duplicates from archived + active pairs.
-  // Deduplicate: for each signal (related_tags overlap), keep only the newest.
+  // Fetch all active, deduplicate by primary tag, enforce cap of 7
   const { data: all, error } = await supabase
     .from('pattern_insights')
     .select('*')
@@ -346,7 +358,17 @@ export async function resetAllPatterns(): Promise<PatternNote[]> {
     }
   }
 
-  // Archive the older duplicates
+  // If over cap after dedup, keep strongest 7 and re-archive the rest
+  if (keep.length > MAX_ACTIVE_CARDS) {
+    keep.sort((a, b) => {
+      const rankDiff = (CONFIDENCE_RANK[b.confidence] ?? 0) - (CONFIDENCE_RANK[a.confidence] ?? 0);
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    const overflow = keep.splice(MAX_ACTIVE_CARDS);
+    toDrop.push(...overflow.map(r => r.id));
+  }
+
   if (toDrop.length > 0) {
     await supabase
       .from('pattern_insights')
@@ -377,9 +399,10 @@ export async function updatePatternFeedback(
   patternId: string,
   feedback: PatternFeedback,
 ): Promise<void> {
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from('pattern_insights')
-    .update({ user_feedback: feedback, updated_at: new Date().toISOString() })
+    .update({ user_feedback: feedback, updated_at: now, last_interacted_at: now })
     .eq('id', patternId);
   if (error) throw error;
 }
@@ -388,9 +411,10 @@ export async function updatePatternStatus(
   patternId: string,
   status: PatternStatus,
 ): Promise<void> {
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from('pattern_insights')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status, updated_at: now, last_interacted_at: now })
     .eq('id', patternId);
   if (error) throw error;
 }

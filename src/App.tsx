@@ -74,7 +74,7 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
-  const { patterns, loading: patternsLoading, updating: patternsUpdating, reset: resetPatterns, update: updatePatterns, submitFeedback, toggleSave, dismiss } = usePatternNotes(authed, interpretationEnabled);
+  const { patterns, archivedPatterns, savedCount, loading: patternsLoading, archivedToasts, dismissToast, reset: resetPatterns, submitFeedback, toggleSave, archive, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
 
   const profileUser = authSession ? {
     name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
@@ -123,11 +123,11 @@ function App() {
     setView('home');
     const pending = patternGenRef.current;
     if (pending) {
-      pending.then(() => updatePatterns()).catch(() => updatePatterns());
+      pending.then(() => triggerTrickle()).catch(() => triggerTrickle());
     } else {
-      updatePatterns();
+      triggerTrickle();
     }
-  }, [resetSession, refreshEntries, updatePatterns, patternGenRef]);
+  }, [resetSession, refreshEntries, triggerTrickle, patternGenRef]);
 
   const handleBack = useCallback(() => {
     resetSession();
@@ -275,13 +275,15 @@ function App() {
               mbti={mbti}
               interpretationEnabled={interpretationEnabled}
               patterns={patterns}
+              archivedPatterns={archivedPatterns}
+              savedCount={savedCount}
               patternsLoading={patternsLoading}
-              patternsUpdating={patternsUpdating}
+              archivedToasts={archivedToasts}
+              onDismissToast={dismissToast}
               onResetPatterns={resetPatterns}
-              onUpdatePatterns={updatePatterns}
               onPatternFeedback={submitFeedback}
               onPatternSave={(id) => toggleSave(id)}
-              onPatternDismiss={(id) => dismiss(id)}
+              onPatternArchive={(id) => archive(id)}
             />
           )}
         </div>
