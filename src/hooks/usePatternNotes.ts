@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PatternNote, PatternFeedback } from '../types/session';
-import { fetchPatternNotes, resetAllPatterns, updatePatternFeedback, updatePatternStatus, deletePattern, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
+import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, deletePattern, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
 
 const MAX_SAVED = 20;
 
@@ -10,9 +10,10 @@ function dedupeByPrimaryTag(notes: PatternNote[]): PatternNote[] {
   return notes.filter(p => {
     if (seenIds.has(p.id)) return false;
     seenIds.add(p.id);
-    const tag = (p.relatedTags ?? [])[0]?.toLowerCase() ?? p.id;
-    if (seenTags.has(tag)) return false;
-    seenTags.add(tag);
+    const tags = (p.relatedTags ?? []).map(t => t.toLowerCase());
+    if (tags.length === 0) return true;
+    if (tags.some(t => seenTags.has(t))) return false;
+    for (const t of tags) seenTags.add(t);
     return true;
   });
 }
@@ -63,32 +64,6 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     })();
     return () => { cancelled = true; };
   }, [authed, interpretationEnabled]);
-
-  const reset = useCallback(async () => {
-    if (!interpretationEnabled) return;
-    setLoading(true);
-    try {
-      const remaining = await resetAllPatterns();
-      setPatterns(remaining);
-      await backfillEntrySignals();
-      const { patterns: generated } = await generatePatterns(true);
-      if (generated.length > 0) {
-        setPatterns(prev => {
-          const saved = prev.filter(p => p.status === 'saved');
-          return [...generated, ...saved];
-        });
-      } else {
-        const fresh = await fetchPatternNotes();
-        const active = dedupeByPrimaryTag(fresh.filter(p => p.status === 'active' || p.status === 'watching'));
-        const saved = dedupeByPrimaryTag(fresh.filter(p => p.status === 'saved'));
-        setPatterns([...active, ...saved]);
-      }
-    } catch {
-      // keep existing
-    } finally {
-      setLoading(false);
-    }
-  }, [interpretationEnabled]);
 
   const triggerTrickle = useCallback(async () => {
     if (!interpretationEnabled) return;
@@ -152,7 +127,6 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     patterns,
     savedCount,
     loading,
-    reset,
     update,
     submitFeedback,
     toggleSave,

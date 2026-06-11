@@ -571,26 +571,51 @@ function buildCandidates(
     }
   }
 
-  // --- Deduplicate candidates by primary signal ---
-  // Multiple candidate types can fire for the same signal (e.g. "coding"
+  // --- Deduplicate candidates by signal and tag overlap ---
+  // Multiple candidate types can fire for the same theme (e.g. "coding"
   // triggers recurring_theme + mood_driver + activity_mood_link).
-  // Keep the strongest candidate per signal.
+  // Keep the strongest candidate per group. Two candidates are in the same
+  // group if they share an exact signal OR any tag.
   const confidenceOrder: Record<string, number> = { strong_pattern: 0, emerging_pattern: 1, early_signal: 2 };
-  const bestBySignal = new Map<string, Candidate>();
+
+  function candidateScore(c: Candidate): number {
+    return (confidenceOrder[c.confidence] ?? 3) * 100 - c.quotes.length;
+  }
+
+  const tagToGroup = new Map<string, number>();
+  const signalToGroup = new Map<string, number>();
+  const groups: Candidate[][] = [];
+
   for (const c of candidates) {
-    const key = c.signal.toLowerCase();
-    const existing = bestBySignal.get(key);
-    if (!existing) {
-      bestBySignal.set(key, c);
-      continue;
+    const signalKey = c.signal.toLowerCase();
+    const tagKeys = c.tags.map(t => t.toLowerCase());
+
+    let groupIdx: number | undefined;
+    if (signalToGroup.has(signalKey)) {
+      groupIdx = signalToGroup.get(signalKey);
     }
-    const cScore = (confidenceOrder[c.confidence] ?? 3) * 100 - c.quotes.length;
-    const eScore = (confidenceOrder[existing.confidence] ?? 3) * 100 - existing.quotes.length;
-    if (cScore < eScore) {
-      bestBySignal.set(key, c);
+    for (const t of tagKeys) {
+      if (tagToGroup.has(t)) {
+        groupIdx = groupIdx ?? tagToGroup.get(t);
+      }
+    }
+
+    if (groupIdx !== undefined) {
+      groups[groupIdx].push(c);
+      signalToGroup.set(signalKey, groupIdx);
+      for (const t of tagKeys) tagToGroup.set(t, groupIdx);
+    } else {
+      const idx = groups.length;
+      groups.push([c]);
+      signalToGroup.set(signalKey, idx);
+      for (const t of tagKeys) tagToGroup.set(t, idx);
     }
   }
-  const deduped = [...bestBySignal.values()];
+
+  const deduped = groups.map(group => {
+    group.sort((a, b) => candidateScore(a) - candidateScore(b));
+    return group[0];
+  });
 
   // --- Filter against existing patterns ---
   const dismissedPatterns = existingPatterns.filter(p => p.status === 'dismissed');
@@ -1113,18 +1138,38 @@ serve(async (req) => {
       }
     }
 
+    // Also index by title words for fuzzy matching
+    const activeTitleIndex = new Map<string, PatternInsight>();
+    for (const p of activePatternsList) {
+      if (p.title) {
+        const words = p.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        for (const w of words) activeTitleIndex.set(w, p);
+      }
+    }
+
     const toUpdate: { pattern: PatternInsight; candidate: Candidate }[] = [];
     const toInsert: Candidate[] = [];
     const alreadyMatched = new Set<string>();
 
     for (const candidate of limitedCandidates) {
-      // Find matching active pattern by ANY tag overlap (not just primary)
+      // Find matching active pattern by tag overlap or signal overlap
       let matchingActive: PatternInsight | undefined;
       for (const tag of candidate.tags) {
         const match = activeTagIndex.get(tag.toLowerCase());
         if (match && !alreadyMatched.has(match.id)) {
           matchingActive = match;
           break;
+        }
+      }
+      // Fallback: match by signal words against existing titles
+      if (!matchingActive) {
+        const signalWords = candidate.signal.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        for (const w of signalWords) {
+          const match = activeTitleIndex.get(w);
+          if (match && !alreadyMatched.has(match.id)) {
+            matchingActive = match;
+            break;
+          }
         }
       }
 
@@ -1181,30 +1226,10 @@ serve(async (req) => {
       }
     }
 
-    // Insert genuinely new cards (respecting cap)
+    // Insert genuinely new cards only if there's room under the cap
     let currentActiveCount = activePatternsList.length;
     for (const candidate of toInsert) {
-      if (currentActiveCount >= MAX_ACTIVE_CARDS) {
-        // Delete the weakest active card to make room
-        const weakest = [...activePatternsList]
-          .sort((a, b) => {
-            const rankDiff = (CONFIDENCE_RANK[a.confidence ?? ''] ?? 0) - (CONFIDENCE_RANK[b.confidence ?? ''] ?? 0);
-            if (rankDiff !== 0) return rankDiff;
-            const timeDiff = new Date(a.updated_at ?? 0).getTime() - new Date(b.updated_at ?? 0).getTime();
-            if (timeDiff !== 0) return timeDiff;
-            return (a.evidence_count ?? 0) - (b.evidence_count ?? 0);
-          })[0];
-
-        if (weakest) {
-          await supabase
-            .from('pattern_insights')
-            .delete()
-            .eq('id', weakest.id);
-          if (weakest.title) dismissedTitles.push(weakest.title);
-          activePatternsList = activePatternsList.filter(p => p.id !== weakest.id);
-          currentActiveCount--;
-        }
-      }
+      if (currentActiveCount >= MAX_ACTIVE_CARDS) break;
 
       const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
       if (!llmResult) continue;

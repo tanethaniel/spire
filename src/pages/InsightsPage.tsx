@@ -18,7 +18,6 @@ interface InsightsPageProps {
   patterns: PatternNote[];
   savedCount: number;
   patternsLoading: boolean;
-  onResetPatterns: () => void;
   onUpdatePatterns: () => void;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
@@ -55,11 +54,12 @@ type CalendarMode = 'completeness' | 'mood';
 export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
   interpretationEnabled, patterns, savedCount, patternsLoading,
-  onResetPatterns, onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
+  onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
+  const [dismissConfirmId, setDismissConfirmId] = useState<string | null>(null);
 
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
@@ -238,20 +238,12 @@ export function InsightsPage({
             <div style={{ ...styles.sectionLabel, marginTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Patterns</span>
               {interpretationEnabled && patterns.length > 0 && (
-                <div style={{ display: 'flex', gap: 16 }}>
-                  <button
-                    style={styles.headerAction}
-                    onClick={onUpdatePatterns}
-                  >
-                    Update
-                  </button>
-                  <button
-                    style={styles.headerAction}
-                    onClick={onResetPatterns}
-                  >
-                    Reset
-                  </button>
-                </div>
+                <button
+                  style={styles.headerAction}
+                  onClick={onUpdatePatterns}
+                >
+                  Update
+                </button>
               )}
             </div>
 
@@ -296,7 +288,7 @@ export function InsightsPage({
                     key={p.id}
                     pattern={p}
                     onSave={onPatternSave}
-                    onDismiss={onPatternDismiss}
+                    onDismiss={(id) => setDismissConfirmId(id)}
                     onOpen={() => openDetail(p)}
                     saveDisabled={saveDisabled}
                   />
@@ -311,7 +303,7 @@ export function InsightsPage({
                         key={p.id}
                         pattern={p}
                         onSave={onPatternSave}
-                        onDismiss={onPatternDismiss}
+                        onDismiss={(id) => setDismissConfirmId(id)}
                         onOpen={() => openDetail(p)}
                         saveDisabled={saveDisabled}
                       />
@@ -348,12 +340,39 @@ export function InsightsPage({
               onClose={() => setSelectedPatternId(null)}
               onFeedback={onPatternFeedback}
               onSave={onPatternSave}
-              onDismiss={onPatternDismiss}
+              onDismiss={(id) => setDismissConfirmId(id)}
               saveDisabled={saveDisabled}
             />
           </>
         )}
       </div>
+
+      {/* Dismiss confirmation dialog */}
+      {dismissConfirmId && (
+        <div style={styles.confirmBackdrop} onClick={() => setDismissConfirmId(null)}>
+          <div style={styles.confirmDialog} onClick={e => e.stopPropagation()}>
+            <div style={styles.confirmTitle}>Remove this pattern?</div>
+            <div style={styles.confirmBody}>
+              This pattern will be permanently removed. It may reappear later if Spire detects it again from new entries.
+            </div>
+            <div style={styles.confirmActions}>
+              <button style={styles.confirmCancel} onClick={() => setDismissConfirmId(null)}>
+                Cancel
+              </button>
+              <button
+                style={styles.confirmProceed}
+                onClick={() => {
+                  onPatternDismiss(dismissConfirmId);
+                  setDismissConfirmId(null);
+                  if (selectedPatternId === dismissConfirmId) setSelectedPatternId(null);
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -508,5 +527,27 @@ const styles: Record<string, React.CSSProperties> = {
     width: 18, height: 18, borderRadius: '50%',
     background: 'var(--accent-primary)', color: '#fff',
     fontSize: 10, fontWeight: 700,
+  },
+  confirmBackdrop: {
+    position: 'fixed' as const, inset: 0,
+    background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60,
+  },
+  confirmDialog: {
+    width: '85%', maxWidth: 320,
+    background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
+    borderRadius: 18, border: '1px solid rgba(255,255,255,0.4)',
+    boxShadow: 'var(--glass-shadow-lg)', padding: '24px 20px 20px',
+  },
+  confirmTitle: { fontSize: 17, fontWeight: 700, marginBottom: 8, letterSpacing: -0.3 },
+  confirmBody: { fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 20 },
+  confirmActions: { display: 'flex', gap: 10 },
+  confirmCancel: {
+    flex: 1, padding: '12px 0', background: 'rgba(0,0,0,0.06)', border: 'none',
+    borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)',
+  },
+  confirmProceed: {
+    flex: 1, padding: '12px 0', background: '#D4756A', color: '#fff', border: 'none',
+    borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer',
   },
 };

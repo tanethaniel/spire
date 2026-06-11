@@ -325,28 +325,6 @@ export async function fetchPatternNotes(): Promise<PatternNote[]> {
   return (data ?? []).map(mapPatternNote);
 }
 
-export async function resetAllPatterns(): Promise<PatternNote[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Delete all non-saved patterns (active, archived, watching)
-  await supabase
-    .from('pattern_insights')
-    .delete()
-    .eq('user_id', user.id)
-    .neq('status', 'saved');
-
-  // Return remaining saved patterns
-  const { data, error } = await supabase
-    .from('pattern_insights')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-
-  return (data ?? []).map(mapPatternNote);
-}
-
 export async function getLatestEntryDate(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
