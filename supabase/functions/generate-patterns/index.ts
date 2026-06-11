@@ -257,7 +257,7 @@ function buildCandidates(
       })),
       entry_ids: [...entryIdsWithTag],
       tags: [value, sigs[0].signal_type],
-      evidence_summary: `Mood is ${delta > 0 ? 'higher' : 'lower'} by ${Math.abs(delta).toFixed(1)} on days with "${value}" (${daysWithTag} days).`,
+      evidence_summary: `Your mood tends to be ${describeMoodDelta(delta)} on days involving "${value}" (across ${daysWithTag} days).`,
     });
   }
 
@@ -566,9 +566,75 @@ function buildCandidates(
         })),
         entry_ids: [...entryIdSet],
         tags: [activity, 'activity_mood'],
-        evidence_summary: `Your mood is ${delta > 0 ? 'higher' : 'lower'} by ${Math.abs(delta).toFixed(1)} on days involving "${activity}" (${days} days, avg mood ${actAvg.toFixed(1)} vs overall ${avgMood.toFixed(1)}).`,
+        evidence_summary: `Your mood tends to be ${describeMoodDelta(delta)} on days involving "${activity}" (across ${days} days).`,
       });
     }
+  }
+
+  // --- Candidate: Activity-Emotion Correlation ---
+  // Catches activities from keyword_tags + activity_tags and correlates with emotions
+  const activityEmotionMap = new Map<string, { emotions: Map<string, number>; entryIds: string[]; dates: string[]; moods: number[] }>();
+  for (const e of entries) {
+    const allTags = [...(e.activity_tags || []), ...(e.keyword_tags || [])];
+    if (allTags.length === 0) continue;
+    for (const tag of allTags) {
+      const norm = tag.toLowerCase().trim();
+      if (!norm || RECOVERY_ACTIVITIES.has(norm)) continue; // skip recovery activities (handled above)
+      const rec = activityEmotionMap.get(norm) || { emotions: new Map(), entryIds: [], dates: [], moods: [] };
+      rec.entryIds.push(e.id);
+      rec.dates.push(e.created_at);
+      if (e.mood_score != null) rec.moods.push(e.mood_score);
+      if (e.emotion_tag) {
+        const emo = e.emotion_tag.toLowerCase();
+        rec.emotions.set(emo, (rec.emotions.get(emo) || 0) + 1);
+      }
+      activityEmotionMap.set(norm, rec);
+    }
+  }
+  for (const [activity, data] of activityEmotionMap) {
+    const days = distinctDaysFromDates(data.dates);
+    if (days < 2 || data.entryIds.length < 2) continue;
+    // Already covered by activity_mood_link?
+    if (activityMoodMap.has(activity)) continue;
+
+    const topEmotions = [...data.emotions.entries()]
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([emo]) => emo);
+    if (topEmotions.length === 0 && data.moods.length < 2) continue;
+
+    const { confidence, reason } = assignConfidence(data.entryIds.length, days, weekSpan(data.dates));
+    const entryIdSet = new Set(data.entryIds);
+    const relatedQuotes = signals
+      .filter(s => entryIdSet.has(s.entry_id) && s.quote)
+      .slice(0, 5);
+
+    const moodDelta = avgMood != null && data.moods.length >= 2
+      ? (data.moods.reduce((a, b) => a + b, 0) / data.moods.length) - avgMood
+      : null;
+
+    const emotionNote = topEmotions.length > 0
+      ? `When you do "${activity}", you often feel ${topEmotions.join(', ')}.`
+      : `"${activity}" shows up across ${days} days in your entries.`;
+
+    candidates.push({
+      type: 'activity_mood_link',
+      signal: activity,
+      confidence,
+      confidence_reason: reason,
+      supporting_days: days,
+      mood_delta: moodDelta != null ? Math.round(moodDelta * 100) / 100 : null,
+      calendar_context: null,
+      quotes: relatedQuotes.map(s => ({
+        date: s.journal_entries?.created_at || '',
+        question_index: s.question_index,
+        quote: s.quote,
+      })),
+      entry_ids: [...entryIdSet],
+      tags: [activity, 'activity_mood', ...topEmotions],
+      evidence_summary: emotionNote + (moodDelta != null ? ` Your mood tends to be ${describeMoodDelta(moodDelta)} on these days.` : ''),
+    });
   }
 
   // --- Deduplicate candidates by signal and semantic tag overlap ---
@@ -838,6 +904,28 @@ interface FeedbackEntry {
   feedback: string;
 }
 
+function describeMoodDelta(delta: number | null): string | null {
+  if (delta == null) return null;
+  const abs = Math.abs(delta);
+  const dir = delta > 0 ? 'higher' : 'lower';
+  if (abs >= 1.0) return `significantly ${dir}`;
+  if (abs >= 0.7) return `noticeably ${dir}`;
+  if (abs >= 0.4) return `somewhat ${dir}`;
+  return `slightly ${dir}`;
+}
+
+function stripNumbersFromEvidence(summary: string): string {
+  return summary
+    .replace(/\bavg mood \d+(\.\d+)?\s*vs\s*overall\s*\d+(\.\d+)?/gi, '')
+    .replace(/\bby \d+(\.\d+)?/g, '')
+    .replace(/\b\d+(\.\d+)?\s*compared to\s*\d+(\.\d+)?/gi, '')
+    .replace(/\b(averaged?|scores?|rating)\s*\d+(\.\d+)?/gi, '')
+    .replace(/\b\d+\.\d+\b/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\(\s*\)/g, '')
+    .trim();
+}
+
 async function writePatternNote(
   candidate: Candidate,
   goal: string | null,
@@ -845,6 +933,9 @@ async function writePatternNote(
   anthropicKey: string,
   feedbackHistory: FeedbackEntry[],
 ): Promise<Record<string, unknown> | null> {
+  const moodDescription = describeMoodDelta(candidate.mood_delta);
+  const cleanEvidence = stripNumbersFromEvidence(candidate.evidence_summary);
+
   const userMessage = JSON.stringify({
     user_profile: { goal: goal || 'not set', mbti: mbti || null },
     candidate_pattern: {
@@ -852,10 +943,10 @@ async function writePatternNote(
       signal: candidate.signal,
       confidence: candidate.confidence,
       supporting_days: candidate.supporting_days,
-      mood_delta: candidate.mood_delta,
+      mood_impact: moodDescription,
       related_calendar_context: candidate.calendar_context,
       quotes: candidate.quotes,
-      evidence_summary: candidate.evidence_summary,
+      evidence_summary: cleanEvidence,
     },
     previous_feedback: feedbackHistory.length > 0 ? feedbackHistory : undefined,
   });
