@@ -571,15 +571,27 @@ function buildCandidates(
     }
   }
 
-  // --- Deduplicate candidates by signal and tag overlap ---
+  // --- Deduplicate candidates by signal and semantic tag overlap ---
   // Multiple candidate types can fire for the same theme (e.g. "coding"
   // triggers recurring_theme + mood_driver + activity_mood_link).
   // Keep the strongest candidate per group. Two candidates are in the same
-  // group if they share an exact signal OR any tag.
+  // group if they share an exact signal OR a semantic tag (not category tags).
   const confidenceOrder: Record<string, number> = { strong_pattern: 0, emerging_pattern: 1, early_signal: 2 };
 
   function candidateScore(c: Candidate): number {
     return (confidenceOrder[c.confidence] ?? 3) * 100 - c.quotes.length;
+  }
+
+  // Category/type tags are structural, not semantic — exclude from dedup matching
+  const CATEGORY_TAGS = new Set([
+    'recurring', 'mood_driver', 'activity_mood', 'calendar', 'stress',
+    'emotion', 'self_belief', 'recurring_theme', 'mood_correlation',
+    'activity_mood_link', 'calendar_pattern', 'self_perception',
+    'contextual_blend',
+  ]);
+
+  function semanticTags(c: Candidate): string[] {
+    return c.tags.map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
   }
 
   const tagToGroup = new Map<string, number>();
@@ -588,13 +600,13 @@ function buildCandidates(
 
   for (const c of candidates) {
     const signalKey = c.signal.toLowerCase();
-    const tagKeys = c.tags.map(t => t.toLowerCase());
+    const semTags = semanticTags(c);
 
     let groupIdx: number | undefined;
     if (signalToGroup.has(signalKey)) {
       groupIdx = signalToGroup.get(signalKey);
     }
-    for (const t of tagKeys) {
+    for (const t of semTags) {
       if (tagToGroup.has(t)) {
         groupIdx = groupIdx ?? tagToGroup.get(t);
       }
@@ -603,12 +615,12 @@ function buildCandidates(
     if (groupIdx !== undefined) {
       groups[groupIdx].push(c);
       signalToGroup.set(signalKey, groupIdx);
-      for (const t of tagKeys) tagToGroup.set(t, groupIdx);
+      for (const t of semTags) tagToGroup.set(t, groupIdx);
     } else {
       const idx = groups.length;
       groups.push([c]);
       signalToGroup.set(signalKey, idx);
-      for (const t of tagKeys) tagToGroup.set(t, idx);
+      for (const t of semTags) tagToGroup.set(t, idx);
     }
   }
 

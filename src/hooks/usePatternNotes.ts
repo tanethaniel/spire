@@ -4,13 +4,19 @@ import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, deletePa
 
 const MAX_SAVED = 20;
 
+const CATEGORY_TAGS = new Set([
+  'recurring', 'mood_driver', 'activity_mood', 'calendar', 'stress',
+  'emotion', 'self_belief', 'recurring_theme', 'mood_correlation',
+  'activity_mood_link', 'calendar_pattern', 'self_perception', 'contextual_blend',
+]);
+
 function dedupeByPrimaryTag(notes: PatternNote[]): PatternNote[] {
   const seenIds = new Set<string>();
   const seenTags = new Set<string>();
   return notes.filter(p => {
     if (seenIds.has(p.id)) return false;
     seenIds.add(p.id);
-    const tags = (p.relatedTags ?? []).map(t => t.toLowerCase());
+    const tags = (p.relatedTags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
     if (tags.length === 0) return true;
     if (tags.some(t => seenTags.has(t))) return false;
     for (const t of tags) seenTags.add(t);
