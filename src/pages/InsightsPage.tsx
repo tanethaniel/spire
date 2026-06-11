@@ -23,6 +23,7 @@ interface InsightsPageProps {
   archivedToasts: string[];
   onDismissToast: (title: string) => void;
   onResetPatterns: () => void;
+  onUpdatePatterns: () => void;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
   onPatternArchive: (id: string) => void;
@@ -59,7 +60,7 @@ export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
   interpretationEnabled, patterns, archivedPatterns, savedCount, patternsLoading,
   archivedToasts, onDismissToast,
-  onResetPatterns, onPatternFeedback, onPatternSave, onPatternArchive,
+  onResetPatterns, onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternArchive,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
@@ -244,12 +245,20 @@ export function InsightsPage({
             <div style={{ ...styles.sectionLabel, marginTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Patterns</span>
               {interpretationEnabled && patterns.length > 0 && (
-                <button
-                  style={styles.headerAction}
-                  onClick={onResetPatterns}
-                >
-                  Reset
-                </button>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <button
+                    style={styles.headerAction}
+                    onClick={onUpdatePatterns}
+                  >
+                    Update
+                  </button>
+                  <button
+                    style={styles.headerAction}
+                    onClick={onResetPatterns}
+                  >
+                    Reset
+                  </button>
+                </div>
               )}
             </div>
 

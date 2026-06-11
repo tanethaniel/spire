@@ -74,7 +74,7 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
-  const { patterns, archivedPatterns, savedCount, loading: patternsLoading, archivedToasts, dismissToast, reset: resetPatterns, submitFeedback, toggleSave, archive, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
+  const { patterns, archivedPatterns, savedCount, loading: patternsLoading, archivedToasts, dismissToast, reset: resetPatterns, update: updatePatterns, submitFeedback, toggleSave, archive, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
 
   const profileUser = authSession ? {
     name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
@@ -281,6 +281,7 @@ function App() {
               archivedToasts={archivedToasts}
               onDismissToast={dismissToast}
               onResetPatterns={resetPatterns}
+              onUpdatePatterns={updatePatterns}
               onPatternFeedback={submitFeedback}
               onPatternSave={(id) => toggleSave(id)}
               onPatternArchive={(id) => archive(id)}

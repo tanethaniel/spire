@@ -6,11 +6,14 @@ const TOAST_STORAGE_KEY = 'spire_archive_toasts';
 const MAX_SAVED = 20;
 
 function dedupeByPrimaryTag(notes: PatternNote[]): PatternNote[] {
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenTags = new Set<string>();
   return notes.filter(p => {
+    if (seenIds.has(p.id)) return false;
+    seenIds.add(p.id);
     const tag = (p.relatedTags ?? [])[0]?.toLowerCase() ?? p.id;
-    if (seen.has(tag)) return false;
-    seen.add(tag);
+    if (seenTags.has(tag)) return false;
+    seenTags.add(tag);
     return true;
   });
 }
@@ -126,6 +129,16 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     }
   }, [interpretationEnabled]);
 
+  const update = useCallback(async () => {
+    if (!interpretationEnabled) return;
+    setLoading(true);
+    try {
+      await triggerTrickle();
+    } finally {
+      setLoading(false);
+    }
+  }, [interpretationEnabled, triggerTrickle]);
+
   const submitFeedback = useCallback(async (patternId: string, feedback: PatternFeedback) => {
     await updatePatternFeedback(patternId, feedback);
     setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, userFeedback: feedback } : p));
@@ -168,7 +181,10 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     setPatterns(prev => {
       const pattern = prev.find(p => p.id === patternId);
       if (pattern) {
-        setArchivedPatterns(ap => [{ ...pattern, status: 'archived' }, ...ap]);
+        setArchivedPatterns(ap => {
+          if (ap.some(p => p.id === patternId)) return ap;
+          return [{ ...pattern, status: 'archived' }, ...ap];
+        });
       }
       return prev.filter(p => p.id !== patternId);
     });
@@ -192,6 +208,7 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     archivedToasts,
     dismissToast,
     reset,
+    update,
     submitFeedback,
     toggleSave,
     archive,
