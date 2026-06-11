@@ -12,12 +12,12 @@ import { cleanupStaleAudio } from './lib/audioDb';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { SessionPage } from './pages/SessionPage';
-import { ResultPage } from './pages/ResultPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { MicPermission } from './components/MicPermission';
 import { BottomNav, type AppView } from './components/BottomNav';
 import { ProfileSheet } from './components/ProfileSheet';
+import { CompletionScreen } from './components/CompletionScreen';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { dayKey, currentStreak, getStreakMilestone } from './lib/stats';
 
@@ -117,10 +117,10 @@ function App() {
     startSession();
   }, [setCalendarEvents, startSession, micStatus, requestMic]);
 
-  const handleDone = useCallback(() => {
+  const handleSessionComplete = useCallback(() => {
     resetSession();
     refreshEntries();
-    setView('home');
+    setView('history');
     const pending = patternGenRef.current;
     if (pending) {
       pending.then(() => triggerTrickle()).catch(() => triggerTrickle());
@@ -143,9 +143,12 @@ function App() {
 
   useEffect(() => {
     if (session.state === SessionState.ANALYZING) {
+      if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+      }
       runAnalysis(interpretationEnabled);
     }
-  }, [session.state, interpretationEnabled, runAnalysis]);
+  }, [session.state, interpretationEnabled, runAnalysis, micStream]);
 
   if (authLoading) {
     return (
@@ -171,31 +174,12 @@ function App() {
     );
   }
 
-  if (session.state === SessionState.RESULT) {
+  if (session.state === SessionState.RESULT || session.state === SessionState.ANALYZING) {
     return (
-      <ResultPage
-        rounds={session.rounds}
-        themes={session.themes}
-        insight={session.insight}
-        startedAt={session.startedAt}
-        completedAt={session.completedAt}
-        interpretationEnabled={interpretationEnabled}
+      <CompletionScreen
         streak={profileStats.streak + 1}
-        onDone={handleDone}
+        onComplete={handleSessionComplete}
       />
-    );
-  }
-
-  // Analyzing: show a dedicated loading screen instead of the last question
-  if (session.state === SessionState.ANALYZING) {
-    return (
-      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '0 32px' }}>
-        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-          <circle cx="18" cy="18" r="15" stroke="var(--accent-primary)" strokeWidth="1.5" strokeDasharray="94" strokeDashoffset="0" style={{ animation: 'spin 1.2s linear infinite', transformOrigin: 'center' }} />
-        </svg>
-        <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.3, textAlign: 'center' as const }}>Reflecting on your session…</div>
-        <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'center' as const }}>This takes a moment</div>
-      </div>
     );
   }
 
