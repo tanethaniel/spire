@@ -31,6 +31,7 @@ export function useSession() {
     startedAt: null,
     completedAt: null,
     recordingError: null,
+    targetDate: null,
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -47,10 +48,12 @@ export function useSession() {
   const startedAtRef = useRef(session.startedAt);
   const calendarEventsRef = useRef(session.calendarEvents);
   const sessionIdRef = useRef(session.sessionId);
+  const targetDateRef = useRef(session.targetDate);
   roundsRef.current = session.rounds;
   startedAtRef.current = session.startedAt;
   calendarEventsRef.current = session.calendarEvents;
   sessionIdRef.current = session.sessionId;
+  targetDateRef.current = session.targetDate;
 
   const updateRound = useCallback((index: number, updates: Partial<QuestionRound>) => {
     setSession(prev => ({
@@ -59,8 +62,8 @@ export function useSession() {
     }));
   }, []);
 
-  const setCalendarEvents = useCallback((events: CalendarEvent[]) => {
-    const q1 = getQ1WithContext(events);
+  const setCalendarEvents = useCallback((events: CalendarEvent[], isYesterday = false) => {
+    const q1 = getQ1WithContext(events, isYesterday);
     setSession(prev => ({
       ...prev,
       calendarEvents: events,
@@ -70,7 +73,7 @@ export function useSession() {
     }));
   }, []);
 
-  const startSession = useCallback(() => {
+  const startSession = useCallback((targetDate?: string | null) => {
     trackEvent({ event: 'session_open' });
     setSession(prev => ({
       ...prev,
@@ -78,6 +81,7 @@ export function useSession() {
       sessionId: crypto.randomUUID(),
       startedAt: new Date().toISOString(),
       currentQuestion: 0,
+      targetDate: targetDate ?? null,
     }));
   }, []);
 
@@ -247,6 +251,7 @@ export function useSession() {
       keyword_tags: analysis.keyword_tags,
       event_context: calendarEvents,
       duration_ms: durationMs,
+      targetDate: targetDateRef.current,
     });
 
     trackEvent({ event: 'session_completed', duration_ms: durationMs });
@@ -277,6 +282,7 @@ export function useSession() {
       startedAt: null,
       completedAt: null,
       recordingError: null,
+      targetDate: null,
     });
   }, []);
 

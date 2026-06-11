@@ -14,13 +14,13 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
 // Calendar events are fetched server-side via the fetch-calendar edge function.
 // The Google provider token never persists in browser storage.
-export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
+export async function fetchCalendarEvents(targetDate?: Date): Promise<CalendarEvent[]> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
-  const now = new Date();
-  const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const timeMax = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+  const day = targetDate ?? new Date();
+  const timeMin = new Date(day.getFullYear(), day.getMonth(), day.getDate()).toISOString();
+  const timeMax = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).toISOString();
 
   const res = await fetch(`${EDGE_FUNCTION_BASE}/fetch-calendar`, {
     method: 'POST',
@@ -120,6 +120,7 @@ export async function saveJournalEntry(entry: {
   keyword_tags: string[] | null;
   event_context: CalendarEvent[] | null;
   duration_ms: number;
+  targetDate?: string | null;
 }): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -146,6 +147,9 @@ export async function saveJournalEntry(entry: {
     keyword_tags: entry.keyword_tags,
     duration_ms: entry.duration_ms,
   };
+  if (entry.targetDate) {
+    row.created_at = entry.targetDate;
+  }
   entry.transcripts.forEach((t, i) => {
     row[`q${i + 1}_transcript`] = t;
   });

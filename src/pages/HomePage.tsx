@@ -3,7 +3,7 @@ import type { CalendarEvent } from '../types/session';
 import { fetchCalendarEvents } from '../lib/api';
 
 interface HomePageProps {
-  onStart: (events: CalendarEvent[] | null) => void;
+  onStart: (events: CalendarEvent[] | null, targetDate: string | null) => void;
   onOpenProfile: () => void;
   avatarUrl: string | null;
   userName: string;
@@ -21,6 +21,9 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [showDayPicker, setShowDayPicker] = useState(false);
+  const [yesterdayEvents, setYesterdayEvents] = useState<CalendarEvent[] | null>(null);
+  const [yesterdayLoading, setYesterdayLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,11 +173,69 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
       <div style={styles.ctaArea}>
         <button
           style={styles.ctaButton}
-          onClick={() => onStart(calendarEvents)}
+          onClick={() => setShowDayPicker(true)}
         >
           <span>▶</span> Start reflecting
         </button>
       </div>
+
+      {showDayPicker && (
+        <>
+          <div style={styles.overlay} onClick={() => setShowDayPicker(false)} />
+          <div style={styles.daySheet}>
+            <div style={styles.daySheetHandle} />
+            <div style={styles.daySheetTitle}>Which day are you logging?</div>
+            <button
+              style={styles.dayOption}
+              onClick={() => {
+                setShowDayPicker(false);
+                onStart(calendarEvents, null);
+              }}
+            >
+              <div style={styles.dayOptionIcon}>☀️</div>
+              <div>
+                <div style={styles.dayOptionLabel}>Today</div>
+                <div style={styles.dayOptionSub}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+              </div>
+            </button>
+            <button
+              style={styles.dayOption}
+              disabled={yesterdayLoading}
+              onClick={() => {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                yesterday.setHours(21, 0, 0, 0);
+                const isoDate = yesterday.toISOString();
+                if (yesterdayEvents !== null) {
+                  setShowDayPicker(false);
+                  onStart(yesterdayEvents, isoDate);
+                  return;
+                }
+                setYesterdayLoading(true);
+                fetchCalendarEvents(yesterday)
+                  .then(events => {
+                    setYesterdayEvents(events.length > 0 ? events : null);
+                    setShowDayPicker(false);
+                    onStart(events.length > 0 ? events : null, isoDate);
+                  })
+                  .catch(() => {
+                    setShowDayPicker(false);
+                    onStart(null, isoDate);
+                  })
+                  .finally(() => setYesterdayLoading(false));
+              }}
+            >
+              <div style={styles.dayOptionIcon}>{yesterdayLoading ? '⏳' : '🌙'}</div>
+              <div>
+                <div style={styles.dayOptionLabel}>{yesterdayLoading ? 'Loading…' : 'Yesterday'}</div>
+                <div style={styles.dayOptionSub}>
+                  {(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); })()}
+                </div>
+              </div>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -421,5 +482,82 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     transition: 'all 0.15s',
     boxShadow: '0 8px 32px rgba(107,191,168,0.2), inset 0 1px 0 rgba(255,255,255,0.3)',
+  },
+  overlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(0,0,0,0.4)',
+    zIndex: 100,
+  },
+  daySheet: {
+    position: 'fixed' as const,
+    bottom: 0,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '100%',
+    maxWidth: 430,
+    background: 'var(--bg-elevated)',
+    backdropFilter: 'blur(40px)',
+    WebkitBackdropFilter: 'blur(40px)',
+    borderTop: '1px solid rgba(255,255,255,0.35)',
+    borderRadius: '20px 20px 0 0',
+    padding: '12px 24px 40px',
+    zIndex: 101,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.15)',
+  },
+  daySheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    background: 'rgba(255,255,255,0.3)',
+    alignSelf: 'center',
+    marginBottom: 4,
+  },
+  daySheetTitle: {
+    fontSize: 17,
+    fontWeight: 600,
+    letterSpacing: -0.3,
+    textAlign: 'center' as const,
+    marginBottom: 4,
+  },
+  dayOption: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    padding: '16px 18px',
+    background: 'var(--bg-surface)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid var(--border-glass)',
+    borderTop: '1px solid rgba(255,255,255,0.35)',
+    borderRadius: 14,
+    boxShadow: 'var(--glass-shadow)',
+    textAlign: 'left' as const,
+    transition: 'all 0.15s',
+    cursor: 'pointer',
+  },
+  dayOptionIcon: {
+    fontSize: 24,
+    width: 40,
+    height: 40,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(255,255,255,0.15)',
+    borderRadius: 10,
+    flexShrink: 0,
+  },
+  dayOptionLabel: {
+    fontSize: 16,
+    fontWeight: 600,
+    color: 'var(--text-primary)',
+  },
+  dayOptionSub: {
+    fontSize: 13,
+    color: 'var(--text-muted)',
+    marginTop: 2,
   },
 };

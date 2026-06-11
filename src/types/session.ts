@@ -40,6 +40,7 @@ export interface SessionData {
   startedAt: string | null;
   completedAt: string | null;
   recordingError: 'too_short' | 'transcription_failed' | null;
+  targetDate: string | null;
 }
 
 // User preference for whether Spire interprets entries (themes/insight/tips)
@@ -285,7 +286,7 @@ function computeTotalHours(events: CalendarEvent[]): number {
   return total;
 }
 
-function getTimeframe(events: CalendarEvent[]): string {
+function getTimeframe(events: CalendarEvent[], isYesterday = false): string {
   let allMorning = true;
   let allEvening = true;
   for (const ev of events) {
@@ -294,13 +295,18 @@ function getTimeframe(events: CalendarEvent[]): string {
     if (hour >= 12) allMorning = false;
     if (hour < 17) allEvening = false;
   }
+  if (isYesterday) {
+    if (allMorning) return 'yesterday morning';
+    if (allEvening) return 'yesterday evening';
+    return 'yesterday';
+  }
   if (allMorning) return 'this morning';
   if (allEvening) return 'this evening';
   return 'today';
 }
 
-function buildQ1(events: CalendarEvent[]): string {
-  const timeframe = getTimeframe(events);
+function buildQ1(events: CalendarEvent[], isYesterday = false): string {
+  const timeframe = getTimeframe(events, isYesterday);
   const totalHours = computeTotalHours(events);
   const shape = getDayShape(events.length, totalHours);
 
@@ -385,12 +391,15 @@ export function getQ1Categories(events: CalendarEvent[] | null): string[] {
     .map(([cat]) => CATEGORY_CHIP_LABELS[cat]);
 }
 
-export function getQ1WithContext(events: CalendarEvent[] | null): { question: string; subPrompt: string } {
+export function getQ1WithContext(events: CalendarEvent[] | null, isYesterday = false): { question: string; subPrompt: string } {
   if (!events || events.length === 0) {
+    if (isYesterday) {
+      return { question: 'How was yesterday?', subPrompt: 'Take your time. There\'s no wrong answer.' };
+    }
     return QUESTIONS[0];
   }
   return {
-    question: buildQ1(events),
+    question: buildQ1(events, isYesterday),
     subPrompt: 'Take your time. There\'s no wrong answer.',
   };
 }

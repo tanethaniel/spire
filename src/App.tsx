@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { SessionState, type CalendarEvent } from './types/session';
 import { useSession } from './hooks/useSession';
@@ -103,10 +103,14 @@ function App() {
     patternGenRef,
   } = useSession();
 
-  const handleStart = useCallback(async (events: CalendarEvent[] | null) => {
-    if (events) setCalendarEvents(events);
+  const pendingStartRef = useRef<{ events: CalendarEvent[] | null; targetDate: string | null } | null>(null);
+
+  const handleStart = useCallback(async (events: CalendarEvent[] | null, targetDate: string | null = null) => {
+    const isYesterday = !!targetDate;
+    if (events) setCalendarEvents(events, isYesterday);
 
     if (micStatus !== 'granted') {
+      pendingStartRef.current = { events, targetDate };
       const granted = await requestMic();
       if (!granted) {
         setShowMicPrompt(true);
@@ -114,7 +118,7 @@ function App() {
       }
     }
 
-    startSession();
+    startSession(targetDate);
   }, [setCalendarEvents, startSession, micStatus, requestMic]);
 
   const handleSessionComplete = useCallback(() => {
@@ -214,7 +218,8 @@ function App() {
             const granted = await requestMic();
             if (granted) {
               setShowMicPrompt(false);
-              startSession();
+              startSession(pendingStartRef.current?.targetDate);
+              pendingStartRef.current = null;
             }
           }}
         />
