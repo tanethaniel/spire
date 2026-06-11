@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface ProfileSheetProps {
@@ -6,7 +7,7 @@ interface ProfileSheetProps {
   interpretationEnabled: boolean;
   onToggle: (next: boolean) => void;
   mbti: string | null;
-  onMbtiChange: (mbti: string | null) => void;
+  onMbtiChange: (mbti: string | null) => void | Promise<void>;
   goals: string[];
   onClose: () => void;
 }
@@ -18,8 +19,10 @@ const MBTI_PAIRS: [string, string, string][] = [
   ['J', 'P', 'Lifestyle'],
 ];
 
+const DEFAULT_LETTERS: [string, string, string, string] = ['E', 'S', 'T', 'J'];
+
 function parseMbti(mbti: string | null): [string, string, string, string] {
-  if (!mbti || mbti.length !== 4) return ['E', 'S', 'T', 'J'];
+  if (!mbti || mbti.length !== 4) return [...DEFAULT_LETTERS];
   return [mbti[0].toUpperCase(), mbti[1].toUpperCase(), mbti[2].toUpperCase(), mbti[3].toUpperCase()];
 }
 
@@ -30,13 +33,46 @@ function formatMemberSince(iso: string): string {
 
 export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbti, onMbtiChange, goals, onClose }: ProfileSheetProps) {
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
-  const mbtiLetters = parseMbti(mbti);
   const hasMbti = mbti !== null && mbti.length === 4;
 
+  const [stagedLetters, setStagedLetters] = useState<[string, string, string, string]>(parseMbti(mbti));
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState<'save' | 'clear' | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const stagedValue = stagedLetters.join('');
+  const isDirty = hasInteracted && stagedValue !== (mbti ?? '');
+
   const toggleMbtiLetter = (pairIndex: number, letter: string) => {
-    const next = [...mbtiLetters];
+    const next: [string, string, string, string] = [...stagedLetters];
     next[pairIndex] = letter;
-    onMbtiChange(next.join(''));
+    setStagedLetters(next);
+    setHasInteracted(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setShowConfirm(null);
+    await onMbtiChange(stagedValue);
+    setHasInteracted(false);
+    setSaving(false);
+  };
+
+  const handleClear = async () => {
+    setSaving(true);
+    setShowConfirm(null);
+    await onMbtiChange(null);
+    setStagedLetters([...DEFAULT_LETTERS]);
+    setHasInteracted(false);
+    setSaving(false);
+  };
+
+  const handleSaveClick = () => {
+    if (hasMbti) {
+      setShowConfirm('save');
+    } else {
+      handleSave();
+    }
   };
 
   return (
@@ -131,31 +167,38 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
               <div style={styles.rowLabel}>Personality type</div>
               <div style={styles.rowSub}>
                 {hasMbti
-                  ? `Your type: ${mbti}`
-                  : 'Set your MBTI to unlock richer insights.'}
+                  ? isDirty
+                    ? `Your type: ${mbti} → ${stagedValue}`
+                    : `Your type: ${mbti}`
+                  : hasInteracted
+                    ? `Selected: ${stagedValue}`
+                    : 'Set your MBTI to personalize your insights.'}
               </div>
             </div>
           </div>
           <div style={styles.mbtiGrid}>
             {MBTI_PAIRS.map(([a, b], i) => {
-              const selected = mbtiLetters[i];
+              const selected = stagedLetters[i];
+              const showActive = hasInteracted || hasMbti;
               return (
                 <div key={i} style={styles.mbtiPair}>
                   <button
                     style={{
                       ...styles.mbtiBtn,
-                      ...(hasMbti && selected === a ? styles.mbtiBtnActive : {}),
+                      ...(showActive && selected === a ? styles.mbtiBtnActive : {}),
                     }}
                     onClick={() => toggleMbtiLetter(i, a)}
+                    disabled={saving}
                   >
                     {a}
                   </button>
                   <button
                     style={{
                       ...styles.mbtiBtn,
-                      ...(hasMbti && selected === b ? styles.mbtiBtnActive : {}),
+                      ...(showActive && selected === b ? styles.mbtiBtnActive : {}),
                     }}
                     onClick={() => toggleMbtiLetter(i, b)}
+                    disabled={saving}
                   >
                     {b}
                   </button>
@@ -163,11 +206,26 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
               );
             })}
           </div>
-          {hasMbti && (
-            <button style={styles.mbtiClear} onClick={() => onMbtiChange(null)}>
-              Clear
-            </button>
-          )}
+          <div style={styles.mbtiActions}>
+            {isDirty && (
+              <button
+                style={{ ...styles.mbtiSave, ...(saving ? { opacity: 0.6 } : {}) }}
+                onClick={handleSaveClick}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Save type'}
+              </button>
+            )}
+            {hasMbti && !isDirty && (
+              <button
+                style={styles.mbtiClear}
+                onClick={() => setShowConfirm('clear')}
+                disabled={saving}
+              >
+                Clear type
+              </button>
+            )}
+          </div>
         </div>
 
         <button style={styles.done} onClick={onClose}>Done</button>
@@ -182,6 +240,33 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
           Sign out
         </button>
       </div>
+
+      {/* Confirmation dialog */}
+      {showConfirm && (
+        <div style={styles.confirmBackdrop} onClick={() => setShowConfirm(null)}>
+          <div style={styles.confirmDialog} onClick={e => e.stopPropagation()}>
+            <div style={styles.confirmTitle}>
+              {showConfirm === 'save' ? 'Change personality type?' : 'Clear personality type?'}
+            </div>
+            <div style={styles.confirmBody}>
+              {showConfirm === 'save'
+                ? `This will update your type from ${mbti} to ${stagedValue}. Your pattern insights will be re-personalized.`
+                : 'This will remove your personality type. Your pattern insights will no longer be personalized.'}
+            </div>
+            <div style={styles.confirmActions}>
+              <button style={styles.confirmCancel} onClick={() => setShowConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                style={styles.confirmProceed}
+                onClick={showConfirm === 'save' ? handleSave : handleClear}
+              >
+                {showConfirm === 'save' ? 'Update' : 'Clear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -412,14 +497,94 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--accent-primary)',
     color: '#fff',
   },
+  mbtiActions: {
+    display: 'flex',
+    gap: 12,
+    marginTop: 10,
+    minHeight: 36,
+    alignItems: 'center',
+  },
+  mbtiSave: {
+    padding: '10px 20px',
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(107,191,168,0.25)',
+    transition: 'opacity 0.15s',
+  },
   mbtiClear: {
     background: 'none',
     border: 'none',
     fontSize: 13,
     color: 'var(--text-ghost)',
     cursor: 'pointer',
-    marginTop: 8,
     padding: '4px 0',
+  },
+  // Confirmation dialog
+  confirmBackdrop: {
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(0,0,0,0.3)',
+    backdropFilter: 'blur(4px)',
+    WebkitBackdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 60,
+  },
+  confirmDialog: {
+    width: '85%',
+    maxWidth: 320,
+    background: 'rgba(255,255,255,0.55)',
+    backdropFilter: 'blur(32px)',
+    WebkitBackdropFilter: 'blur(32px)',
+    borderRadius: 18,
+    border: '1px solid rgba(255,255,255,0.4)',
+    boxShadow: 'var(--glass-shadow-lg)',
+    padding: '24px 20px 20px',
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: 700,
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  confirmBody: {
+    fontSize: 14,
+    color: 'var(--text-muted)',
+    lineHeight: 1.5,
+    marginBottom: 20,
+  },
+  confirmActions: {
+    display: 'flex',
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    padding: '12px 0',
+    background: 'rgba(0,0,0,0.06)',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+    color: 'var(--text-secondary)',
+  },
+  confirmProceed: {
+    flex: 1,
+    padding: '12px 0',
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(107,191,168,0.25)',
   },
   signOut: {
     width: '100%',

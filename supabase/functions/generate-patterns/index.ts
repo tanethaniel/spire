@@ -886,9 +886,11 @@ serve(async (req) => {
     // Parse request body
     let forceRefresh = false;
     let lookbackDays = 30;
+    let rewriteMbti = false;
     try {
       const body = await req.json();
       if (body?.force_refresh === true) forceRefresh = true;
+      if (body?.rewrite_mbti === true) rewriteMbti = true;
       if (typeof body?.lookback_days === 'number' && body.lookback_days > 0) {
         lookbackDays = body.lookback_days;
       }
@@ -905,6 +907,72 @@ serve(async (req) => {
 
     const goal: string | null = settings?.goal || null;
     const mbti: string | null = settings?.mbti || null;
+
+    // --- MBTI Rewrite Mode ---
+    // Re-run LLM note writing for all active+saved patterns with the current MBTI
+    if (rewriteMbti) {
+      const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+      if (!anthropicKey) {
+        return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: patternsToRewrite } = await supabase
+        .from('pattern_insights')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'saved', 'watching']);
+
+      if (!patternsToRewrite || patternsToRewrite.length === 0) {
+        return new Response(JSON.stringify({ rewritten: 0 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let rewritten = 0;
+      for (const pattern of patternsToRewrite) {
+        const candidate: Candidate = {
+          type: pattern.pattern_type || 'recurring_theme',
+          signal: pattern.title || '',
+          confidence: pattern.confidence || 'early_signal',
+          confidence_reason: pattern.confidence_reason || '',
+          supporting_days: pattern.entry_count || 0,
+          mood_delta: pattern.mood_delta || null,
+          calendar_context: pattern.related_calendar_context || null,
+          quotes: (pattern.supporting_quotes || []).map((q: Record<string, string>) => ({
+            quote: q.quote || q.text || '',
+            date: q.date || q.entryDate || '',
+          })),
+          evidence_summary: pattern.evidence_summary || '',
+          tags: pattern.related_tags || [],
+          entry_ids: pattern.supporting_entry_ids || [],
+        };
+
+        const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, []);
+        if (!llmResult) continue;
+
+        await supabase
+          .from('pattern_insights')
+          .update({
+            note: llmResult.note,
+            personality_framing: llmResult.personality_framing || null,
+            reflection_prompt: llmResult.reflection_prompt || null,
+            suggested_experiment: llmResult.suggested_experiment || null,
+            title: llmResult.title,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pattern.id);
+
+        rewritten++;
+      }
+
+      console.log(`[generate-patterns] MBTI rewrite: ${rewritten}/${patternsToRewrite.length} patterns updated`);
+      return new Response(JSON.stringify({ rewritten }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Rate limit: max 5 pattern generations per user per day
     const todayStart = new Date();
