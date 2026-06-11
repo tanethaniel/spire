@@ -733,6 +733,7 @@ Rules:
 10. NEVER show raw numbers, scores, or scales (no "0.4", "averaged 0.8", "scored 3/5"). Instead use natural language: "noticeably lower", "significantly happier", "a bit more drained", "much calmer", "slightly more anxious"
 11. ALWAYS reference specific activities, emotions, tags, or moods from the evidence — not generic terms. Say "after gym sessions" not "after physical activity". Say "when you mention feeling lonely" not "when negative emotions appear". Use the actual words and tags from the user's entries.
 12. Follow this structure in the note: (1) what pattern you see, (2) why it matters emotionally, (3) what to try. All three in 280 chars.
+13. If "existing_title" is provided, this is an UPDATE to an existing card. The title is LOCKED — do not generate a new title. Write note/content that stays aligned with the existing title's theme. The card should feel like a refined version, not a different card.
 
 Tone:
 - Like a caring friend who's been paying close attention to your life
@@ -932,11 +933,12 @@ async function writePatternNote(
   mbti: string | null,
   anthropicKey: string,
   feedbackHistory: FeedbackEntry[],
+  existingTitle?: string | null,
 ): Promise<Record<string, unknown> | null> {
   const moodDescription = describeMoodDelta(candidate.mood_delta);
   const cleanEvidence = stripNumbersFromEvidence(candidate.evidence_summary);
 
-  const userMessage = JSON.stringify({
+  const payload: Record<string, unknown> = {
     user_profile: { goal: goal || 'not set', mbti: mbti || null },
     candidate_pattern: {
       type: candidate.type,
@@ -949,7 +951,12 @@ async function writePatternNote(
       evidence_summary: cleanEvidence,
     },
     previous_feedback: feedbackHistory.length > 0 ? feedbackHistory : undefined,
-  });
+  };
+  if (existingTitle) {
+    payload.existing_title = existingTitle;
+    payload.update_instructions = 'This is an UPDATE to an existing pattern card. The title is locked — keep the same theme. Refresh the note, personality_framing, reflection_prompt, and suggested_experiment with updated evidence, but stay aligned with the original title.';
+  }
+  const userMessage = JSON.stringify(payload);
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1087,7 +1094,7 @@ serve(async (req) => {
           entry_ids: pattern.supporting_entry_ids || [],
         };
 
-        const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, []);
+        const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, [], pattern.title);
         if (!llmResult) continue;
 
         await supabase
@@ -1097,7 +1104,6 @@ serve(async (req) => {
             personality_framing: llmResult.personality_framing || null,
             reflection_prompt: llmResult.reflection_prompt || null,
             suggested_experiment: llmResult.suggested_experiment || null,
-            title: llmResult.title,
             updated_at: new Date().toISOString(),
           })
           .eq('id', pattern.id);
@@ -1299,9 +1305,9 @@ serve(async (req) => {
 
     const resultPatterns: Record<string, unknown>[] = [];
 
-    // Update existing active cards in place
+    // Update existing active cards in place — title is immutable
     for (const { pattern, candidate } of toUpdate) {
-      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
+      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, pattern.title);
       if (!llmResult) continue;
 
       const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
@@ -1309,7 +1315,6 @@ serve(async (req) => {
         .from('pattern_insights')
         .update({
           pattern_type: candidate.type,
-          title: llmResult.title,
           note: llmResult.note,
           personality_framing: llmResult.personality_framing || null,
           evidence_summary: candidate.evidence_summary,
