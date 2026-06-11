@@ -70,6 +70,19 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     try {
       const remaining = await resetAllPatterns();
       setPatterns(remaining);
+      await backfillEntrySignals();
+      const { patterns: generated } = await generatePatterns(true);
+      if (generated.length > 0) {
+        setPatterns(prev => {
+          const saved = prev.filter(p => p.status === 'saved');
+          return [...generated, ...saved];
+        });
+      } else {
+        const fresh = await fetchPatternNotes();
+        const active = dedupeByPrimaryTag(fresh.filter(p => p.status === 'active' || p.status === 'watching'));
+        const saved = dedupeByPrimaryTag(fresh.filter(p => p.status === 'saved'));
+        setPatterns([...active, ...saved]);
+      }
     } catch {
       // keep existing
     } finally {
