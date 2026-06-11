@@ -318,78 +318,33 @@ export async function fetchPatternNotes(): Promise<PatternNote[]> {
     .from('pattern_insights')
     .select('*')
     .eq('user_id', user.id)
-    .in('status', ['active', 'saved', 'watching', 'archived'])
+    .in('status', ['active', 'saved', 'watching'])
     .order('created_at', { ascending: false });
   if (error) throw error;
 
   return (data ?? []).map(mapPatternNote);
 }
 
-const MAX_ACTIVE_CARDS = 7;
-const CONFIDENCE_RANK: Record<string, number> = {
-  strong_pattern: 3,
-  emerging_pattern: 2,
-  early_signal: 1,
-};
-
 export async function resetAllPatterns(): Promise<PatternNote[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Restore all archived patterns to active — leave saved untouched
-  // The cap below limits how many become visible
+  // Delete all non-saved patterns (active, archived, watching)
   await supabase
     .from('pattern_insights')
-    .update({ status: 'active', updated_at: new Date().toISOString() })
+    .delete()
     .eq('user_id', user.id)
-    .eq('status', 'archived');
+    .neq('status', 'saved');
 
-  // Fetch all active, deduplicate by primary tag, enforce cap of 7
-  const { data: all, error } = await supabase
+  // Return remaining saved patterns
+  const { data, error } = await supabase
     .from('pattern_insights')
     .select('*')
     .eq('user_id', user.id)
-    .eq('status', 'active')
     .order('created_at', { ascending: false });
   if (error) throw error;
 
-  const rows = all ?? [];
-  const seen = new Set<string>();
-  const keep: typeof rows = [];
-  const toDrop: string[] = [];
-
-  for (const row of rows) {
-    const tags: string[] = Array.isArray(row.related_tags) ? row.related_tags : [];
-    const primaryTag = tags[0]?.toLowerCase() ?? row.id;
-
-    if (seen.has(primaryTag)) {
-      toDrop.push(row.id);
-    } else {
-      seen.add(primaryTag);
-      keep.push(row);
-    }
-  }
-
-  // If over cap after dedup, keep strongest 7 and re-archive the rest
-  if (keep.length > MAX_ACTIVE_CARDS) {
-    keep.sort((a, b) => {
-      const rankDiff = (CONFIDENCE_RANK[b.confidence] ?? 0) - (CONFIDENCE_RANK[a.confidence] ?? 0);
-      if (rankDiff !== 0) return rankDiff;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-    const overflow = keep.splice(MAX_ACTIVE_CARDS);
-    toDrop.push(...overflow.map(r => r.id));
-  }
-
-  if (toDrop.length > 0) {
-    await supabase
-      .from('pattern_insights')
-      .update({ status: 'archived', updated_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .in('id', toDrop);
-  }
-
-  return keep.map(mapPatternNote);
+  return (data ?? []).map(mapPatternNote);
 }
 
 export async function getLatestEntryDate(): Promise<string | null> {
@@ -427,6 +382,14 @@ export async function updatePatternStatus(
   const { error } = await supabase
     .from('pattern_insights')
     .update({ status, updated_at: now, last_interacted_at: now })
+    .eq('id', patternId);
+  if (error) throw error;
+}
+
+export async function deletePattern(patternId: string): Promise<void> {
+  const { error } = await supabase
+    .from('pattern_insights')
+    .delete()
     .eq('id', patternId);
   if (error) throw error;
 }

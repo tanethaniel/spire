@@ -7,9 +7,8 @@ interface PatternDetailSheetProps {
   onClose: () => void;
   onFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onSave: (id: string) => void;
-  onArchive?: (id: string) => void;
+  onDismiss?: (id: string) => void;
   saveDisabled?: boolean;
-  isArchived?: boolean;
 }
 
 const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
@@ -23,7 +22,7 @@ function formatQuoteDate(iso: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onArchive, saveDisabled, isArchived }: PatternDetailSheetProps) {
+export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onDismiss, saveDisabled }: PatternDetailSheetProps) {
   if (!open || !pattern) return null;
 
   const feedbackOptions: { value: 'true' | 'kind_of' | 'not_really'; label: string }[] = [
@@ -66,14 +65,13 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
               </svg>
               {pattern.status === 'saved' ? 'Saved' : 'Save'}
             </button>
-            {!isArchived && onArchive && (
-              <button style={styles.actionChip} onClick={() => onArchive(pattern.id)}>
+            {onDismiss && (
+              <button style={styles.actionChip} onClick={() => onDismiss(pattern.id)}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="21 8 21 21 3 21 3 8" />
-                  <rect x="1" y="3" width="22" height="5" />
-                  <line x1="10" y1="12" x2="14" y2="12" />
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                Archive
+                Dismiss
               </button>
             )}
           </div>

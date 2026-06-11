@@ -6,7 +6,6 @@ import { distinctEntryDays } from '../lib/correlations';
 import { dayKey, currentStreak, avgSessionDuration } from '../lib/stats';
 import { PatternNoteCard } from '../components/PatternNoteCard';
 import { PatternDetailSheet } from '../components/PatternDetailSheet';
-import { ArchiveToast } from '../components/ArchiveToast';
 
 interface InsightsPageProps {
   entries: JournalEntry[];
@@ -17,16 +16,13 @@ interface InsightsPageProps {
   mbti: string | null;
   interpretationEnabled: boolean;
   patterns: PatternNote[];
-  archivedPatterns: PatternNote[];
   savedCount: number;
   patternsLoading: boolean;
-  archivedToasts: string[];
-  onDismissToast: (title: string) => void;
   onResetPatterns: () => void;
   onUpdatePatterns: () => void;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
-  onPatternArchive: (id: string) => void;
+  onPatternDismiss: (id: string) => void;
 }
 
 const HEATMAP_WEEKS = 5;
@@ -58,14 +54,12 @@ type CalendarMode = 'completeness' | 'mood';
 
 export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
-  interpretationEnabled, patterns, archivedPatterns, savedCount, patternsLoading,
-  archivedToasts, onDismissToast,
-  onResetPatterns, onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternArchive,
+  interpretationEnabled, patterns, savedCount, patternsLoading,
+  onResetPatterns, onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
-  const [archivedOpen, setArchivedOpen] = useState(false);
 
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
@@ -102,9 +96,8 @@ export function InsightsPage({
   const patternsUnlocked = totalEntries >= MIN_ENTRIES_FOR_PATTERNS && totalDays >= MIN_DAYS_FOR_PATTERNS;
   const unlockProgress = Math.min(totalEntries / MIN_ENTRIES_FOR_PATTERNS, totalDays / MIN_DAYS_FOR_PATTERNS) * 100;
 
-  const allPatterns = [...patterns, ...archivedPatterns];
+  const allPatterns = patterns;
   const selectedPattern = selectedPatternId ? allPatterns.find(p => p.id === selectedPatternId) ?? null : null;
-  const selectedIsArchived = selectedPattern ? archivedPatterns.some(p => p.id === selectedPattern.id) : false;
 
   // Build heatmap cells aligned to Monday start.
   const today = new Date();
@@ -262,19 +255,6 @@ export function InsightsPage({
               )}
             </div>
 
-            {/* Archive toasts */}
-            {archivedToasts.map(title => (
-              <ArchiveToast
-                key={title}
-                title={title}
-                onDismiss={() => onDismissToast(title)}
-                onViewArchive={() => {
-                  onDismissToast(title);
-                  setArchivedOpen(true);
-                }}
-              />
-            ))}
-
             {!interpretationEnabled ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
@@ -301,7 +281,7 @@ export function InsightsPage({
                   {totalEntries} of {MIN_ENTRIES_FOR_PATTERNS} entries · {totalDays} of {MIN_DAYS_FOR_PATTERNS} days
                 </div>
               </div>
-            ) : patterns.length === 0 && archivedPatterns.length === 0 ? (
+            ) : patterns.length === 0 ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockTitle}>No patterns yet</div>
                 <div style={styles.lockSub}>
@@ -316,7 +296,7 @@ export function InsightsPage({
                     key={p.id}
                     pattern={p}
                     onSave={onPatternSave}
-                    onArchive={onPatternArchive}
+                    onDismiss={onPatternDismiss}
                     onOpen={() => openDetail(p)}
                     saveDisabled={saveDisabled}
                   />
@@ -331,7 +311,7 @@ export function InsightsPage({
                         key={p.id}
                         pattern={p}
                         onSave={onPatternSave}
-                        onArchive={onPatternArchive}
+                        onDismiss={onPatternDismiss}
                         onOpen={() => openDetail(p)}
                         saveDisabled={saveDisabled}
                       />
@@ -353,30 +333,7 @@ export function InsightsPage({
                         key={p.id}
                         pattern={p}
                         onSave={onPatternSave}
-                        onArchive={onPatternArchive}
                         onOpen={() => openDetail(p)}
-                        saveDisabled={saveDisabled}
-                      />
-                    ))}
-                  </>
-                )}
-
-                {/* Archived (collapsible, read-only) */}
-                {archivedPatterns.length > 0 && (
-                  <>
-                    <button style={styles.collapsibleHeader} onClick={() => setArchivedOpen(o => !o)}>
-                      <span>Archived</span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: archivedOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-                    {archivedOpen && archivedPatterns.map(p => (
-                      <PatternNoteCard
-                        key={p.id}
-                        pattern={p}
-                        onSave={onPatternSave}
-                        onOpen={() => openDetail(p)}
-                        isArchived
                         saveDisabled={saveDisabled}
                       />
                     ))}
@@ -391,9 +348,8 @@ export function InsightsPage({
               onClose={() => setSelectedPatternId(null)}
               onFeedback={onPatternFeedback}
               onSave={onPatternSave}
-              onArchive={selectedIsArchived ? undefined : onPatternArchive}
+              onDismiss={onPatternDismiss}
               saveDisabled={saveDisabled}
-              isArchived={selectedIsArchived}
             />
           </>
         )}

@@ -5,9 +5,8 @@ interface PatternNoteCardProps {
   pattern: PatternNote;
   onOpen: (id: string) => void;
   onSave: (id: string) => void;
-  onArchive?: (id: string) => void;
+  onDismiss?: (id: string) => void;
   saveDisabled?: boolean;
-  isArchived?: boolean;
 }
 
 const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
@@ -16,15 +15,15 @@ const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
   strong_pattern: 'Strong pattern',
 };
 
-export function PatternNoteCard({ pattern, onOpen, onSave, onArchive, saveDisabled, isArchived }: PatternNoteCardProps) {
+export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabled }: PatternNoteCardProps) {
   const firstQuote = pattern.supportingQuotes?.[0] ?? null;
 
   return (
     <div
-      style={{ ...styles.card, marginBottom: 12, ...(isArchived ? { opacity: 0.7 } : {}) }}
+      style={{ ...styles.card, marginBottom: 12 }}
       onClick={() => onOpen(pattern.id)}
     >
-      {/* Top row: confidence pill + save/archive */}
+      {/* Top row: confidence pill + save/dismiss */}
       <div style={styles.topRow}>
         <div style={styles.badge}>
           {pattern.confidence === 'early_signal' && <span style={styles.badgeDot} />}
@@ -47,16 +46,15 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onArchive, saveDisabl
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
           </button>
-          {!isArchived && onArchive && (
+          {onDismiss && (
             <button
               style={styles.iconBtn}
-              onClick={() => onArchive(pattern.id)}
-              aria-label="Archive"
+              onClick={() => onDismiss(pattern.id)}
+              aria-label="Dismiss"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="21 8 21 21 3 21 3 8" />
-                <rect x="1" y="3" width="22" height="5" />
-                <line x1="10" y1="12" x2="14" y2="12" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           )}

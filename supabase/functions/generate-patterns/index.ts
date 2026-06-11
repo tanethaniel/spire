@@ -1081,28 +1081,28 @@ serve(async (req) => {
     console.log(`[generate-patterns] Clustered ${unsavedCandidates.length} candidates → ${clusteredCandidates.length} groups`);
     const limitedCandidates = clusteredCandidates.slice(0, MAX_CANDIDATES);
 
-    // --- Auto-archive stale cards ---
-    // Safety: never auto-archive if it would leave fewer than MIN_ACTIVE_FLOOR active cards
-    const archivedTitles: string[] = [];
+    // --- Remove stale cards ---
+    // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards
+    const dismissedTitles: string[] = [];
     const staleThreshold = new Date();
     staleThreshold.setDate(staleThreshold.getDate() - AUTO_ARCHIVE_DAYS);
     const staleCards = activePatternsList.filter(p => {
       const interactedAt = p.last_interacted_at ? new Date(p.last_interacted_at) : null;
       return !p.user_feedback && interactedAt && interactedAt < staleThreshold;
     });
-    const safeToArchive = Math.max(0, activePatternsList.length - MIN_ACTIVE_FLOOR);
-    const archiveCount = Math.min(staleCards.length, safeToArchive);
-    if (archiveCount > 0) {
-      const toArchive = staleCards.slice(0, archiveCount);
+    const safeToRemove = Math.max(0, activePatternsList.length - MIN_ACTIVE_FLOOR);
+    const removeCount = Math.min(staleCards.length, safeToRemove);
+    if (removeCount > 0) {
+      const toRemove = staleCards.slice(0, removeCount);
       await supabase
         .from('pattern_insights')
-        .update({ status: 'archived', updated_at: new Date().toISOString() })
+        .delete()
         .eq('user_id', user.id)
-        .in('id', toArchive.map(p => p.id));
-      for (const p of toArchive) {
-        if (p.title) archivedTitles.push(p.title);
+        .in('id', toRemove.map(p => p.id));
+      for (const p of toRemove) {
+        if (p.title) dismissedTitles.push(p.title);
       }
-      activePatternsList = activePatternsList.filter(p => !toArchive.some(s => s.id === p.id));
+      activePatternsList = activePatternsList.filter(p => !toRemove.some(s => s.id === p.id));
     }
 
     // Build index of active patterns — map every tag to its pattern for matching
@@ -1185,7 +1185,7 @@ serve(async (req) => {
     let currentActiveCount = activePatternsList.length;
     for (const candidate of toInsert) {
       if (currentActiveCount >= MAX_ACTIVE_CARDS) {
-        // Archive the weakest active card to make room
+        // Delete the weakest active card to make room
         const weakest = [...activePatternsList]
           .sort((a, b) => {
             const rankDiff = (CONFIDENCE_RANK[a.confidence ?? ''] ?? 0) - (CONFIDENCE_RANK[b.confidence ?? ''] ?? 0);
@@ -1198,9 +1198,9 @@ serve(async (req) => {
         if (weakest) {
           await supabase
             .from('pattern_insights')
-            .update({ status: 'archived', updated_at: new Date().toISOString() })
+            .delete()
             .eq('id', weakest.id);
-          if (weakest.title) archivedTitles.push(weakest.title);
+          if (weakest.title) dismissedTitles.push(weakest.title);
           activePatternsList = activePatternsList.filter(p => p.id !== weakest.id);
           currentActiveCount--;
         }
@@ -1245,7 +1245,7 @@ serve(async (req) => {
 
     console.log(`[generate-patterns] Trickle: ${toUpdate.length} updated, ${toInsert.length} new candidates, ${resultPatterns.length} result patterns`);
 
-    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles }), {
+    return new Response(JSON.stringify({ patterns: resultPatterns, dismissed_titles: dismissedTitles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
