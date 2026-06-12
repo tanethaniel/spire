@@ -339,7 +339,7 @@ interface Candidate {
 
 interface SignalRow {
   id: string;
-  entry_id: string;
+  journal_entry_id: string;
   signal_type: string;
   signal_value: string;
   normalized_value: string;
@@ -490,7 +490,7 @@ function buildCandidates(
           question_index: s.question_index,
           quote: s.quote,
         })),
-        entry_ids: [...new Set(sigs.map(s => s.entry_id))],
+        entry_ids: [...new Set(sigs.map(s => s.journal_entry_id))],
         tags: [value, sigs[0].signal_type],
         evidence_summary: `"${value}" appeared on ${days} distinct days (${sigs.length} mentions).`,
       });
@@ -500,7 +500,7 @@ function buildCandidates(
   // --- Candidate: Mood Driver ---
   for (const [value, sigs] of signalsByValue) {
     if (!value) continue;
-    const entryIdsWithTag = new Set(sigs.map(s => s.entry_id));
+    const entryIdsWithTag = new Set(sigs.map(s => s.journal_entry_id));
     const daysWithTag = distinctDaysFromDates(
       sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean),
     );
@@ -580,7 +580,7 @@ function buildCandidates(
           question_index: s.question_index,
           quote: s.quote,
         })),
-        entry_ids: [...new Set(negativeOnBusy.map(s => s.entry_id))],
+        entry_ids: [...new Set(negativeOnBusy.map(s => s.journal_entry_id))],
         tags: ['calendar', 'stress', ...negativeOnBusy.map(s => s.normalized_value).filter(Boolean)],
         evidence_summary: `${busyDays.size} busy/packed calendar days co-occurred with negative emotions (${negativeOnBusy.length} signals).`,
       });
@@ -617,7 +617,7 @@ function buildCandidates(
           question_index: s.question_index,
           quote: s.quote,
         })),
-        entry_ids: [...new Set(recoverySignals.map(s => s.entry_id))],
+        entry_ids: [...new Set(recoverySignals.map(s => s.journal_entry_id))],
         tags: activities,
         evidence_summary: `Activities like ${activities.join(', ')} appeared on ${days} days with above-average mood.`,
       });
@@ -635,9 +635,9 @@ function buildCandidates(
     if (days < 2) continue;
 
     // Find co-occurring emotion/need/self_belief signals on same entries
-    const relEntryIds = new Set(relSignals.map(s => s.entry_id));
+    const relEntryIds = new Set(relSignals.map(s => s.journal_entry_id));
     const coSignals = signals.filter(s =>
-      relEntryIds.has(s.entry_id) &&
+      relEntryIds.has(s.journal_entry_id) &&
       (s.signal_type === 'emotion' || s.signal_type === 'need' || s.signal_type === 'self_belief'),
     );
     if (coSignals.length === 0) continue;
@@ -686,7 +686,7 @@ function buildCandidates(
           question_index: s.question_index,
           quote: s.quote,
         })),
-        entry_ids: [...new Set(quotedSigs.map(s => s.entry_id))],
+        entry_ids: [...new Set(quotedSigs.map(s => s.journal_entry_id))],
         tags: ['self_belief', ...values],
         evidence_summary: `Self-belief signals (${values.join(', ')}) appeared with ${quotedSigs.length} direct quotes.`,
       });
@@ -743,7 +743,7 @@ function buildCandidates(
             question_index: s.question_index,
             quote: s.quote,
           })),
-          entry_ids: [...new Set(sigs.map(s => s.entry_id))],
+          entry_ids: [...new Set(sigs.map(s => s.journal_entry_id))],
           tags: [value, ...uniqueTypes],
           evidence_summary: `"${value}" appeared ${sigs.length} times and relates to your goal: "${goal}".`,
         });
@@ -767,7 +767,7 @@ function buildCandidates(
     const dates = ents.map(e => e.created_at);
     const { confidence, reason } = assignConfidence(ents.length, days, weekSpan(dates));
     const entryIdSet = new Set(ents.map(e => e.id));
-    const relatedSigs = signals.filter(s => entryIdSet.has(s.entry_id) && s.quote);
+    const relatedSigs = signals.filter(s => entryIdSet.has(s.journal_entry_id) && s.quote);
 
     // Find co-occurring activities on these emotion days
     const coActivities = new Map<string, number>();
@@ -833,7 +833,7 @@ function buildCandidates(
       const { confidence, reason } = assignConfidence(data.moods.length, days, weekSpan(data.dates));
       const entryIdSet = new Set(data.entryIds);
       const relatedQuotes = signals
-        .filter(s => entryIdSet.has(s.entry_id) && s.quote)
+        .filter(s => entryIdSet.has(s.journal_entry_id) && s.quote)
         .slice(0, 5);
 
       candidates.push({
@@ -892,7 +892,7 @@ function buildCandidates(
     const { confidence, reason } = assignConfidence(data.entryIds.length, days, weekSpan(data.dates));
     const entryIdSet = new Set(data.entryIds);
     const relatedQuotes = signals
-      .filter(s => entryIdSet.has(s.entry_id) && s.quote)
+      .filter(s => entryIdSet.has(s.journal_entry_id) && s.quote)
       .slice(0, 5);
 
     const moodDelta = avgMood != null && data.moods.length >= 2
@@ -1783,7 +1783,7 @@ serve(async (req) => {
         .order('created_at', { ascending: false }),
       supabase
         .from('entry_signals')
-        .select('id, entry_id, signal_type, signal_value, normalized_value, quote, question_index, sentiment, confidence, journal_entries!inner(id, created_at, mood_score, emotion_tag, activity_tags, keyword_tags, themes, event_context)')
+        .select('id, journal_entry_id, signal_type, signal_value, normalized_value, quote, question_index, sentiment, confidence, journal_entries!inner(id, created_at, mood_score, emotion_tag, activity_tags, keyword_tags, themes, event_context)')
         .eq('journal_entries.user_id', user.id)
         .gte('journal_entries.created_at', cutoffStr),
       supabase
