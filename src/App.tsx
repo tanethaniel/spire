@@ -18,6 +18,7 @@ import { MicPermission } from './components/MicPermission';
 import { BottomNav, type AppView } from './components/BottomNav';
 import { ProfileSheet } from './components/ProfileSheet';
 import { CompletionScreen } from './components/CompletionScreen';
+import { Tooltip, useTooltipSeen } from './components/Tooltip';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { dayKey, currentStreak, getStreakMilestone } from './lib/stats';
 
@@ -75,6 +76,7 @@ function App() {
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
   const { patterns, savedCount, loading: patternsLoading, update: updatePatterns, submitFeedback, toggleSave, dismiss, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
+  const [tabsSeen, markTabsSeen] = useTooltipSeen('tabs');
 
   const profileUser = authSession ? {
     name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
@@ -273,7 +275,21 @@ function App() {
             />
           )}
         </div>
-        <BottomNav view={effectiveView} onChange={setView} />
+        <div style={{ position: 'relative' }}>
+          <Tooltip
+            visible={!tabsSeen && onboardingCompleted}
+            onDismiss={markTabsSeen}
+            text={
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div><strong>Reflect</strong> — Record your thoughts</div>
+                <div><strong>Review</strong> — See patterns & insights</div>
+                <div><strong>Receipts</strong> — Your past entries</div>
+              </div>
+            }
+            style={{ position: 'absolute', bottom: '100%', left: 16, right: 16, marginBottom: 8, zIndex: 60 }}
+          />
+          <BottomNav view={effectiveView} onChange={setView} />
+        </div>
       </div>
     </>
   );

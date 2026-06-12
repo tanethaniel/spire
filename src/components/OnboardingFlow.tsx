@@ -51,7 +51,7 @@ export function OnboardingFlow({ onComplete, onSkip, interpretationEnabled }: On
   const [mbtiLetters, setMbtiLetters] = useState<[string, string, string, string] | null>(null);
   const [interpret, setInterpret] = useState(interpretationEnabled);
 
-  const next = useCallback(() => setStep(s => Math.min(s + 1, 3)), []);
+  const next = useCallback(() => setStep(s => Math.min(s + 1, 4)), []);
   const back = useCallback(() => setStep(s => Math.max(s - 1, 0)), []);
 
   const toggleGoal = useCallback((g: string) => {
@@ -84,7 +84,7 @@ export function OnboardingFlow({ onComplete, onSkip, interpretationEnabled }: On
           <div />
         )}
         <div style={styles.dotsRow}>
-          {[0, 1, 2, 3].map(i => (
+          {[0, 1, 2, 3, 4].map(i => (
             <div key={i} style={{
               ...styles.dot,
               ...(i === step ? styles.dotActive : {}),
@@ -106,7 +106,8 @@ export function OnboardingFlow({ onComplete, onSkip, interpretationEnabled }: On
             onToggleInterpretation={setInterpret}
           />
         )}
-        {step === 3 && (
+        {step === 3 && <PatternCardsScreen onNext={next} />}
+        {step === 4 && (
           <PersonalizeScreen
             selectedGoals={selectedGoals}
             onToggleGoal={toggleGoal}
@@ -188,6 +189,7 @@ function HowItWorksScreen({ onNext }: { onNext: () => void }) {
         ))}
       </div>
       <div style={styles.demoNote}>6 questions. ~5 minutes. Your voice, your story.</div>
+      <div style={styles.demoHint}>Missed a day? You can always log for yesterday.</div>
       <button style={styles.cta} onClick={onNext}>Next</button>
     </div>
   );
@@ -316,6 +318,67 @@ function PersonalizeScreen({
       </div>
 
       <button style={styles.cta} onClick={onFinish}>Start reflecting</button>
+    </div>
+  );
+}
+
+function PatternCardsScreen({ onNext }: { onNext: () => void }) {
+  return (
+    <div style={styles.screen}>
+      <div style={styles.sectionTitle}>Pattern Cards</div>
+      <div style={styles.patternSubtitle}>As you journal, Spire spots connections across your entries.</div>
+
+      {/* Mock pattern card */}
+      <div style={{ ...styles.mockCard, animation: 'onboardSlideIn 0.5s ease 0s both' }}>
+        <div style={styles.mockBadge}>EMERGING PATTERN</div>
+        <div style={styles.mockTitle}>Meetings take a toll on your energy</div>
+        <div style={styles.mockNote}>Your mood tends to dip on meeting-heavy days. On lighter days, you mention feeling more focused and calm.</div>
+      </div>
+
+      {/* Info items */}
+      <div style={styles.patternInfoList}>
+        {[
+          {
+            icon: (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <rect x="5" y="3" width="10" height="14" rx="2" stroke="var(--accent-primary)" strokeWidth="1.5" />
+                <path d="M8 10h4M10 8v4" stroke="var(--accent-primary)" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            ),
+            text: 'Unlock after 7 entries across 5 days',
+          },
+          {
+            icon: (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M10 3l2.4 4.8 5.3.8-3.85 3.75.9 5.3L10 15.2l-4.75 2.5.9-5.3L2.3 8.6l5.3-.8L10 3z" stroke="var(--accent-primary)" strokeWidth="1.5" strokeLinejoin="round" />
+              </svg>
+            ),
+            text: 'Save patterns that resonate',
+          },
+          {
+            icon: (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M6 10l3 3 5-6" stroke="var(--accent-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="10" cy="10" r="7.5" stroke="var(--accent-primary)" strokeWidth="1.5" />
+              </svg>
+            ),
+            text: 'Give feedback to improve insights',
+          },
+        ].map((item, i) => (
+          <div
+            key={i}
+            style={{
+              ...styles.patternInfoItem,
+              animation: `onboardSlideIn 0.5s ease ${0.3 + i * 0.2}s both`,
+            }}
+          >
+            <div style={styles.patternInfoIcon}>{item.icon}</div>
+            <div style={styles.patternInfoText}>{item.text}</div>
+          </div>
+        ))}
+      </div>
+
+      <button style={styles.cta} onClick={onNext}>Next</button>
     </div>
   );
 }
@@ -462,6 +525,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-muted)',
     textAlign: 'center' as const,
     marginTop: 16,
+    marginBottom: 4,
+  },
+  demoHint: {
+    fontSize: 13,
+    color: 'var(--text-ghost)',
+    textAlign: 'center' as const,
     marginBottom: 8,
   },
   // Privacy
@@ -605,6 +674,74 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-ghost)',
     marginTop: 10,
     fontStyle: 'italic',
+  },
+  // Pattern Cards screen
+  patternSubtitle: {
+    fontSize: 15,
+    color: 'var(--text-muted)',
+    lineHeight: 1.5,
+    marginBottom: 24,
+    marginTop: -12,
+  },
+  mockCard: {
+    background: 'var(--bg-surface)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid var(--border-glass)',
+    borderTop: '1px solid rgba(255,255,255,0.35)',
+    borderRadius: 16,
+    boxShadow: 'var(--glass-shadow)',
+    padding: '18px 20px',
+    marginBottom: 24,
+  },
+  mockBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    color: 'var(--accent-primary)',
+    background: 'rgba(107,191,168,0.12)',
+    padding: '4px 8px',
+    borderRadius: 6,
+    display: 'inline-block',
+    marginBottom: 10,
+  },
+  mockTitle: {
+    fontSize: 17,
+    fontWeight: 700,
+    letterSpacing: -0.3,
+    marginBottom: 8,
+    lineHeight: 1.3,
+  },
+  mockNote: {
+    fontSize: 14,
+    color: 'var(--text-muted)',
+    lineHeight: 1.5,
+  },
+  patternInfoList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+    flex: 1,
+  },
+  patternInfoItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  patternInfoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    background: 'rgba(107,191,168,0.12)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  patternInfoText: {
+    fontSize: 14,
+    color: 'var(--text-secondary)',
+    fontWeight: 500,
   },
   // CTA
   cta: {

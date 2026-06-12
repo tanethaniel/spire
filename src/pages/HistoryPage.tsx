@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { JournalEntry } from '../types/session';
+import { Tooltip, useTooltipSeen } from '../components/Tooltip';
 
 interface HistoryPageProps {
   entries: JournalEntry[];
@@ -86,6 +87,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
   const [search, setSearch] = useState('');
   const [keyword, setKeyword] = useState('');
   const [showKeyword, setShowKeyword] = useState(false);
+  const [searchSeen, markSearchSeen] = useTooltipSeen('search');
 
   useEffect(() => {
     if (!visible) {
@@ -152,29 +154,37 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
         </button>
       </div>
 
-      <div style={styles.searchRow}>
-        <div style={styles.searchWrap}>
-          <span style={styles.searchIcon}>⌕</span>
-          <input
-            type="text"
-            placeholder="Search by day or date…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={styles.searchInput}
-          />
-          {search && (
-            <button style={styles.clearBtn} onClick={() => setSearch('')}>✕</button>
-          )}
+      <div style={{ position: 'relative' }}>
+        <div style={styles.searchRow}>
+          <div style={styles.searchWrap}>
+            <span style={styles.searchIcon}>⌕</span>
+            <input
+              type="text"
+              placeholder="Search by day or date…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={styles.searchInput}
+            />
+            {search && (
+              <button style={styles.clearBtn} onClick={() => setSearch('')}>✕</button>
+            )}
+          </div>
+          <button
+            style={{ ...styles.filterBtn, ...(showKeyword ? styles.filterBtnActive : {}) }}
+            onClick={() => { setShowKeyword(!showKeyword); if (showKeyword) setKeyword(''); }}
+            aria-label="Filter by keyword"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+          </button>
         </div>
-        <button
-          style={{ ...styles.filterBtn, ...(showKeyword ? styles.filterBtnActive : {}) }}
-          onClick={() => { setShowKeyword(!showKeyword); if (showKeyword) setKeyword(''); }}
-          aria-label="Filter by keyword"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
-        </button>
+        <Tooltip
+          visible={!searchSeen && entries.length > 0}
+          onDismiss={markSearchSeen}
+          text="Search by day, date, or keyword"
+          style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, zIndex: 50 }}
+        />
       </div>
 
       {showKeyword && (

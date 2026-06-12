@@ -6,6 +6,7 @@ import { distinctEntryDays } from '../lib/correlations';
 import { dayKey, currentStreak, avgSessionDuration } from '../lib/stats';
 import { PatternNoteCard } from '../components/PatternNoteCard';
 import { PatternDetailSheet } from '../components/PatternDetailSheet';
+import { Tooltip, useTooltipSeen } from '../components/Tooltip';
 
 interface InsightsPageProps {
   entries: JournalEntry[];
@@ -60,6 +61,8 @@ export function InsightsPage({
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [dismissConfirmId, setDismissConfirmId] = useState<string | null>(null);
+  const [heatmapSeen, markHeatmapSeen] = useTooltipSeen('heatmap');
+  const [patternsSeen, markPatternsSeen] = useTooltipSeen('patterns');
 
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
@@ -162,15 +165,23 @@ export function InsightsPage({
               </div>
             </div>
 
-            <div style={styles.calendarToggle}>
-              <button
-                style={{ ...styles.toggleBtn, ...(calendarMode === 'completeness' ? styles.toggleBtnActive : {}) }}
-                onClick={() => setCalendarMode('completeness')}
-              >Consistency</button>
-              <button
-                style={{ ...styles.toggleBtn, ...(calendarMode === 'mood' ? styles.toggleBtnActive : {}) }}
-                onClick={() => setCalendarMode('mood')}
-              >Mood</button>
+            <div style={{ position: 'relative' }}>
+              <div style={styles.calendarToggle}>
+                <button
+                  style={{ ...styles.toggleBtn, ...(calendarMode === 'completeness' ? styles.toggleBtnActive : {}) }}
+                  onClick={() => setCalendarMode('completeness')}
+                >Consistency</button>
+                <button
+                  style={{ ...styles.toggleBtn, ...(calendarMode === 'mood' ? styles.toggleBtnActive : {}) }}
+                  onClick={() => setCalendarMode('mood')}
+                >Mood</button>
+              </div>
+              <Tooltip
+                visible={!heatmapSeen}
+                onDismiss={markHeatmapSeen}
+                text="Toggle between consistency and mood views"
+                style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, zIndex: 50 }}
+              />
             </div>
 
             <div style={styles.heatmap}>
@@ -235,16 +246,24 @@ export function InsightsPage({
             </div>
 
             {/* Patterns */}
-            <div style={{ ...styles.sectionLabel, marginTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Patterns</span>
-              {interpretationEnabled && patterns.length > 0 && (
-                <button
-                  style={styles.headerAction}
-                  onClick={onUpdatePatterns}
-                >
-                  Update
-                </button>
-              )}
+            <div style={{ position: 'relative', marginTop: 28 }}>
+              <div style={{ ...styles.sectionLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Patterns</span>
+                {interpretationEnabled && patterns.length > 0 && (
+                  <button
+                    style={styles.headerAction}
+                    onClick={onUpdatePatterns}
+                  >
+                    Update
+                  </button>
+                )}
+              </div>
+              <Tooltip
+                visible={!patternsSeen && heatmapSeen && patterns.length > 0}
+                onDismiss={markPatternsSeen}
+                text="Save patterns you like, dismiss the rest, and give feedback to improve future insights"
+                style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6, zIndex: 50 }}
+              />
             </div>
 
             {!interpretationEnabled ? (
