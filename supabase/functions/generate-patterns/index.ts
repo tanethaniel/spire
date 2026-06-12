@@ -198,8 +198,8 @@ interface SafetyResult {
 const UNSAFE_CAUSAL_PATTERNS = [
   /\b(leads?\s+to|causes?|makes?\s+you\s+feel|results?\s+in)\b/i,
   /\b(lower|worse|bad|negative)\s+(mood|energy|mental\s+health)\b/i,
-  /\b(pulls?|drags?|pushes?|drives?|brings?|tanks?|kills?|ruins?|wrecks?|hurts?)\s+(your\s+)?(mood|energy)\s*(down|lower)?\b/i,
-  /\bkeeps?\s+\w+ing\s+(your\s+)?(mood|energy)\b/i,
+  /\b(pulls?|drags?|tanks?|kills?|ruins?|wrecks?|hurts?)\s+(your\s+)?(mood|energy)\b/i,
+  /\bkeeps?\s+(pulling|dragging|tanking|killing|ruining|wrecking|hurting|lowering|dropping)\s+(your\s+)?(mood|energy)\b/i,
   /\b(mood|energy)\s+(drops?|tanks?|crashes?|plummets?|nosedives?)\b/i,
 ];
 
@@ -1552,16 +1552,16 @@ async function writeAndValidatePatternNote(
   const safety = validatePatternSafety(result);
   if (safety.safe) return { result, safe: true };
 
-  console.log(`[generate-patterns] Safety validation failed: ${safety.flags.join(', ')}. Retrying...`);
+  console.log(`[generate-patterns] Safety validation failed for "${candidate.signal}": ${safety.flags.join(', ')}. Retrying...`);
 
-  // Retry once with explicit safety instructions
+  // Retry once — the same prompt but LLM randomness usually produces a different phrasing
   const retryResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, existingTitle);
   if (!retryResult) return null;
 
   const retrySafety = validatePatternSafety(retryResult);
   if (retrySafety.safe) return { result: retryResult, safe: true };
 
-  console.log(`[generate-patterns] Safety retry still failed: ${retrySafety.flags.join(', ')}. Demoting.`);
+  console.log(`[generate-patterns] Safety retry still failed for "${candidate.signal}": ${retrySafety.flags.join(', ')}. Demoting.`);
   return { result: retryResult, safe: false };
 }
 
