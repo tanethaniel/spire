@@ -45,10 +45,18 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
         const saved = dedupeByPrimaryTag(notes.filter(p => p.status === 'saved'));
         setPatterns([...active, ...saved]);
 
-        // One-time migration: rewrite patterns that don't have full_note yet
-        const needsSplit = [...active, ...saved].some(p => !p.fullNote);
+        // One-time migration: rewrite patterns to populate proper preview/full notes
+        // Detect by checking if full_note equals note (migration backfill copies note → full_note)
+        const needsSplit = [...active, ...saved].some(p => !p.fullNote || p.fullNote === p.note);
         if (needsSplit && !backfillRanRef.current) {
-          rewritePatternsSplit().catch(() => {});
+          rewritePatternsSplit().then(async (count) => {
+            if (count > 0 && !cancelled) {
+              const refreshed = await fetchPatternNotes();
+              const rActive = dedupeByPrimaryTag(refreshed.filter(p => p.status === 'active' || p.status === 'watching'));
+              const rSaved = dedupeByPrimaryTag(refreshed.filter(p => p.status === 'saved'));
+              setPatterns([...rActive, ...rSaved]);
+            }
+          }).catch(() => {});
         }
 
         if (active.length === 0 && saved.length === 0 && !backfillRanRef.current) {

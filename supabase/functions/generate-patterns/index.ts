@@ -1672,14 +1672,18 @@ serve(async (req) => {
         });
       }
 
-      const { data: patternsToSplit } = await supabase
+      const { data: allPatterns } = await supabase
         .from('pattern_insights')
         .select('*')
         .eq('user_id', user.id)
-        .in('status', ['active', 'saved', 'watching'])
-        .is('full_note', null);
+        .in('status', ['active', 'saved', 'watching']);
 
-      if (!patternsToSplit || patternsToSplit.length === 0) {
+      // Find patterns that need rewriting: full_note is null or same as note (migration backfill)
+      const patternsToSplit = (allPatterns || []).filter(
+        p => !p.full_note || p.full_note === p.note
+      );
+
+      if (patternsToSplit.length === 0) {
         return new Response(JSON.stringify({ rewritten: 0 }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
