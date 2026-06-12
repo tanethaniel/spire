@@ -91,6 +91,217 @@ const EMOTION_KEYWORDS = new Set([
   'energized', 'tired', 'connected', 'disconnected', 'supported', 'peaceful',
 ]);
 
+const TAG_LABELS: Record<string, string> = {
+  gym: 'movement',
+  meetings: 'meeting-heavy days',
+  work: 'work',
+  friends: 'friend time',
+  family: 'family',
+  partner: 'partner time',
+  tired: 'feeling tired',
+  anxious: 'feeling anxious',
+  self_doubt: 'self-doubt',
+  'self-doubt': 'self-doubt',
+  self_advocacy: 'standing up for yourself',
+  'self-advocacy': 'standing up for yourself',
+  discipline: 'discipline',
+  rest: 'recovery',
+  walking: 'walking',
+  scattered: 'feeling scattered',
+  overwhelmed: 'feeling overwhelmed',
+  drained: 'feeling drained',
+  stressed: 'feeling stressed',
+  running: 'running',
+  yoga: 'yoga',
+  cooking: 'cooking',
+  reading: 'reading',
+  coding: 'coding',
+  'creative work': 'creative work',
+  sleep: 'sleep',
+  manager: 'your manager',
+  coworkers: 'coworkers',
+  deadline: 'deadlines',
+  energized: 'feeling energized',
+  clear: 'feeling clear',
+  happy: 'feeling happy',
+  sad: 'feeling sad',
+  lonely: 'feeling lonely',
+  proud: 'feeling proud',
+  calm: 'feeling calm',
+  focused: 'feeling focused',
+};
+
+function humanLabel(tag: string): string {
+  return TAG_LABELS[tag.toLowerCase()] || tag;
+}
+
+// Category/type tags are structural, not semantic — exclude from dedup and evidence
+const CATEGORY_TAGS = new Set([
+  'recurring', 'mood_driver', 'activity_mood', 'calendar', 'stress',
+  'emotion', 'self_belief', 'recurring_theme', 'mood_correlation',
+  'activity_mood_link', 'calendar_pattern', 'self_perception',
+  'contextual_blend',
+]);
+
+function buildUserFacingEvidenceSummary(candidate: Candidate): string {
+  const days = candidate.supporting_days;
+  const quoteCount = candidate.quotes.length;
+  const tags = candidate.tags
+    .filter(t => !CATEGORY_TAGS.has(t))
+    .map(humanLabel);
+
+  switch (candidate.type) {
+    case 'recovery_signal': {
+      const activities = tags.filter(t => !t.startsWith('feeling')).slice(0, 3);
+      const emotions = candidate.quotes
+        .map(q => q.quote.toLowerCase())
+        .join(' ');
+      const hasPositive = /clear|reset|lighter|calm|energized|better/.test(emotions);
+      return `Based on ${quoteCount} reflections where ${activities.join(' and ')} showed up${hasPositive ? " alongside words like 'clear' and 'reset'" : ''}.`;
+    }
+    case 'calendar_load': {
+      return `Based on several packed calendar days where your reflections mentioned feeling drained or scattered.`;
+    }
+    case 'relationship_pattern': {
+      const who = tags.find(t => !t.startsWith('feeling')) || 'people close to you';
+      return `Based on ${quoteCount} reflections where ${who} came up alongside emotional themes.`;
+    }
+    case 'self_belief': {
+      return `Based on ${quoteCount} reflections where you described ${tags.slice(0, 2).join(' and ')}.`;
+    }
+    case 'mood_driver':
+    case 'activity_mood_link': {
+      const activity = humanLabel(candidate.signal);
+      const direction = candidate.mood_delta != null && candidate.mood_delta > 0 ? 'lighter' : 'heavier';
+      return `Based on ${days} days where ${activity} showed up and your reflections felt ${direction}.`;
+    }
+    case 'emotion_trend': {
+      const emotion = humanLabel(candidate.signal);
+      const coActivities = tags.filter(t => !t.startsWith('feeling') && t !== candidate.signal).slice(0, 2);
+      const actNote = coActivities.length > 0 ? `, often alongside ${coActivities.join(' and ')}` : '';
+      return `Based on ${days} days where ${emotion} kept showing up${actNote}.`;
+    }
+    case 'goal_alignment': {
+      return `Based on ${quoteCount} reflections that connect to what you told Spire you care about.`;
+    }
+    default: {
+      return `Based on ${quoteCount} reflections across ${days} days.`;
+    }
+  }
+}
+
+interface SafetyResult {
+  safe: boolean;
+  flags: string[];
+}
+
+const UNSAFE_CAUSAL_PATTERNS = [
+  /\b(leads?\s+to|causes?|makes?\s+you\s+feel|results?\s+in)\b/i,
+  /\b(lower|worse|bad|negative)\s+(mood|energy|mental\s+health)\b/i,
+];
+
+const HEALTHY_BEHAVIORS = new Set([
+  'self-advocacy', 'self advocacy', 'discipline', 'boundaries', 'exercise',
+  'gym', 'rest', 'standing up', 'speaking up', 'saying no', 'asserting',
+  'running', 'yoga', 'walking', 'meditation', 'sleep',
+]);
+
+const MBTI_CAUSAL_PATTERNS = [
+  /\bbecause\s+you\s+are\s+\w{4}\b/i,
+  /\b\w{4}\s+people\b/i,
+  /\byour\s+type\s+means\b/i,
+  /\bas\s+an?\s+\w{4},\s+you\s+are\b/i,
+];
+
+const RAW_SCORE_PATTERNS = [
+  /\b\d+\.\d+\b/,
+  /\baverage[ds]?\s+\d/i,
+  /\bscores?\s+\d/i,
+  /\bcorrelat/i,
+  /\bmood\s+delta\b/i,
+  /\bstatistic/i,
+  /\bconfidence\s+score\b/i,
+];
+
+const DIAGNOSTIC_PATTERNS = [
+  /\bdiagnos/i,
+  /\bdisorder\b/i,
+  /\bsymptoms?\s+of\b/i,
+  /\bclinical/i,
+  /\btherapy\b/i,
+  /\btreatment\b/i,
+];
+
+function validatePatternSafety(llmResult: Record<string, unknown>): SafetyResult {
+  const flags: string[] = [];
+  const allText = [
+    llmResult.title,
+    llmResult.note,
+    llmResult.personality_framing,
+    llmResult.evidence_summary,
+    llmResult.reflection_prompt,
+    llmResult.suggested_experiment,
+  ].filter(Boolean).join(' ');
+
+  // Check for unsafe causal claims
+  for (const pattern of UNSAFE_CAUSAL_PATTERNS) {
+    if (pattern.test(allText)) {
+      flags.push('negative_causal_claim');
+      break;
+    }
+  }
+
+  // Check if healthy behaviors are framed as harmful
+  const titleAndNote = `${llmResult.title || ''} ${llmResult.note || ''}`.toLowerCase();
+  for (const behavior of HEALTHY_BEHAVIORS) {
+    if (titleAndNote.includes(behavior)) {
+      if (/\b(bad|harmful|worse|lower|negative|hurts?|damage)\b/i.test(titleAndNote)) {
+        flags.push('healthy_behavior_framed_as_bad');
+        break;
+      }
+    }
+  }
+
+  // Check MBTI causal claims
+  for (const pattern of MBTI_CAUSAL_PATTERNS) {
+    if (pattern.test(allText)) {
+      flags.push('mbti_causal_claim');
+      break;
+    }
+  }
+
+  // Check for raw scores
+  for (const pattern of RAW_SCORE_PATTERNS) {
+    if (pattern.test(allText)) {
+      flags.push('raw_score_exposed');
+      break;
+    }
+  }
+
+  // Check diagnostic language
+  for (const pattern of DIAGNOSTIC_PATTERNS) {
+    if (pattern.test(allText)) {
+      flags.push('diagnostic_language');
+      break;
+    }
+  }
+
+  // Check LLM-reported safety flags
+  const llmFlags = llmResult.safety_flags;
+  if (Array.isArray(llmFlags)) {
+    for (const f of llmFlags) {
+      if (typeof f === 'string' && f.length > 0) {
+        flags.push(f);
+      }
+    }
+  }
+
+  return {
+    safe: flags.length === 0,
+    flags,
+  };
+}
+
 interface Candidate {
   type: string;
   signal: string;
@@ -700,13 +911,7 @@ function buildCandidates(
     return (confidenceOrder[c.confidence] ?? 3) * 100 - c.quotes.length;
   }
 
-  // Category/type tags are structural, not semantic — exclude from dedup matching
-  const CATEGORY_TAGS = new Set([
-    'recurring', 'mood_driver', 'activity_mood', 'calendar', 'stress',
-    'emotion', 'self_belief', 'recurring_theme', 'mood_correlation',
-    'activity_mood_link', 'calendar_pattern', 'self_perception',
-    'contextual_blend',
-  ]);
+  // CATEGORY_TAGS is defined at module scope
 
   function semanticTags(c: Candidate): string[] {
     return c.tags.map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
