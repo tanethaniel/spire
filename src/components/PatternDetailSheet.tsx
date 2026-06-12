@@ -81,7 +81,7 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
         <div style={styles.title}>{pattern.title}</div>
 
         {/* Note */}
-        <div style={styles.noteText}>{pattern.note}</div>
+        <div style={styles.noteText}>{pattern.fullNote || pattern.note}</div>
 
         {/* Evidence quotes */}
         {pattern.supportingQuotes && pattern.supportingQuotes.length > 0 && (

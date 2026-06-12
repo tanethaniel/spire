@@ -1186,71 +1186,81 @@ function selectBalancedPatterns(
   };
 }
 
-const SYSTEM_PROMPT = `You are writing a personalized Pattern Note for Spire, a private voice journaling app. The system has already assembled deterministic evidence. Your job is to write a warm, specific, actionable note that feels like it comes from a thoughtful friend or parent who genuinely knows the user.
+const SYSTEM_PROMPT = `You are writing a Pattern Note for Spire, a private voice journaling app.
+The system has already determined that a candidate may be worth showing. Your job is not to decide whether a pattern exists. Your job is to translate evidence into a warm, careful, useful, user-facing reflection note.
 
 Rules:
-1. Do not invent evidence or make claims beyond the data
-2. Do not make clinical, diagnostic, or medical claims
-3. Do not overstate certainty — match the confidence level
-4. Use the user's stated goal to explain why the pattern may matter
-5. Ground the note in the provided evidence
-6. Do not mention "LLM", "model", "data", "transcripts", or "backend"
-7. Do not mention skipped questions
-8. Do not shame, judge, or optimize the user
-9. Write in second person ("you", "your")
-10. NEVER show raw numbers, scores, or scales (no "0.4", "averaged 0.8", "scored 3/5"). Instead use natural language: "noticeably lower", "significantly happier", "a bit more drained", "much calmer", "slightly more anxious"
-11. ALWAYS reference specific activities, emotions, tags, or moods from the evidence — not generic terms. Say "after gym sessions" not "after physical activity". Say "when you mention feeling lonely" not "when negative emotions appear". Use the actual words and tags from the user's entries.
-12. Follow this structure in the note: (1) what pattern you see, (2) why it matters emotionally, (3) what to try. All three in 280 chars.
-13. If "existing_title" is provided, this is an UPDATE to an existing card. The title is LOCKED — do not generate a new title. Write note/content that stays aligned with the existing title's theme. The card should feel like a refined version, not a different card.
-
-Tone:
-- Like a caring friend who's been paying close attention to your life
-- The reader should think "wow, this really knows me" — not "this is a data report"
-- Warm but direct. Specific but not clinical. Actionable but not preachy.
-- Reference the user's actual activities, moods, and emotions by name — this is what makes it feel personal
-
-Good note example: "Your mood lifts noticeably on days you hit the gym before work. When you skip it, you tend to mention feeling sluggish by afternoon. Even a short morning walk might keep that energy up."
-Bad note example: "On days with exercise, your mood averaged 0.8 compared to 0.4 on other days. Physical activity appears to correlate with improved emotional states."
+1. Do not invent evidence.
+2. Do not make clinical, diagnostic, or medical claims.
+3. Do not claim causality unless the user explicitly said it.
+4. Never frame healthy behaviours like self-advocacy, discipline, boundaries, exercise, or rest as bad.
+5. If a healthy behaviour appears alongside lower mood, frame the emotional cost around the context, not the behaviour. Example: "Standing up for yourself may be taking more energy than it should" — NOT "Self-advocacy leads to lower mood."
+6. Use the user's stated goal to explain why the pattern might matter. Weave the goal connection naturally into the note.
+7. If the user has a goal, the note should explain why this pattern matters for what they care about.
+8. Use MBTI only as a communication and experiment-design lens, never as evidence. Never say "because you are [MBTI]" or "your type means." Instead: "Since you identify as [MBTI], you may prefer..."
+9. Do not mention raw scores, averages, deltas, or scales. No numbers like "0.4", "averaged 0.8", or "scored 3/5".
+10. Use direct quotes, tags, and calendar context in natural language. Reference specific activities and emotions by name.
+11. Every note should feel like it was written for this specific user, not a generic observation.
+12. If the evidence is weak (early_signal), frame as "something to watch," not a conclusion.
+13. Avoid generic advice and productivity guilt.
+14. Never say "X leads to lower mood" or "X makes you feel worse."
+15. Never imply a healthy behaviour is harmful.
+16. Never use MBTI to explain why a pattern exists.
+17. If "existing_title" is provided, this is an UPDATE to an existing card. The title is LOCKED — do not generate a new title. Refine the note to stay aligned with the existing title.
+18. Write in second person ("you", "your").
+19. Do not mention "LLM", "model", "data", "transcripts", or "backend".
 
 Confidence language:
 - early_signal: "This may be showing up…", "This might be worth watching…"
 - emerging_pattern: "Spire is starting to notice…", "This seems to be becoming…"
 - strong_pattern: "This keeps coming up…", "There's a clear pattern here…"
 
-MBTI-driven suggestions (CRITICAL — this is what makes patterns useful):
-- When MBTI is provided, use it to generate SPECIFIC, ACTIONABLE suggestions that fit the user's personality
-- Don't just observe patterns — connect them to concrete things the user could try
-- Extraverts (E types): suggest social/collaborative versions of solo activities
-- Introverts (I types): suggest structured alone time, deeper solo versions
-- Sensing (S types): suggest concrete, specific actions with clear steps
-- Intuitive (N types): suggest exploring new possibilities, reframing
-- Thinking (T types): suggest systems, experiments, tracking
-- Feeling (F types): suggest connecting with values, relationships, meaning
-- Judging (J types): suggest routines, schedules, planning
-- Perceiving (P types): suggest flexibility, variety, spontaneous options
-- personality_framing should be a SPECIFIC suggestion tied to their MBTI, not a generic observation
+Tone:
+- Like a caring friend who has been paying close attention to your life.
+- The reader should think "this really knows me" — not "this is a data report."
+- Warm but direct. Specific but not clinical. Actionable but not preachy.
+
+MBTI-driven suggestions:
+- Extraverts (E): suggest social/collaborative versions
+- Introverts (I): suggest structured alone time, deeper solo versions
+- Sensing (S): concrete actions with clear steps
+- Intuitive (N): explore new possibilities, reframe
+- Thinking (T): systems, experiments, tracking
+- Feeling (F): connect with values, relationships, meaning
+- Judging (J): routines, schedules, planning
+- Perceiving (P): flexibility, variety, spontaneous options
+- personality_framing should be a SPECIFIC suggestion tied to their MBTI, not generic
 - Omit MBTI framing if mbti is null
 
-Previous feedback (learn from this):
-- If the user marked a similar pattern "true", lean into that direction with deeper suggestions
-- If the user marked something "kind_of", refine — the direction was right but the framing needs adjustment
-- If the user marked something "not_really", avoid that angle and try a different interpretation
-- Previous feedback is provided in the context — use it to calibrate tone and accuracy
+Previous feedback:
+- "true": lean into that direction with deeper suggestions
+- "kind_of": refine — direction was right but framing needs adjustment
+- "not_really": avoid that angle and try a different interpretation
 
 suggested_experiment MUST be:
-- A specific, concrete thing to try THIS WEEK (not vague advice)
+- A specific, concrete thing to try THIS WEEK
 - Tied to the pattern evidence AND the user's personality
-- Something that would test or leverage the pattern
 - Example: "Try coding at a coffee shop twice this week and note how your energy feels afterward"
 - NOT: "Consider exploring social activities" (too vague)
 
+If the output contains any of these problems, add the relevant string to safety_flags:
+- "negative_causal_claim" — says X leads to/causes bad mood
+- "healthy_behavior_framed_as_bad" — frames self-advocacy/discipline/rest/exercise as harmful
+- "activity_frequency_only" — pattern is just counting how often an activity appears
+- "generic_advice" — suggestion could apply to anyone
+- "raw_score_exposed" — raw numbers appear
+- "mbti_causal_claim" — MBTI used as evidence, not framing
+
 Return JSON only:
 {
-  "title": "max 80 chars, warm and specific — reference actual activities/emotions from evidence",
-  "note": "max 280 chars, 2-3 sentences. Structure: what pattern → why it matters emotionally → what to try. Reference specific activities, moods, emotions by name. NEVER use raw numbers. Feel like a friend who knows the user well.",
-  "personality_framing": "max 280 chars, SPECIFIC MBTI-based actionable suggestion, or null",
-  "reflection_prompt": "max 180 chars, a specific question for the user to sit with",
-  "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week"
+  "title": "max 80 chars, safe, warm, specific — reference actual activities/emotions",
+  "preview_note": "max 220 chars, concise card copy. The most important takeaway in 1-2 sentences.",
+  "full_note": "max 600 chars, nuanced detail view copy. Structure: what pattern → why it matters emotionally → goal connection (if goal exists) → what to try.",
+  "goal_connection": "required if user goal exists — explain why this pattern matters for their specific goal. Not generic. null if no goal.",
+  "personality_framing": "max 250 chars, SPECIFIC MBTI-based suggestion (never causal), or null",
+  "reflection_prompt": "max 180 chars, a specific question for the user",
+  "suggested_experiment": "max 250 chars, a CONCRETE thing to try this week",
+  "safety_flags": []
 }`;
 
 const CLUSTER_PROMPT = `You are grouping pattern candidates for a voice journaling app. Given a list of candidate patterns, group ones that describe essentially the same theme or insight — even if worded differently or detected by different methods.
@@ -1404,7 +1414,7 @@ async function writePatternNote(
   existingTitle?: string | null,
 ): Promise<Record<string, unknown> | null> {
   const moodDescription = describeMoodDelta(candidate.mood_delta);
-  const cleanEvidence = stripNumbersFromEvidence(candidate.evidence_summary);
+  const cleanEvidence = buildUserFacingEvidenceSummary(candidate);
 
   const payload: Record<string, unknown> = {
     user_profile: { goal: goal || 'not set', mbti: mbti || null },
@@ -1420,6 +1430,9 @@ async function writePatternNote(
     },
     previous_feedback: feedbackHistory.length > 0 ? feedbackHistory : undefined,
   };
+  if (goal) {
+    payload.goal_requirement = 'The user has a goal set. You MUST include a goal_connection that explains why this pattern matters for their specific goal. Do not restate the goal generically.';
+  }
   if (existingTitle) {
     payload.existing_title = existingTitle;
     payload.update_instructions = 'This is an UPDATE to an existing pattern card. The title is locked — keep the same theme. Refresh the note, personality_framing, reflection_prompt, and suggested_experiment with updated evidence, but stay aligned with the original title.';
@@ -1466,6 +1479,33 @@ async function writePatternNote(
     console.error('[generate-patterns] LLM call failed:', err);
     return null;
   }
+}
+
+async function writeAndValidatePatternNote(
+  candidate: Candidate,
+  goal: string | null,
+  mbti: string | null,
+  anthropicKey: string,
+  feedbackHistory: FeedbackEntry[],
+  existingTitle?: string | null,
+): Promise<{ result: Record<string, unknown>; safe: boolean } | null> {
+  const result = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, existingTitle);
+  if (!result) return null;
+
+  const safety = validatePatternSafety(result);
+  if (safety.safe) return { result, safe: true };
+
+  console.log(`[generate-patterns] Safety validation failed: ${safety.flags.join(', ')}. Retrying...`);
+
+  // Retry once with explicit safety instructions
+  const retryResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, existingTitle);
+  if (!retryResult) return null;
+
+  const retrySafety = validatePatternSafety(retryResult);
+  if (retrySafety.safe) return { result: retryResult, safe: true };
+
+  console.log(`[generate-patterns] Safety retry still failed: ${retrySafety.flags.join(', ')}. Demoting.`);
+  return { result: retryResult, safe: false };
 }
 
 serve(async (req) => {
@@ -1568,7 +1608,10 @@ serve(async (req) => {
         await supabase
           .from('pattern_insights')
           .update({
-            note: llmResult.note,
+            note: llmResult.preview_note || llmResult.note,
+            goal_connection: llmResult.goal_connection || null,
+            preview_note: llmResult.preview_note || llmResult.note || null,
+            full_note: llmResult.full_note || llmResult.note || null,
             personality_framing: llmResult.personality_framing || null,
             reflection_prompt: llmResult.reflection_prompt || null,
             suggested_experiment: llmResult.suggested_experiment || null,
@@ -1600,6 +1643,14 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Clean up dismissed patterns older than 14 days
+    await supabase
+      .from('pattern_insights')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('status', 'dismissed')
+      .lt('updated_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
 
     // 2. Fetch Data
     const cutoff = new Date();
@@ -1783,17 +1834,25 @@ serve(async (req) => {
 
     // Update existing active cards in place — title is immutable
     for (const { pattern, candidate } of toUpdate) {
-      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, pattern.title);
-      if (!llmResult) continue;
+      const validated = await writeAndValidatePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, pattern.title);
+      if (!validated) continue;
+      if (!validated.safe) {
+        console.log(`[generate-patterns] Skipping unsafe update for pattern ${pattern.id}`);
+        continue;
+      }
+      const llmResult = validated.result;
 
       const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
       const { error: updateError } = await supabase
         .from('pattern_insights')
         .update({
           pattern_type: candidate.type,
-          note: llmResult.note,
+          note: llmResult.preview_note || llmResult.note,
+          goal_connection: llmResult.goal_connection || null,
+          preview_note: llmResult.preview_note || llmResult.note || null,
+          full_note: llmResult.full_note || llmResult.note || null,
           personality_framing: llmResult.personality_framing || null,
-          evidence_summary: candidate.evidence_summary,
+          evidence_summary: buildUserFacingEvidenceSummary(candidate),
           confidence: candidate.confidence,
           confidence_reason: candidate.confidence_reason,
           evidence_count: candidate.quotes.length,
@@ -1824,18 +1883,38 @@ serve(async (req) => {
     for (const candidate of toInsert) {
       if (currentActiveCount >= MAX_ACTIVE_CARDS) break;
 
-      const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
-      if (!llmResult) continue;
+      const validated = await writeAndValidatePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
+      if (!validated) continue;
+      if (!validated.safe) {
+        // Demote: skip insert for unsafe patterns
+        console.log(`[generate-patterns] Hiding unsafe new pattern for signal: ${candidate.signal}`);
+        continue;
+      }
+      const llmResult = validated.result;
+
+      // Goal connection enforcement: retry once if missing for main patterns
+      if (goal && !llmResult.goal_connection && candidate.confidence !== 'early_signal') {
+        const retryValidated = await writeAndValidatePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
+        if (retryValidated?.safe && retryValidated.result.goal_connection) {
+          Object.assign(llmResult, retryValidated.result);
+        } else {
+          // Demote to thing_to_watch (early_signal confidence)
+          candidate.confidence = 'early_signal';
+          console.log(`[generate-patterns] Demoting pattern without goal_connection: ${candidate.signal}`);
+        }
+      }
 
       const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
       const row = {
         user_id: user.id,
         pattern_type: candidate.type,
         title: llmResult.title,
-        note: llmResult.note,
-        goal_connection: null,
+        note: llmResult.preview_note || llmResult.note,
+        goal_connection: llmResult.goal_connection || null,
+        preview_note: llmResult.preview_note || llmResult.note || null,
+        full_note: llmResult.full_note || llmResult.note || null,
         personality_framing: llmResult.personality_framing || null,
-        evidence_summary: candidate.evidence_summary,
+        evidence_summary: buildUserFacingEvidenceSummary(candidate),
         confidence: candidate.confidence,
         confidence_reason: candidate.confidence_reason,
         evidence_count: candidate.quotes.length,

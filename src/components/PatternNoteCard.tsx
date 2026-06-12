@@ -65,7 +65,7 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabl
       <div style={styles.title}>{pattern.title}</div>
 
       {/* Note — clamped */}
-      <div style={styles.note}>{pattern.note}</div>
+      <div style={styles.note}>{pattern.previewNote || pattern.note}</div>
 
       {/* First quote preview */}
       {firstQuote && (

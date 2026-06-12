@@ -369,9 +369,10 @@ export async function updatePatternStatus(
 }
 
 export async function deletePattern(patternId: string): Promise<void> {
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from('pattern_insights')
-    .delete()
+    .update({ status: 'dismissed', updated_at: now })
     .eq('id', patternId);
   if (error) throw error;
 }
@@ -391,6 +392,8 @@ function mapPatternNote(row: Record<string, unknown>): PatternNote {
     patternType: String(row.pattern_type ?? ''),
     title: String(row.title ?? ''),
     note: String(row.note ?? ''),
+    previewNote: (row.preview_note as string) ?? null,
+    fullNote: (row.full_note as string) ?? null,
     goalConnection: row.goal_connection as string | null,
     personalityFraming: row.personality_framing as string | null,
     evidenceSummary: row.evidence_summary as string | null,

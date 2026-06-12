@@ -101,6 +101,8 @@ export interface PatternNote {
   patternType: string;
   title: string;
   note: string;
+  previewNote: string | null;
+  fullNote: string | null;
   goalConnection: string | null;
   personalityFraming: string | null;
   evidenceSummary: string | null;

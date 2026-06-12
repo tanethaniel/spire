@@ -120,12 +120,18 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     const nextStatus = targetPattern.status === 'saved' ? 'active' : 'saved';
     await updatePatternStatus(patternId, nextStatus);
     setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status: nextStatus as PatternNote['status'] } : p));
-  }, []);
+    // Check if new patterns can fill the gap left by saving
+    if (nextStatus === 'saved') {
+      triggerTrickle().catch(() => {});
+    }
+  }, [triggerTrickle]);
 
   const dismiss = useCallback(async (patternId: string) => {
     await deletePattern(patternId);
     setPatterns(prev => prev.filter(p => p.id !== patternId));
-  }, []);
+    // Check if new patterns can fill the gap
+    triggerTrickle().catch(() => {});
+  }, [triggerTrickle]);
 
   const savedCount = patterns.filter(p => p.status === 'saved').length;
 
