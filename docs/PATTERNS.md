@@ -14,8 +14,12 @@ Journal Entry → extract-entry-signals (Edge Function)
               generate-patterns (Edge Function)
                       ↓
          ┌────────────┼────────────┐
-    Candidates   LLM Clustering   LLM Writing
+    Candidates   LLM Clustering   Quality Gate
          └────────────┼────────────┘
+                      ↓
+              ┌───────┼───────┐
+         LLM Writing   Safety Validation
+              └───────┼───────┘
                       ↓
             pattern_insights table
                       ↓
@@ -82,8 +86,10 @@ The pattern cards themselves.
 | user_id | uuid | FK → auth.users |
 | pattern_type | text | Candidate type that generated this card |
 | title | text | Max 80 chars. **Immutable after creation.** |
-| note | text | Max 280 chars. LLM-written, 2-3 sentences. |
-| goal_connection | text | Nullable. How pattern relates to user's goal. |
+| note | text | Legacy field, mapped to preview_note. |
+| preview_note | text | Max 220 chars. Card preview copy. |
+| full_note | text | Max 600 chars. Detail view copy with nuance. |
+| goal_connection | text | Required for main patterns when goal exists. Woven into full_note. |
 | personality_framing | text | Max 280 chars. MBTI-driven suggestion. |
 | evidence_summary | text | Human-readable evidence description. |
 | confidence | text | early_signal, emerging_pattern, strong_pattern |
@@ -169,23 +175,29 @@ Called per journal entry after transcription completes. Sends Q1-Q6 transcripts 
 |----------|-------|---------|
 | MAX_PATTERNS_PER_DAY | 5 | Daily rate limit (bypassed by force_refresh) |
 | MAX_CANDIDATES | 10 | Max candidates after clustering |
-| MAX_ACTIVE_CARDS | 7 | Cap on active pattern cards |
+| MAX_MAIN_PATTERNS | 5 | Max main pattern cards (cap, not target) |
+| MAX_THINGS_TO_WATCH | 3 | Max "things to watch" cards |
+| MAX_ACTIVE_CARDS | 7 | Hard safety cap on total active cards |
 | AUTO_ARCHIVE_DAYS | 14 | Stale card deletion threshold |
 | MIN_ACTIVE_FLOOR | 2 | Never auto-delete below this count |
+| MAX_PATTERNS_PER_LIFE_CATEGORY | 2 | Max patterns from one life area |
+| MAX_WORK_PATTERNS | 2 | Cap on work-related patterns |
 
 ### Pipeline
 
 1. **Auth & Settings** — fetch user goal, MBTI, daily pattern count
 2. **Rate Limit** — 5 patterns/day unless force_refresh
-3. **Fetch Data** (parallel) — journal entries, entry_signals, calendar signals, existing patterns
-4. **Build Candidates** — 10 deterministic candidate generators
-5. **Deduplicate** — remove semantic duplicates, filter dismissed/saved overlap
-6. **LLM Cluster** — Claude merges similar candidates
-7. **Limit** — take first 10
-8. **Auto-Delete Stale** — remove untouched active cards >14 days old
-9. **Match Updates** — find existing patterns that match new candidates by tag/title overlap
-10. **LLM Write Notes** — generate human-readable notes for updates + new cards
-11. **Save** — update existing rows (preserving title), insert new rows
+3. **Cleanup** — delete dismissed patterns older than 14 days
+4. **Fetch Data** (parallel) — journal entries, entry_signals, calendar signals, existing patterns
+5. **Build Candidates** — 10 deterministic candidate generators
+6. **Deduplicate** — remove semantic duplicates, filter dismissed/saved overlap
+7. **LLM Cluster** — Claude merges similar candidates
+8. **Quality Gate** — score usefulness, classify display tiers (main/watch/hide), apply life category caps, select balanced set
+9. **Auto-Delete Stale** — remove untouched active cards >14 days old
+10. **Match Updates** — find existing patterns by tag/title overlap, with drift detection
+11. **LLM Write Notes** — generate human-readable notes with safety validation + retry
+12. **Goal Check** — enforce goal_connection for main patterns (retry once, then demote)
+13. **Save** — update existing rows (preserving title), insert new rows
 
 ---
 
@@ -253,7 +265,71 @@ calendar_pattern, self_perception, contextual_blend
 
 Only semantic tags (actual content like "gym", "happy", "morning-routine") are compared. Per semantic group, the highest-confidence candidate wins.
 
-Dismissed patterns block future candidates with overlapping tags. Saved patterns are locked and excluded from regeneration.
+Dismissed patterns (soft-deleted, status='dismissed') block future candidates with overlapping tags for 14 days. Saved patterns are locked and excluded from regeneration.
+
+---
+
+## Quality Gate
+
+After clustering, every candidate passes through a quality gate before reaching the LLM.
+
+### Life Categories
+
+Each candidate is assigned a primary life category:
+
+| Category | Tags |
+|----------|------|
+| work | work, meetings, manager, coworkers, deadline, project, presentation, feedback, career, productivity |
+| relationships | friends, family, partner, social, connection, conflict, loneliness, community |
+| recovery | rest, sleep, walking, quiet, alone time, reading, prayer, meditation, reset |
+| health | gym, running, yoga, cooking, exercise, movement |
+| energy | tired, drained, energized, clear, scattered, overwhelmed |
+| self_belief | confidence, self-doubt, proving myself, discipline, self-advocacy, avoidance, pressure, pride |
+| calendar_load | busy day, packed day, fragmented day, context switching, back-to-back meetings |
+| growth | learning, reflection, values, progress, identity |
+| creativity | coding, writing, creative work, filming, design, building |
+| routine | morning, evening, commute, chores, errands, meal prep |
+
+### Usefulness Scoring
+
+Each candidate gets a score based on:
+
+**Positive factors:** multiple quotes (+20), 3+ distinct days (+20), goal-connected (+20), emotional meaning in quotes (+15), calendar context (+10), recovery angle (+10), self-understanding value (+10)
+
+**Negative factors:** activity frequency only (-30), low repetition <3 days (-15), category already saturated (-15)
+
+### Display Tiers
+
+- **main_pattern** — score ≥65 with no risk flags, OR 3+ days with 2+ quotes and no risks
+- **thing_to_watch** — score ≥40, or 2-day candidates with at least 1 quote
+- **hide** — <2 days, no quotes + no calendar context, or activity frequency only
+
+2-day candidates are thing_to_watch by default. They only become main patterns with 3+ strong quotes, goal connection, and no risk flags.
+
+### Balanced Selection
+
+- Max 5 main patterns
+- Max 3 things to watch
+- Max 2 patterns per life category
+- Max 2 work patterns
+- Excess main patterns demote to things to watch
+- Category caps are ceilings, not floors — if only 1 good pattern exists, show 1
+
+---
+
+## Safety Validation
+
+After the LLM writes a note, deterministic safety validation checks for:
+
+- **negative_causal_claim** — "X leads to/causes lower mood"
+- **healthy_behavior_framed_as_bad** — self-advocacy, discipline, rest, exercise framed as harmful
+- **mbti_causal_claim** — "because you are ENFP", "your type means"
+- **raw_score_exposed** — decimal numbers, averages, correlation language
+- **diagnostic_language** — clinical/medical terminology
+
+The LLM also self-reports safety_flags in its output (activity_frequency_only, generic_advice, etc.).
+
+If unsafe: retry once with the same prompt. If still unsafe: skip the pattern entirely.
 
 ---
 
@@ -332,9 +408,20 @@ When new candidates are generated, each is checked against existing active patte
 1. Tag overlap — any semantic tag in the candidate matches an active pattern's tags
 2. Signal word overlap — title words (>3 chars) match the candidate's signal value
 3. New evidence exists — candidate has entry IDs not already in the pattern
+4. **Drift check passes** — life category matches, semantic tags overlap, mood direction hasn't flipped
 
-If matched → update the existing pattern's note, evidence, quotes (title stays).
-If unmatched → insert a new card (only if under the 7-card cap).
+If matched + no drift → update the existing pattern's note, evidence, quotes (title stays).
+If matched + drift detected → insert as new pattern instead of overwriting.
+If unmatched → insert a new card (only if under the cap).
+
+### Drift Detection
+
+Before updating an existing pattern, the system checks:
+- **Life category match** — candidate and existing pattern must belong to the same life category (or one is "other")
+- **Semantic tag overlap** — at least one semantic tag must overlap
+- **Mood direction** — if both have mood_delta, direction (positive/negative) must match
+
+If drift is detected, the candidate inserts as a new pattern rather than corrupting an existing one.
 
 ---
 
@@ -364,7 +451,7 @@ Triggered when user changes their MBTI type in settings. Re-runs LLM writing for
 
 Patterns appear in the Review tab after:
 - 7+ journal entries
-- Across 5+ distinct days
+- Across 7+ distinct days
 
 Before unlock, users see a progress bar.
 
@@ -375,7 +462,7 @@ Before unlock, users see a progress bar.
   patterns: PatternNote[],
   savedCount: number,
   loading: boolean,
-  update: () => Promise<void>,
+  update: () => Promise<'updated' | 'error'>,
   submitFeedback: (id, feedback) => Promise<void>,
   toggleSave: (id) => Promise<void>,
   dismiss: (id) => Promise<void>,
@@ -390,10 +477,10 @@ Before unlock, users see a progress bar.
 ### UI Layout (InsightsPage)
 
 1. **Main patterns** — non-early, non-saved active cards
-2. **Early signals** — lower confidence active cards (early_signal)
-3. **Saved** — separate section at bottom
+2. **Things to Watch** — lower confidence active cards (early_signal)
+3. **Saved** — separate collapsible section at bottom
 
-Each card shows: confidence badge, title (2-line clamp), note (3-line clamp), first supporting quote. Tap opens detail sheet.
+Each card shows: confidence badge, title (2-line clamp), preview_note (3-line clamp), first supporting quote. Tap opens detail sheet showing full_note with goal connection woven in.
 
 ### User Actions
 
@@ -401,9 +488,9 @@ Each card shows: confidence badge, title (2-line clamp), note (3-line clamp), fi
 |--------|--------|
 | Tap card | Opens detail sheet, updates `last_interacted_at` |
 | Save | status → saved (max 20). Excluded from regeneration. |
-| Dismiss | Permanent delete. Tags block future similar candidates. |
+| Dismiss | Soft-delete (status → dismissed). Tags block similar candidates for 14 days. Triggers trickle to check for replacements. |
 | Feedback (Yes / Kind of / Not really) | Stored in `user_feedback`, passed to LLM on next generation. Updates `last_interacted_at`. |
-| Update button | Triggers full trickle (backfill + regenerate). |
+| Update button | Triggers full trickle (backfill + regenerate). Shows toast: "Updated your patterns..." / "Patterns could not update..." |
 
 ### API Calls
 
@@ -414,8 +501,9 @@ Each card shows: confidence badge, title (2-line clamp), note (3-line clamp), fi
 | `extractEntrySignals(entryId)` | Extract signals from one entry |
 | `updatePatternFeedback(id, feedback)` | Submit feedback |
 | `updatePatternStatus(id, status)` | Change status (save/unsave) |
-| `deletePattern(id)` | Permanent delete (dismiss) |
+| `deletePattern(id)` | Soft-delete (sets status to dismissed) |
 | `rewritePatternsMbti()` | Re-run LLM with new MBTI |
+| `rewritePatternsSplit()` | One-time migration: populate preview_note + full_note |
 | `backfillAnalysis()` | Fill missing mood/themes on entries |
 | `backfillEntrySignals()` | Extract signals from recent entries |
 
@@ -426,10 +514,12 @@ Each card shows: confidence badge, title (2-line clamp), note (3-line clamp), fi
 Before any data reaches the LLM for note writing:
 
 1. **`describeMoodDelta()`** converts numeric mood deltas to natural language: "significantly higher", "noticeably lower", "somewhat higher", "slightly lower"
-2. **`stripNumbersFromEvidence()`** catches any remaining decimal numbers in evidence strings
-3. The `mood_impact` field (string) replaces `mood_delta` (number) in the LLM payload
+2. **`buildUserFacingEvidenceSummary()`** generates human-readable evidence descriptions per candidate type (e.g., "Based on 3 reflections where movement showed up alongside words like 'clear' and 'reset'")
+3. **`TAG_LABELS`** map translates internal tags to human language (gym → movement, meetings → meeting-heavy days, self_advocacy → standing up for yourself)
+4. The `mood_impact` field (string) replaces `mood_delta` (number) in the LLM payload
+5. Post-write **`validatePatternSafety()`** catches any raw scores, causal claims, or unsafe framing that slipped through
 
-This ensures pattern cards never contain raw numbers, scales, or metrics.
+This ensures pattern cards never contain raw numbers, scales, metrics, or harmful framing.
 
 ---
 
