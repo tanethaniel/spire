@@ -28,6 +28,8 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
   const [patterns, setPatterns] = useState<PatternNote[]>([]);
   const [loading, setLoading] = useState(true);
   const backfillRanRef = useRef(false);
+  const patternsRef = useRef<PatternNote[]>([]);
+  patternsRef.current = patterns;
 
   useEffect(() => {
     if (!authed || !interpretationEnabled) {
@@ -122,16 +124,10 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
   }, []);
 
   const toggleSave = useCallback(async (patternId: string) => {
-    let targetPattern: PatternNote | undefined;
-    let currentSavedCount = 0;
-
-    setPatterns(prev => {
-      targetPattern = prev.find(p => p.id === patternId);
-      currentSavedCount = prev.filter(p => p.status === 'saved').length;
-      return prev;
-    });
-
+    const targetPattern = patternsRef.current.find(p => p.id === patternId);
     if (!targetPattern) return;
+
+    const currentSavedCount = patternsRef.current.filter(p => p.status === 'saved').length;
     if (targetPattern.status !== 'saved' && currentSavedCount >= MAX_SAVED) return;
 
     const nextStatus = targetPattern.status === 'saved' ? 'active' : 'saved';

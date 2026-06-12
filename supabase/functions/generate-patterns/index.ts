@@ -974,27 +974,14 @@ function buildCandidates(
     return group[0];
   });
 
-  // --- Filter against existing patterns ---
-  const dismissedPatterns = existingPatterns.filter(p => p.status === 'dismissed');
-
-  const filtered = deduped.filter(c => {
-    // Never resurface dismissed patterns (reset handles that separately)
-    for (const d of dismissedPatterns) {
-      if (d.related_tags?.some(t => c.tags.includes(t))) {
-        return false;
-      }
-    }
-    return true;
-  });
-
   // Sort: strong > emerging > early, then by evidence count
-  filtered.sort((a, b) => {
+  deduped.sort((a, b) => {
     const co = (confidenceOrder[a.confidence] ?? 3) - (confidenceOrder[b.confidence] ?? 3);
     if (co !== 0) return co;
     return b.quotes.length - a.quotes.length;
   });
 
-  return filtered;
+  return deduped;
 }
 
 // --- Quality Gate: usefulness scoring, life category, display tier ---
@@ -1198,12 +1185,10 @@ function selectBalancedPatterns(
 
   return {
     mainPatterns: selectedMain.map(r => r.candidate),
-    thingsToWatch: selectedWatch.map(r => {
-      // Demote confidence to early_signal for things-to-watch
-      // so the frontend renders them in the "Things to Watch" section
-      r.candidate.confidence = 'early_signal';
-      return r.candidate;
-    }),
+    thingsToWatch: selectedWatch.map(r => ({
+      ...r.candidate,
+      confidence: 'early_signal' as const,
+    })),
     hidden: [...hiddenCandidates, ...watchCandidates.slice(MAX_THINGS_TO_WATCH)].map(r => r.candidate),
   };
 }
@@ -1266,10 +1251,10 @@ Rules:
 21. Every card MUST reference specific activities, emotions, or quotes from the user's entries. If the title says "light days", name what made the day light. If the evidence mentions "tired", say what the user was tired from. Vague cards that could apply to anyone are not useful.
 22. Do not repeat the same opening phrase across cards. Vary your sentence structure.
 
-Confidence language:
-- early_signal: "This may be showing up…", "This might be worth watching…"
-- emerging_pattern: "Spire is starting to notice…", "This seems to be becoming…"
-- strong_pattern: "This keeps coming up…", "There's a clear pattern here…"
+Confidence framing (DO NOT copy these phrases verbatim — vary your language):
+- early_signal: tentative, curious, "might", "may" — frame as something to keep an eye on
+- emerging_pattern: warmer, "seems", "appears" — a trend forming but not certain
+- strong_pattern: confident, direct — state the pattern clearly without hedging
 
 Tone:
 - Like a caring friend who has been paying close attention to your life.
@@ -1885,7 +1870,7 @@ serve(async (req) => {
 
     // --- Remove stale cards ---
     // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards
-    const dismissedTitles: string[] = [];
+    const archivedTitles: string[] = [];
     const staleThreshold = new Date();
     staleThreshold.setDate(staleThreshold.getDate() - AUTO_ARCHIVE_DAYS);
     const staleCards = activePatternsList.filter(p => {
@@ -1898,11 +1883,11 @@ serve(async (req) => {
       const toRemove = staleCards.slice(0, removeCount);
       await supabase
         .from('pattern_insights')
-        .delete()
+        .update({ status: 'dismissed', updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
         .in('id', toRemove.map(p => p.id));
       for (const p of toRemove) {
-        if (p.title) dismissedTitles.push(p.title);
+        if (p.title) archivedTitles.push(p.title);
       }
       activePatternsList = activePatternsList.filter(p => !toRemove.some(s => s.id === p.id));
     }
@@ -2080,7 +2065,7 @@ serve(async (req) => {
 
     console.log(`[generate-patterns] Trickle: ${toUpdate.length} updated, ${toInsert.length} new candidates, ${resultPatterns.length} result patterns`);
 
-    return new Response(JSON.stringify({ patterns: resultPatterns, dismissed_titles: dismissedTitles }), {
+    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
