@@ -198,6 +198,17 @@ interface SafetyResult {
 const UNSAFE_CAUSAL_PATTERNS = [
   /\b(leads?\s+to|causes?|makes?\s+you\s+feel|results?\s+in)\b/i,
   /\b(lower|worse|bad|negative)\s+(mood|energy|mental\s+health)\b/i,
+  /\b(pulls?|drags?|pushes?|drives?|brings?|tanks?|kills?|ruins?|wrecks?|hurts?)\s+(your\s+)?(mood|energy)\s*(down|lower)?\b/i,
+  /\bkeeps?\s+\w+ing\s+(your\s+)?(mood|energy)\b/i,
+  /\b(mood|energy)\s+(drops?|tanks?|crashes?|plummets?|nosedives?)\b/i,
+];
+
+const GENERIC_FILLER_PATTERNS = [
+  /\bfor\s+someone\s+(tracking|monitoring|watching|journaling)\b/i,
+  /\bthat'?s?\s+worth\s+(paying\s+attention\s+to|noting|watching)\b/i,
+  /\bthis\s+is\s+worth\s+(watching|noting|paying\s+attention)\b/i,
+  /\bif\s+you'?re?\s+(someone\s+who|the\s+kind\s+of\s+person)\b/i,
+  /\bas\s+you\s+continue\s+(to\s+)?(journal|reflect|track)\b/i,
 ];
 
 const HEALTHY_BEHAVIORS = new Set([
@@ -237,6 +248,8 @@ function validatePatternSafety(llmResult: Record<string, unknown>): SafetyResult
   const allText = [
     llmResult.title,
     llmResult.note,
+    llmResult.preview_note,
+    llmResult.full_note,
     llmResult.personality_framing,
     llmResult.evidence_summary,
     llmResult.reflection_prompt,
@@ -282,6 +295,14 @@ function validatePatternSafety(llmResult: Record<string, unknown>): SafetyResult
   for (const pattern of DIAGNOSTIC_PATTERNS) {
     if (pattern.test(allText)) {
       flags.push('diagnostic_language');
+      break;
+    }
+  }
+
+  // Check for generic filler phrasing
+  for (const pattern of GENERIC_FILLER_PATTERNS) {
+    if (pattern.test(allText)) {
+      flags.push('generic_filler');
       break;
     }
   }
@@ -1235,12 +1256,15 @@ Rules:
 11. Every note should feel like it was written for this specific user, not a generic observation.
 12. If the evidence is weak (early_signal), frame as "something to watch," not a conclusion.
 13. Avoid generic advice and productivity guilt.
-14. Never say "X leads to lower mood" or "X makes you feel worse."
+14. Never say "X leads to lower mood" or "X makes you feel worse." Never use verbs like "pulls", "drags", "pushes", "tanks", "kills" with mood or energy. Never write "keeps [verb]ing your mood." Use correlational language: "your mood tends to dip when…"
 15. Never imply a healthy behaviour is harmful.
 16. Never use MBTI to explain why a pattern exists.
 17. If "existing_title" is provided, this is an UPDATE to an existing card. The title is LOCKED — do not generate a new title. Refine the note to stay aligned with the existing title.
 18. Write in second person ("you", "your").
 19. Do not mention "LLM", "model", "data", "transcripts", or "backend".
+20. Never use filler like "For someone tracking their patterns", "that's worth paying attention to", "as you continue to journal", or "if you're someone who." Get to the point.
+21. Every card MUST reference specific activities, emotions, or quotes from the user's entries. If the title says "light days", name what made the day light. If the evidence mentions "tired", say what the user was tired from. Vague cards that could apply to anyone are not useful.
+22. Do not repeat the same opening phrase across cards. Vary your sentence structure.
 
 Confidence language:
 - early_signal: "This may be showing up…", "This might be worth watching…"
@@ -1276,16 +1300,17 @@ suggested_experiment MUST be:
 - NOT: "Consider exploring social activities" (too vague)
 
 If the output contains any of these problems, add the relevant string to safety_flags:
-- "negative_causal_claim" — says X leads to/causes bad mood
+- "negative_causal_claim" — says X leads to/causes/pulls/drags/tanks bad mood
 - "healthy_behavior_framed_as_bad" — frames self-advocacy/discipline/rest/exercise as harmful
 - "activity_frequency_only" — pattern is just counting how often an activity appears
 - "generic_advice" — suggestion could apply to anyone
+- "generic_filler" — uses filler phrases like "for someone tracking their patterns" or "that's worth paying attention to"
 - "raw_score_exposed" — raw numbers appear
 - "mbti_causal_claim" — MBTI used as evidence, not framing
 
 Return JSON only:
 {
-  "title": "max 80 chars, safe, warm, specific — reference actual activities/emotions",
+  "title": "max 80 chars, safe, warm, specific — MUST name a concrete activity, emotion, or context from the evidence. Never vague like 'light days' or 'feeling tired'.",
   "preview_note": "max 220 chars, concise card copy. The most important takeaway in 1-2 sentences.",
   "full_note": "max 600 chars, nuanced detail view copy. Structure: what pattern → why it matters emotionally → goal connection (if goal exists) → what to try.",
   "goal_connection": "required if user goal exists — explain why this pattern matters for their specific goal. Not generic. null if no goal.",
