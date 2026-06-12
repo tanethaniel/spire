@@ -345,7 +345,7 @@ function PatternCardsScreen({ onNext }: { onNext: () => void }) {
                 <path d="M8 10h4M10 8v4" stroke="var(--accent-primary)" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             ),
-            text: 'Unlock after 7 entries across 5 days',
+            text: 'Unlock after 7 entries across 7 days',
           },
           {
             icon: (

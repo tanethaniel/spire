@@ -9,7 +9,9 @@ const corsHeaders = {
 
 const MAX_PATTERNS_PER_DAY = 5;
 const MAX_CANDIDATES = 10;
-const MAX_ACTIVE_CARDS = 7;
+const MAX_MAIN_PATTERNS = 5;
+const MAX_THINGS_TO_WATCH = 3;
+const MAX_ACTIVE_CARDS = 7; // hard safety cap
 const AUTO_ARCHIVE_DAYS = 14;
 const MIN_ACTIVE_FLOOR = 2;
 
@@ -38,6 +40,56 @@ const GOAL_SIGNAL_MAP: Record<string, string[]> = {
   'reflect on work': ['work', 'stress'],
   'find more balance': ['energy', 'recovery', 'stress'],
 };
+
+type LifeCategory = 'work' | 'relationships' | 'recovery' | 'health' | 'energy' | 'self_belief' | 'emotion' | 'calendar_load' | 'growth' | 'creativity' | 'routine' | 'other';
+
+const LIFE_CATEGORY_MAP: Record<string, LifeCategory> = {
+  // Work
+  work: 'work', meetings: 'work', manager: 'work', coworkers: 'work',
+  deadline: 'work', project: 'work', presentation: 'work', feedback: 'work',
+  career: 'work', productivity: 'work',
+  // Relationships
+  friends: 'relationships', family: 'relationships', partner: 'relationships',
+  social: 'relationships', connection: 'relationships', conflict: 'relationships',
+  loneliness: 'relationships', community: 'relationships',
+  // Recovery
+  rest: 'recovery', sleep: 'recovery', walking: 'recovery', quiet: 'recovery',
+  'alone time': 'recovery', reading: 'recovery', prayer: 'recovery',
+  meditation: 'recovery', reset: 'recovery',
+  // Health
+  gym: 'health', running: 'health', yoga: 'health', cooking: 'health',
+  exercise: 'health', movement: 'health',
+  // Energy
+  tired: 'energy', drained: 'energy', energized: 'energy', clear: 'energy',
+  scattered: 'energy', overwhelmed: 'energy',
+  // Self-belief
+  confidence: 'self_belief', 'self-doubt': 'self_belief', 'proving myself': 'self_belief',
+  discipline: 'self_belief', 'self-advocacy': 'self_belief', avoidance: 'self_belief',
+  pressure: 'self_belief', pride: 'self_belief',
+  // Calendar load
+  'busy day': 'calendar_load', 'packed day': 'calendar_load',
+  'fragmented day': 'calendar_load', 'context switching': 'calendar_load',
+  'back-to-back meetings': 'calendar_load',
+  // Growth
+  learning: 'growth', reflection: 'growth', values: 'growth',
+  progress: 'growth', identity: 'growth',
+  // Creativity
+  coding: 'creativity', writing: 'creativity', 'creative work': 'creativity',
+  filming: 'creativity', design: 'creativity', building: 'creativity',
+  // Routine
+  morning: 'routine', evening: 'routine', commute: 'routine',
+  chores: 'routine', errands: 'routine', 'meal prep': 'routine',
+};
+
+const MAX_PATTERNS_PER_LIFE_CATEGORY = 2;
+const MAX_WORK_PATTERNS = 2;
+
+const EMOTION_KEYWORDS = new Set([
+  'feel', 'felt', 'feeling', 'mood', 'happy', 'sad', 'anxious', 'stressed',
+  'proud', 'lonely', 'grateful', 'frustrated', 'calm', 'clear', 'drained',
+  'lighter', 'heavier', 'reset', 'grounded', 'overwhelmed', 'scattered',
+  'energized', 'tired', 'connected', 'disconnected', 'supported', 'peaceful',
+]);
 
 interface Candidate {
   type: string;
@@ -718,6 +770,217 @@ function buildCandidates(
   return filtered;
 }
 
+// --- Quality Gate: usefulness scoring, life category, display tier ---
+
+function assignLifeCategory(candidate: Candidate): LifeCategory {
+  // Check candidate type first for obvious mappings
+  if (candidate.type === 'calendar_load') return 'calendar_load';
+  if (candidate.type === 'recovery_signal') return 'recovery';
+  if (candidate.type === 'self_belief') return 'self_belief';
+  if (candidate.type === 'relationship_pattern') return 'relationships';
+
+  // Check signal and tags against the map
+  const allTerms = [candidate.signal, ...candidate.tags].map(t => t.toLowerCase());
+  for (const term of allTerms) {
+    if (LIFE_CATEGORY_MAP[term]) return LIFE_CATEGORY_MAP[term];
+  }
+
+  // Fallback based on candidate type
+  if (candidate.type === 'emotion_trend') return 'emotion';
+  if (candidate.type === 'activity_mood_link') return 'health';
+  if (candidate.type === 'goal_alignment') return 'growth';
+
+  return 'other';
+}
+
+function assignLifeCategoryFromPattern(pattern: PatternInsight): LifeCategory {
+  const tags = (pattern.related_tags ?? []).map(t => t.toLowerCase());
+  for (const tag of tags) {
+    if (LIFE_CATEGORY_MAP[tag]) return LIFE_CATEGORY_MAP[tag];
+  }
+  if (pattern.pattern_type === 'calendar_load') return 'calendar_load';
+  if (pattern.pattern_type === 'recovery_signal') return 'recovery';
+  if (pattern.pattern_type === 'self_belief') return 'self_belief';
+  if (pattern.pattern_type === 'relationship_pattern') return 'relationships';
+  if (pattern.pattern_type === 'emotion_trend') return 'emotion';
+  return 'other';
+}
+
+function scoreCandidateUsefulness(
+  candidate: Candidate,
+  goal: string | null,
+  existingPatterns: PatternInsight[],
+): { score: number; reasons: string[]; riskFlags: string[] } {
+  let score = 0;
+  const reasons: string[] = [];
+  const riskFlags: string[] = [];
+
+  // Positive factors
+  if (candidate.quotes.length >= 2) {
+    score += 20;
+    reasons.push('multiple_quotes');
+  }
+  if (candidate.supporting_days >= 3) {
+    score += 20;
+    reasons.push('multiple_days');
+  }
+  if (goal && candidate.type === 'goal_alignment') {
+    score += 20;
+    reasons.push('goal_connected');
+  }
+  // Check if quotes contain emotional language (not just activity mentions)
+  const hasEmotionalQuotes = candidate.quotes.some(q => {
+    const words = q.quote.toLowerCase().split(/\s+/);
+    return words.some(w => EMOTION_KEYWORDS.has(w));
+  });
+  if (hasEmotionalQuotes) {
+    score += 15;
+    reasons.push('emotional_meaning');
+  }
+  if (candidate.calendar_context) {
+    score += 10;
+    reasons.push('calendar_context');
+  }
+  if (candidate.type === 'recovery_signal') {
+    score += 10;
+    reasons.push('recovery_angle');
+  }
+  if (candidate.type === 'self_belief' || candidate.type === 'relationship_pattern') {
+    score += 10;
+    reasons.push('self_understanding');
+  }
+
+  // Negative factors
+  // Activity frequency only: has quotes but they lack emotional content
+  if (candidate.quotes.length > 0 && !hasEmotionalQuotes && candidate.mood_delta == null) {
+    score -= 30;
+    riskFlags.push('activity_frequency_only');
+  }
+  if (candidate.supporting_days < 3) {
+    score -= 15;
+    riskFlags.push('low_repetition');
+  }
+  // Check overlap with existing active patterns in same life category
+  const candidateCategory = assignLifeCategory(candidate);
+  const sameCategoryActive = existingPatterns.filter(
+    p => p.status === 'active' && assignLifeCategoryFromPattern(p) === candidateCategory
+  );
+  if (sameCategoryActive.length >= MAX_PATTERNS_PER_LIFE_CATEGORY) {
+    score -= 15;
+    riskFlags.push('category_saturated');
+  }
+
+  return { score, reasons, riskFlags };
+}
+
+function classifyDisplayTier(
+  candidate: Candidate,
+  usefulnessScore: number,
+  riskFlags: string[],
+  goal: string | null,
+): 'main_pattern' | 'thing_to_watch' | 'hide' {
+  // Hard hide conditions
+  if (candidate.quotes.length === 0 && !candidate.calendar_context) return 'hide';
+
+  if (candidate.supporting_days < 2) return 'hide';
+
+  // 2-day candidates: thing_to_watch by default, main only with exceptional evidence
+  if (candidate.supporting_days === 2) {
+    if (
+      candidate.quotes.length >= 3 &&
+      goal && candidate.type === 'goal_alignment' &&
+      riskFlags.length === 0
+    ) {
+      return 'main_pattern';
+    }
+    if (candidate.quotes.length >= 1 && !riskFlags.includes('activity_frequency_only')) {
+      return 'thing_to_watch';
+    }
+    return 'hide';
+  }
+
+  // 3+ days: main if high quality, otherwise thing_to_watch
+  if (usefulnessScore >= 65 && riskFlags.length === 0) {
+    return 'main_pattern';
+  }
+  if (usefulnessScore >= 40) {
+    return 'thing_to_watch';
+  }
+  if (candidate.supporting_days >= 3 && candidate.quotes.length >= 2 && riskFlags.length === 0) {
+    return 'main_pattern';
+  }
+
+  return 'thing_to_watch';
+}
+
+interface RatedCandidate {
+  candidate: Candidate;
+  score: number;
+  reasons: string[];
+  riskFlags: string[];
+  lifeCategory: LifeCategory;
+  displayTier: 'main_pattern' | 'thing_to_watch' | 'hide';
+}
+
+function selectBalancedPatterns(
+  candidates: Candidate[],
+  existingPatterns: PatternInsight[],
+  goal: string | null,
+): { mainPatterns: Candidate[]; thingsToWatch: Candidate[]; hidden: Candidate[] } {
+  // Score and classify each candidate
+  const rated: RatedCandidate[] = candidates.map(c => {
+    const { score, reasons, riskFlags } = scoreCandidateUsefulness(c, goal, existingPatterns);
+    const lifeCategory = assignLifeCategory(c);
+    const displayTier = classifyDisplayTier(c, score, riskFlags, goal);
+    return { candidate: c, score, reasons, riskFlags, lifeCategory, displayTier };
+  });
+
+  // Separate by tier
+  const mainCandidates = rated
+    .filter(r => r.displayTier === 'main_pattern')
+    .sort((a, b) => b.score - a.score);
+  const watchCandidates = rated
+    .filter(r => r.displayTier === 'thing_to_watch')
+    .sort((a, b) => b.score - a.score);
+  const hiddenCandidates = rated
+    .filter(r => r.displayTier === 'hide');
+
+  // Apply category caps to main patterns
+  const categoryCounts = new Map<LifeCategory, number>();
+  const selectedMain: RatedCandidate[] = [];
+
+  for (const r of mainCandidates) {
+    const catCount = categoryCounts.get(r.lifeCategory) || 0;
+    const catLimit = r.lifeCategory === 'work' ? MAX_WORK_PATTERNS : MAX_PATTERNS_PER_LIFE_CATEGORY;
+    if (catCount >= catLimit) {
+      // Demote to things to watch instead of hiding
+      watchCandidates.push(r);
+      continue;
+    }
+    if (selectedMain.length >= MAX_MAIN_PATTERNS) {
+      watchCandidates.push(r);
+      continue;
+    }
+    selectedMain.push(r);
+    categoryCounts.set(r.lifeCategory, catCount + 1);
+  }
+
+  // Re-sort watch candidates after demotions
+  watchCandidates.sort((a, b) => b.score - a.score);
+  const selectedWatch = watchCandidates.slice(0, MAX_THINGS_TO_WATCH);
+
+  return {
+    mainPatterns: selectedMain.map(r => r.candidate),
+    thingsToWatch: selectedWatch.map(r => {
+      // Demote confidence to early_signal for things-to-watch
+      // so the frontend renders them in the "Things to Watch" section
+      r.candidate.confidence = 'early_signal';
+      return r.candidate;
+    }),
+    hidden: [...hiddenCandidates, ...watchCandidates.slice(MAX_THINGS_TO_WATCH)].map(r => r.candidate),
+  };
+}
+
 const SYSTEM_PROMPT = `You are writing a personalized Pattern Note for Spire, a private voice journaling app. The system has already assembled deterministic evidence. Your job is to write a warm, specific, actionable note that feels like it comes from a thoughtful friend or parent who genuinely knows the user.
 
 Rules:
@@ -1222,7 +1485,15 @@ serve(async (req) => {
     // Cluster semantically similar candidates before limiting
     const clusteredCandidates = await clusterCandidates(unsavedCandidates, anthropicKey);
     console.log(`[generate-patterns] Clustered ${unsavedCandidates.length} candidates → ${clusteredCandidates.length} groups`);
-    const limitedCandidates = clusteredCandidates.slice(0, MAX_CANDIDATES);
+
+    // Quality gate: score, classify, and select balanced set
+    const { mainPatterns: selectedMain, thingsToWatch: selectedWatch } = selectBalancedPatterns(
+      clusteredCandidates.slice(0, MAX_CANDIDATES),
+      existingPatterns,
+      goal,
+    );
+    const limitedCandidates = [...selectedMain, ...selectedWatch];
+    console.log(`[generate-patterns] Quality gate: ${selectedMain.length} main, ${selectedWatch.length} watch, from ${clusteredCandidates.length} clustered`);
 
     // --- Remove stale cards ---
     // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards

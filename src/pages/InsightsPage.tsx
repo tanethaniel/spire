@@ -28,7 +28,7 @@ interface InsightsPageProps {
 const HEATMAP_WEEKS = 5;
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MIN_ENTRIES_FOR_PATTERNS = 7;
-const MIN_DAYS_FOR_PATTERNS = 5;
+const MIN_DAYS_FOR_PATTERNS = 7;
 const MAX_SAVED = 20;
 
 // 6 shades: 1/6 answered = warm yellow → 6/6 = deep green
@@ -296,7 +296,7 @@ export function InsightsPage({
               <div style={styles.lockedCard}>
                 <div style={styles.lockTitle}>No patterns yet</div>
                 <div style={styles.lockSub}>
-                  Patterns are generated automatically after each session. Keep reflecting and Spire will surface connections as they emerge.
+                  Spire needs a few more reflections before it can spot anything reliable. Keep journaling and patterns will appear as stronger signals emerge.
                 </div>
               </div>
             ) : (
