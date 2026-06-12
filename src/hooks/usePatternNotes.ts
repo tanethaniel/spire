@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PatternNote, PatternFeedback } from '../types/session';
-import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, deletePattern, generatePatterns, backfillEntrySignals, backfillAnalysis } from '../lib/api';
+import { fetchPatternNotes, updatePatternFeedback, updatePatternStatus, deletePattern, generatePatterns, backfillEntrySignals, backfillAnalysis, rewritePatternsSplit } from '../lib/api';
 
 const MAX_SAVED = 20;
 
@@ -44,6 +44,12 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
         const active = dedupeByPrimaryTag(notes.filter(p => p.status === 'active' || p.status === 'watching'));
         const saved = dedupeByPrimaryTag(notes.filter(p => p.status === 'saved'));
         setPatterns([...active, ...saved]);
+
+        // One-time migration: rewrite patterns that don't have full_note yet
+        const needsSplit = [...active, ...saved].some(p => !p.fullNote);
+        if (needsSplit && !backfillRanRef.current) {
+          rewritePatternsSplit().catch(() => {});
+        }
 
         if (active.length === 0 && saved.length === 0 && !backfillRanRef.current) {
           backfillRanRef.current = true;
@@ -89,11 +95,14 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     }
   }, [interpretationEnabled]);
 
-  const update = useCallback(async () => {
-    if (!interpretationEnabled) return;
+  const update = useCallback(async (): Promise<'updated' | 'error'> => {
+    if (!interpretationEnabled) return 'error';
     setLoading(true);
     try {
       await triggerTrickle();
+      return 'updated';
+    } catch {
+      return 'error';
     } finally {
       setLoading(false);
     }

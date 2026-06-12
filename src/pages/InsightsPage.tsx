@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { JournalEntry, PatternNote } from '../types/session';
 import { EMOTION_FACE } from '../types/session';
 import type { EmotionTag } from '../types/session';
@@ -19,7 +19,7 @@ interface InsightsPageProps {
   patterns: PatternNote[];
   savedCount: number;
   patternsLoading: boolean;
-  onUpdatePatterns: () => void;
+  onUpdatePatterns: () => Promise<'updated' | 'error'>;
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
   onPatternDismiss: (id: string) => void;
@@ -63,6 +63,14 @@ export function InsightsPage({
   const [dismissConfirmId, setDismissConfirmId] = useState<string | null>(null);
   const [heatmapSeen, markHeatmapSeen] = useTooltipSeen('heatmap');
   const [patternsSeen, markPatternsSeen] = useTooltipSeen('patterns');
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));
@@ -252,7 +260,14 @@ export function InsightsPage({
                 {interpretationEnabled && patterns.length > 0 && (
                   <button
                     style={styles.headerAction}
-                    onClick={onUpdatePatterns}
+                    onClick={async () => {
+                      const result = await onUpdatePatterns();
+                      if (result === 'error') {
+                        setToast('Patterns could not update right now. Your existing patterns are still here.');
+                      } else {
+                        setToast('Updated your patterns with your latest reflections.');
+                      }
+                    }}
                   >
                     Update
                   </button>
@@ -365,6 +380,10 @@ export function InsightsPage({
           </>
         )}
       </div>
+
+      {toast && (
+        <div style={styles.toast}>{toast}</div>
+      )}
 
       {/* Dismiss confirmation dialog */}
       {dismissConfirmId && (
@@ -568,5 +587,24 @@ const styles: Record<string, React.CSSProperties> = {
   confirmProceed: {
     flex: 1, padding: '12px 0', background: '#D4756A', color: '#fff', border: 'none',
     borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+  },
+  toast: {
+    position: 'fixed' as const,
+    bottom: 80,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: 'rgba(40,45,50,0.9)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    fontWeight: 500,
+    padding: '10px 20px',
+    borderRadius: 12,
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    zIndex: 70,
+    maxWidth: 340,
+    textAlign: 'center' as const,
+    animation: 'fadeIn 0.2s ease',
   },
 };

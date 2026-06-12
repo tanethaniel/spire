@@ -314,6 +314,21 @@ export async function rewritePatternsMbti(): Promise<number> {
   return data.rewritten ?? 0;
 }
 
+export async function rewritePatternsSplit(): Promise<number> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ rewrite_split: true }),
+  });
+  if (!res.ok) {
+    console.error('[rewritePatternsSplit] failed:', res.status);
+    return 0;
+  }
+  const data = await res.json();
+  return data.rewritten ?? 0;
+}
+
 export async function fetchPatternNotes(): Promise<PatternNote[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');

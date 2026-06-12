@@ -374,6 +374,7 @@ interface PatternInsight {
   supporting_entry_ids: string[] | null;
   confidence: string | null;
   evidence_count: number | null;
+  mood_delta: number | null;
   updated_at: string | null;
   last_interacted_at: string | null;
 }
@@ -1186,6 +1187,37 @@ function selectBalancedPatterns(
   };
 }
 
+function checkPatternDrift(
+  existing: PatternInsight,
+  candidate: Candidate,
+): { shouldUpdate: boolean; reason: string } {
+  // Check life category match
+  const existingCategory = assignLifeCategoryFromPattern(existing);
+  const candidateCategory = assignLifeCategory(candidate);
+  if (existingCategory !== candidateCategory && existingCategory !== 'other' && candidateCategory !== 'other') {
+    return { shouldUpdate: false, reason: 'life_category_changed' };
+  }
+
+  // Check semantic tag overlap strength
+  const existingTags = new Set((existing.related_tags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t)));
+  const candidateTags = candidate.tags.map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
+  const overlap = candidateTags.filter(t => existingTags.has(t));
+  if (existingTags.size > 0 && overlap.length === 0) {
+    return { shouldUpdate: false, reason: 'no_semantic_overlap' };
+  }
+
+  // Check mood direction flip
+  if (existing.mood_delta != null && candidate.mood_delta != null) {
+    const existingDir = existing.mood_delta > 0 ? 'positive' : 'negative';
+    const candidateDir = candidate.mood_delta > 0 ? 'positive' : 'negative';
+    if (existingDir !== candidateDir) {
+      return { shouldUpdate: false, reason: 'mood_direction_flipped' };
+    }
+  }
+
+  return { shouldUpdate: true, reason: 'evidence_aligned' };
+}
+
 const SYSTEM_PROMPT = `You are writing a Pattern Note for Spire, a private voice journaling app.
 The system has already determined that a candidate may be worth showing. Your job is not to decide whether a pattern exists. Your job is to translate evidence into a warm, careful, useful, user-facing reflection note.
 
@@ -1539,10 +1571,12 @@ serve(async (req) => {
     let forceRefresh = false;
     let lookbackDays = 30;
     let rewriteMbti = false;
+    let rewriteSplit = false;
     try {
       const body = await req.json();
       if (body?.force_refresh === true) forceRefresh = true;
       if (body?.rewrite_mbti === true) rewriteMbti = true;
+      if (body?.rewrite_split === true) rewriteSplit = true;
       if (typeof body?.lookback_days === 'number' && body.lookback_days > 0) {
         lookbackDays = body.lookback_days;
       }
@@ -1624,6 +1658,75 @@ serve(async (req) => {
 
       console.log(`[generate-patterns] MBTI rewrite: ${rewritten}/${patternsToRewrite.length} patterns updated`);
       return new Response(JSON.stringify({ rewritten }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // --- One-time split rewrite: populate preview_note + full_note ---
+    if (rewriteSplit) {
+      const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+      if (!anthropicKey) {
+        return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: patternsToSplit } = await supabase
+        .from('pattern_insights')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'saved', 'watching'])
+        .is('full_note', null);
+
+      if (!patternsToSplit || patternsToSplit.length === 0) {
+        return new Response(JSON.stringify({ rewritten: 0 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      let rewrittenCount = 0;
+      for (const pattern of patternsToSplit) {
+        const candidate: Candidate = {
+          type: pattern.pattern_type || 'recurring_theme',
+          signal: pattern.title || '',
+          confidence: pattern.confidence || 'early_signal',
+          confidence_reason: pattern.confidence_reason || '',
+          supporting_days: pattern.entry_count || 0,
+          mood_delta: pattern.mood_delta || null,
+          calendar_context: pattern.related_calendar_context || null,
+          quotes: (pattern.supporting_quotes || []).map((q: Record<string, string>) => ({
+            quote: q.quote || q.text || '',
+            date: q.date || q.entryDate || '',
+            question_index: 0,
+          })),
+          evidence_summary: pattern.evidence_summary || '',
+          tags: pattern.related_tags || [],
+          entry_ids: pattern.supporting_entry_ids || [],
+        };
+
+        const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, [], pattern.title);
+        if (!llmResult) continue;
+
+        await supabase
+          .from('pattern_insights')
+          .update({
+            note: llmResult.preview_note || llmResult.note || pattern.note,
+            preview_note: llmResult.preview_note || llmResult.note || pattern.note,
+            full_note: llmResult.full_note || llmResult.note || pattern.note,
+            goal_connection: llmResult.goal_connection || pattern.goal_connection || null,
+            personality_framing: llmResult.personality_framing || null,
+            reflection_prompt: llmResult.reflection_prompt || null,
+            suggested_experiment: llmResult.suggested_experiment || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pattern.id);
+
+        rewrittenCount++;
+      }
+
+      console.log(`[generate-patterns] Split rewrite: ${rewrittenCount}/${patternsToSplit.length} patterns updated`);
+      return new Response(JSON.stringify({ rewritten: rewrittenCount }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -1823,7 +1926,13 @@ serve(async (req) => {
         const oldEntryIds = new Set(matchingActive.supporting_entry_ids ?? []);
         const hasNewEvidence = candidate.entry_ids.some(id => !oldEntryIds.has(id));
         if (hasNewEvidence) {
-          toUpdate.push({ pattern: matchingActive, candidate });
+          const drift = checkPatternDrift(matchingActive, candidate);
+          if (drift.shouldUpdate) {
+            toUpdate.push({ pattern: matchingActive, candidate });
+          } else {
+            console.log(`[generate-patterns] Drift detected for "${matchingActive.title}": ${drift.reason}. Inserting as new instead.`);
+            toInsert.push(candidate);
+          }
         }
       } else {
         toInsert.push(candidate);
