@@ -257,7 +257,7 @@ export function InsightsPage({
             <div style={{ position: 'relative', marginTop: 28 }}>
               <div style={{ ...styles.sectionLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Patterns</span>
-                {interpretationEnabled && patterns.length > 0 && (
+                {interpretationEnabled && patternsUnlocked && (
                   <button
                     style={styles.headerAction}
                     onClick={async () => {
@@ -269,7 +269,7 @@ export function InsightsPage({
                       }
                     }}
                   >
-                    Update
+                    {patterns.length === 0 ? 'Generate' : 'Update'}
                   </button>
                 )}
               </div>
@@ -311,7 +311,7 @@ export function InsightsPage({
               <div style={styles.lockedCard}>
                 <div style={styles.lockTitle}>No patterns yet</div>
                 <div style={styles.lockSub}>
-                  Spire needs a few more reflections before it can spot anything reliable. Keep journaling and patterns will appear as stronger signals emerge.
+                  Tap "Generate" above to find patterns in your journal, or keep journaling and they'll appear as stronger signals emerge.
                 </div>
               </div>
             ) : (
