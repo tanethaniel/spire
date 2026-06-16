@@ -1862,18 +1862,40 @@ serve(async (req) => {
     console.log(`[generate-patterns] Quality gate: ${selectedMain.length} main, ${selectedWatch.length} watch, from ${clusteredCandidates.length} clustered`);
     debug.quality_gate = { main: selectedMain.length, watch: selectedWatch.length, limited: limitedCandidates.map(c => ({ signal: c.signal, type: c.type })) };
 
-    // --- Clean up duplicate active cards (same title) ---
-    // Previous generation bugs left duplicate cards. Keep newest per title, dismiss the rest.
-    const titleMap = new Map<string, PatternInsight[]>();
+    // --- Clean up duplicate active cards ---
+    // Use tag overlap to detect near-duplicates (same tags = same theme, even if titles differ).
+    // Also catches exact title duplicates. Keep newest per group, dismiss the rest.
+    const dedupGroups: PatternInsight[][] = [];
+    const assignedIds = new Set<string>();
+
     for (const p of activePatternsList) {
-      const key = (p.title || p.id).toLowerCase().trim();
-      if (!titleMap.has(key)) titleMap.set(key, []);
-      titleMap.get(key)!.push(p);
+      if (assignedIds.has(p.id)) continue;
+      const group = [p];
+      assignedIds.add(p.id);
+      const pTags = new Set((p.related_tags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t)));
+
+      for (const q of activePatternsList) {
+        if (assignedIds.has(q.id)) continue;
+        const qTags = (q.related_tags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
+        const overlap = qTags.filter(t => pTags.has(t));
+        // Same theme if majority of semantic tags overlap
+        if (overlap.length >= 2 || (overlap.length >= 1 && (pTags.size <= 2 || qTags.length <= 2))) {
+          group.push(q);
+          assignedIds.add(q.id);
+        }
+      }
+      dedupGroups.push(group);
     }
+
     const duplicateIds: string[] = [];
-    for (const [, group] of titleMap) {
+    for (const group of dedupGroups) {
       if (group.length <= 1) continue;
-      group.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+      // Keep the one with feedback, or the newest
+      group.sort((a, b) => {
+        if (a.user_feedback && !b.user_feedback) return -1;
+        if (!a.user_feedback && b.user_feedback) return 1;
+        return (b.updated_at || '').localeCompare(a.updated_at || '');
+      });
       for (let i = 1; i < group.length; i++) {
         duplicateIds.push(group[i].id);
       }
@@ -1888,6 +1910,28 @@ serve(async (req) => {
       activePatternsList = activePatternsList.filter(p => !duplicateIds.includes(p.id));
     }
     debug.duplicates_cleaned = duplicateIds.length;
+    debug.active_after_dedup = activePatternsList.length;
+
+    // --- Enforce MAX_ACTIVE_CARDS ---
+    // If still over the cap after dedup, dismiss oldest cards without feedback.
+    if (activePatternsList.length > MAX_ACTIVE_CARDS) {
+      const dismissable = activePatternsList
+        .filter(p => !p.user_feedback)
+        .sort((a, b) => (a.updated_at || '').localeCompare(b.updated_at || ''));
+      const excessCount = activePatternsList.length - MAX_ACTIVE_CARDS;
+      const toDismiss = dismissable.slice(0, excessCount);
+      if (toDismiss.length > 0) {
+        console.log(`[generate-patterns] Dismissing ${toDismiss.length} excess active cards to enforce cap`);
+        await supabase
+          .from('pattern_insights')
+          .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .in('id', toDismiss.map(p => p.id));
+        const dismissedSet = new Set(toDismiss.map(p => p.id));
+        activePatternsList = activePatternsList.filter(p => !dismissedSet.has(p.id));
+      }
+    }
+    debug.active_after_cap_enforcement = activePatternsList.length;
 
     // --- Remove stale cards ---
     // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards
