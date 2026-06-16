@@ -75,7 +75,7 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
-  const { patterns, savedCount, loading: patternsLoading, update: updatePatterns, submitFeedback, toggleSave, dismiss, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
+  const { patterns, savedCount, loading: patternsLoading, lastError: patternsError, clearError: clearPatternsError, update: updatePatterns, submitFeedback, toggleSave, dismiss, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
   const [tabsSeen, markTabsSeen] = useTooltipSeen('tabs');
 
   const profileUser = authSession ? {
@@ -272,6 +272,8 @@ function App() {
               onPatternFeedback={submitFeedback}
               onPatternSave={(id) => toggleSave(id)}
               onPatternDismiss={(id) => dismiss(id)}
+              patternsError={patternsError}
+              onClearPatternsError={clearPatternsError}
             />
           )}
         </div>

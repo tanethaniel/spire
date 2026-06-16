@@ -23,6 +23,8 @@ interface InsightsPageProps {
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
   onPatternDismiss: (id: string) => void;
+  patternsError: string | null;
+  onClearPatternsError: () => void;
 }
 
 const HEATMAP_WEEKS = 5;
@@ -56,6 +58,7 @@ export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
   interpretationEnabled, patterns, savedCount, patternsLoading,
   onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
+  patternsError, onClearPatternsError,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
@@ -67,10 +70,17 @@ export function InsightsPage({
 
   useEffect(() => {
     if (toast) {
-      const t = setTimeout(() => setToast(null), 3000);
+      const t = setTimeout(() => setToast(null), 5000);
       return () => clearTimeout(t);
     }
   }, [toast]);
+
+  useEffect(() => {
+    if (patternsError) {
+      setToast(patternsError);
+      onClearPatternsError();
+    }
+  }, [patternsError, onClearPatternsError]);
 
   const answered = entries.filter(e => e.transcripts.some(Boolean));
   const entryDayKeys = new Set(answered.map(e => dayKey(new Date(e.createdAt))));

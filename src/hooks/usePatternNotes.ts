@@ -27,7 +27,9 @@ function dedupeByPrimaryTag(notes: PatternNote[]): PatternNote[] {
 export function usePatternNotes(authed: boolean, interpretationEnabled: boolean) {
   const [patterns, setPatterns] = useState<PatternNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastError, setLastError] = useState<string | null>(null);
   const backfillRanRef = useRef(false);
+  const trickleInFlight = useRef(false);
   const patternsRef = useRef<PatternNote[]>([]);
   patternsRef.current = patterns;
 
@@ -89,16 +91,22 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
 
   const triggerTrickle = useCallback(async () => {
     if (!interpretationEnabled) return;
-    await backfillEntrySignals();
-    await generatePatterns(true);
+    if (trickleInFlight.current) return;
+    trickleInFlight.current = true;
+    try {
+      await backfillEntrySignals();
+      await generatePatterns(true);
 
-    const allNotes = await fetchPatternNotes();
-    const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
+      const allNotes = await fetchPatternNotes();
+      const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
 
-    setPatterns(prev => {
-      const savedFromCurrent = prev.filter(p => p.status === 'saved');
-      return [...updatedActive, ...savedFromCurrent];
-    });
+      setPatterns(prev => {
+        const savedFromCurrent = prev.filter(p => p.status === 'saved');
+        return [...updatedActive, ...savedFromCurrent];
+      });
+    } finally {
+      trickleInFlight.current = false;
+    }
   }, [interpretationEnabled]);
 
   const update = useCallback(async (): Promise<'updated' | 'error'> => {
@@ -115,8 +123,14 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
   }, [interpretationEnabled, triggerTrickle]);
 
   const submitFeedback = useCallback(async (patternId: string, feedback: PatternFeedback) => {
-    await updatePatternFeedback(patternId, feedback);
-    setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, userFeedback: feedback } : p));
+    const prev = patternsRef.current;
+    setPatterns(ps => ps.map(p => p.id === patternId ? { ...p, userFeedback: feedback } : p));
+    try {
+      await updatePatternFeedback(patternId, feedback);
+    } catch {
+      setPatterns(prev);
+      setLastError('Could not save feedback. Please try again.');
+    }
   }, []);
 
   const toggleSave = useCallback(async (patternId: string) => {
@@ -126,20 +140,30 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     const currentSavedCount = patternsRef.current.filter(p => p.status === 'saved').length;
     if (targetPattern.status !== 'saved' && currentSavedCount >= MAX_SAVED) return;
 
+    const prev = patternsRef.current;
     const nextStatus = targetPattern.status === 'saved' ? 'active' : 'saved';
-    await updatePatternStatus(patternId, nextStatus);
-    setPatterns(prev => prev.map(p => p.id === patternId ? { ...p, status: nextStatus as PatternNote['status'] } : p));
-    // Check if new patterns can fill the gap left by saving
-    if (nextStatus === 'saved') {
-      triggerTrickle().catch(() => {});
+    setPatterns(ps => ps.map(p => p.id === patternId ? { ...p, status: nextStatus as PatternNote['status'] } : p));
+    try {
+      await updatePatternStatus(patternId, nextStatus);
+      if (nextStatus === 'saved') {
+        triggerTrickle().catch(() => {});
+      }
+    } catch {
+      setPatterns(prev);
+      setLastError('Could not update pattern. Please try again.');
     }
   }, [triggerTrickle]);
 
   const dismiss = useCallback(async (patternId: string) => {
-    await deletePattern(patternId);
-    setPatterns(prev => prev.filter(p => p.id !== patternId));
-    // Check if new patterns can fill the gap
-    triggerTrickle().catch(() => {});
+    const prev = patternsRef.current;
+    setPatterns(ps => ps.filter(p => p.id !== patternId));
+    try {
+      await deletePattern(patternId);
+      triggerTrickle().catch(() => {});
+    } catch {
+      setPatterns(prev);
+      setLastError('Could not dismiss pattern. Please try again.');
+    }
   }, [triggerTrickle]);
 
   const savedCount = patterns.filter(p => p.status === 'saved').length;
@@ -148,6 +172,8 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
     patterns,
     savedCount,
     loading,
+    lastError,
+    clearError: useCallback(() => setLastError(null), []),
     update,
     submitFeedback,
     toggleSave,
