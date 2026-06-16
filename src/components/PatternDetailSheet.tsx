@@ -83,17 +83,6 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
         {/* Note */}
         <div style={styles.noteText}>{pattern.fullNote || pattern.note}</div>
 
-        {/* Evidence quotes — show at most 2 to keep the sheet focused */}
-        {pattern.supportingQuotes && pattern.supportingQuotes.length > 0 && (
-          <div style={styles.quotesSection}>
-            {pattern.supportingQuotes.slice(0, 2).map((q, i) => (
-              <div key={i} style={styles.quoteCard}>
-                <div style={styles.quoteText}>"{q.quote}"</div>
-                <div style={styles.quoteDate}>{formatQuoteDate(q.date)}</div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Personality framing box (with reflection prompt merged in) */}
         {(pattern.personalityFraming || pattern.reflectionPrompt) && (

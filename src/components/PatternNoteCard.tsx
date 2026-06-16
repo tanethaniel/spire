@@ -16,8 +16,6 @@ const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
 };
 
 export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabled }: PatternNoteCardProps) {
-  const firstQuote = pattern.supportingQuotes?.[0] ?? null;
-
   return (
     <div
       style={{ ...styles.card, marginBottom: 12 }}
@@ -67,12 +65,6 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabl
       {/* Note — clamped */}
       <div style={styles.note}>{pattern.previewNote || pattern.note}</div>
 
-      {/* First quote preview */}
-      {firstQuote && (
-        <div style={styles.quoteBlock}>
-          <div style={styles.quoteText}>"{firstQuote.quote}"</div>
-        </div>
-      )}
     </div>
   );
 }
