@@ -1862,6 +1862,33 @@ serve(async (req) => {
     console.log(`[generate-patterns] Quality gate: ${selectedMain.length} main, ${selectedWatch.length} watch, from ${clusteredCandidates.length} clustered`);
     debug.quality_gate = { main: selectedMain.length, watch: selectedWatch.length, limited: limitedCandidates.map(c => ({ signal: c.signal, type: c.type })) };
 
+    // --- Clean up duplicate active cards (same title) ---
+    // Previous generation bugs left duplicate cards. Keep newest per title, dismiss the rest.
+    const titleMap = new Map<string, PatternInsight[]>();
+    for (const p of activePatternsList) {
+      const key = (p.title || p.id).toLowerCase().trim();
+      if (!titleMap.has(key)) titleMap.set(key, []);
+      titleMap.get(key)!.push(p);
+    }
+    const duplicateIds: string[] = [];
+    for (const [, group] of titleMap) {
+      if (group.length <= 1) continue;
+      group.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+      for (let i = 1; i < group.length; i++) {
+        duplicateIds.push(group[i].id);
+      }
+    }
+    if (duplicateIds.length > 0) {
+      console.log(`[generate-patterns] Cleaning up ${duplicateIds.length} duplicate active cards`);
+      await supabase
+        .from('pattern_insights')
+        .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .in('id', duplicateIds);
+      activePatternsList = activePatternsList.filter(p => !duplicateIds.includes(p.id));
+    }
+    debug.duplicates_cleaned = duplicateIds.length;
+
     // --- Remove stale cards ---
     // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards
     const archivedTitles: string[] = [];
