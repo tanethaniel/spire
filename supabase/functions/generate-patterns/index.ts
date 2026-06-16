@@ -1174,36 +1174,6 @@ function selectBalancedPatterns(
   };
 }
 
-function checkPatternDrift(
-  existing: PatternInsight,
-  candidate: Candidate,
-): { shouldUpdate: boolean; reason: string } {
-  // Check life category match
-  const existingCategory = assignLifeCategoryFromPattern(existing);
-  const candidateCategory = assignLifeCategory(candidate);
-  if (existingCategory !== candidateCategory && existingCategory !== 'other' && candidateCategory !== 'other') {
-    return { shouldUpdate: false, reason: 'life_category_changed' };
-  }
-
-  // Check semantic tag overlap strength
-  const existingTags = new Set((existing.related_tags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t)));
-  const candidateTags = candidate.tags.map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
-  const overlap = candidateTags.filter(t => existingTags.has(t));
-  if (existingTags.size > 0 && overlap.length === 0) {
-    return { shouldUpdate: false, reason: 'no_semantic_overlap' };
-  }
-
-  // Check mood direction flip
-  if (existing.mood_delta != null && candidate.mood_delta != null) {
-    const existingDir = existing.mood_delta > 0 ? 'positive' : 'negative';
-    const candidateDir = candidate.mood_delta > 0 ? 'positive' : 'negative';
-    if (existingDir !== candidateDir) {
-      return { shouldUpdate: false, reason: 'mood_direction_flipped' };
-    }
-  }
-
-  return { shouldUpdate: true, reason: 'evidence_aligned' };
-}
 
 const SYSTEM_PROMPT = `You are writing a Pattern Note for Spire, a private voice journaling app.
 The system has already determined that a candidate may be worth showing. Your job is not to decide whether a pattern exists. Your job is to translate evidence into a warm, careful, useful, user-facing reflection note.
@@ -1862,244 +1832,40 @@ serve(async (req) => {
     console.log(`[generate-patterns] Quality gate: ${selectedMain.length} main, ${selectedWatch.length} watch, from ${clusteredCandidates.length} clustered`);
     debug.quality_gate = { main: selectedMain.length, watch: selectedWatch.length, limited: limitedCandidates.map(c => ({ signal: c.signal, type: c.type })) };
 
-    // --- Clean up duplicate active cards ---
-    // Use tag overlap to detect near-duplicates (same tags = same theme, even if titles differ).
-    // Also catches exact title duplicates. Keep newest per group, dismiss the rest.
-    const dedupGroups: PatternInsight[][] = [];
-    const assignedIds = new Set<string>();
-
-    for (const p of activePatternsList) {
-      if (assignedIds.has(p.id)) continue;
-      const group = [p];
-      assignedIds.add(p.id);
-      const pTags = new Set((p.related_tags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t)));
-
-      for (const q of activePatternsList) {
-        if (assignedIds.has(q.id)) continue;
-        const qTags = (q.related_tags ?? []).map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
-        const overlap = qTags.filter(t => pTags.has(t));
-        // Same theme if majority of semantic tags overlap
-        if (overlap.length >= 2 || (overlap.length >= 1 && (pTags.size <= 2 || qTags.length <= 2))) {
-          group.push(q);
-          assignedIds.add(q.id);
-        }
-      }
-      dedupGroups.push(group);
-    }
-
-    const duplicateIds: string[] = [];
-    for (const group of dedupGroups) {
-      if (group.length <= 1) continue;
-      // Keep the one with feedback, or the newest
-      group.sort((a, b) => {
-        if (a.user_feedback && !b.user_feedback) return -1;
-        if (!a.user_feedback && b.user_feedback) return 1;
-        return (b.updated_at || '').localeCompare(a.updated_at || '');
-      });
-      for (let i = 1; i < group.length; i++) {
-        duplicateIds.push(group[i].id);
-      }
-    }
-    if (duplicateIds.length > 0) {
-      console.log(`[generate-patterns] Cleaning up ${duplicateIds.length} duplicate active cards`);
-      await supabase
-        .from('pattern_insights')
-        .update({ status: 'dismissed', updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .in('id', duplicateIds);
-      activePatternsList = activePatternsList.filter(p => !duplicateIds.includes(p.id));
-    }
-    debug.duplicates_cleaned = duplicateIds.length;
-    debug.active_after_dedup = activePatternsList.length;
-
-    // --- Enforce MAX_ACTIVE_CARDS ---
-    // If still over the cap after dedup, dismiss oldest cards without feedback.
-    if (activePatternsList.length > MAX_ACTIVE_CARDS) {
-      const dismissable = activePatternsList
-        .filter(p => !p.user_feedback)
-        .sort((a, b) => (a.updated_at || '').localeCompare(b.updated_at || ''));
-      const excessCount = activePatternsList.length - MAX_ACTIVE_CARDS;
-      const toDismiss = dismissable.slice(0, excessCount);
-      if (toDismiss.length > 0) {
-        console.log(`[generate-patterns] Dismissing ${toDismiss.length} excess active cards to enforce cap`);
-        await supabase
-          .from('pattern_insights')
-          .update({ status: 'dismissed', updated_at: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .in('id', toDismiss.map(p => p.id));
-        const dismissedSet = new Set(toDismiss.map(p => p.id));
-        activePatternsList = activePatternsList.filter(p => !dismissedSet.has(p.id));
-      }
-    }
-    debug.active_after_cap_enforcement = activePatternsList.length;
-
-    // --- Remove stale cards ---
-    // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards
+    // --- Fresh generation: dismiss all active cards, insert new ones ---
+    // Previous incremental update logic caused ghost accumulation (matching failures,
+    // drift inserts, no-new-evidence skips). Clean slate approach: dismiss active cards
+    // that won't be regenerated, insert fresh candidates.
+    // Saved cards are never touched.
     const archivedTitles: string[] = [];
-    const staleThreshold = new Date();
-    staleThreshold.setDate(staleThreshold.getDate() - AUTO_ARCHIVE_DAYS);
-    const staleCards = activePatternsList.filter(p => {
-      const interactedAt = p.last_interacted_at ? new Date(p.last_interacted_at) : null;
-      return !p.user_feedback && interactedAt && interactedAt < staleThreshold;
-    });
-    const safeToRemove = Math.max(0, activePatternsList.length - MIN_ACTIVE_FLOOR);
-    const removeCount = Math.min(staleCards.length, safeToRemove);
-    if (removeCount > 0) {
-      const toRemove = staleCards.slice(0, removeCount);
+
+    if (activePatternsList.length > 0) {
+      const activeIds = activePatternsList.map(p => p.id);
+      console.log(`[generate-patterns] Dismissing ${activeIds.length} active cards for fresh generation`);
       await supabase
         .from('pattern_insights')
         .update({ status: 'dismissed', updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
-        .in('id', toRemove.map(p => p.id));
-      for (const p of toRemove) {
+        .in('id', activeIds);
+      for (const p of activePatternsList) {
         if (p.title) archivedTitles.push(p.title);
       }
-      activePatternsList = activePatternsList.filter(p => !toRemove.some(s => s.id === p.id));
     }
-
-    // Build index of active patterns — map every tag to its pattern for matching
-    const activeTagIndex = new Map<string, PatternInsight>();
-    for (const p of activePatternsList) {
-      for (const t of (p.related_tags ?? [])) {
-        activeTagIndex.set(t.toLowerCase(), p);
-      }
-    }
-
-    // Also index by title words for fuzzy matching
-    const activeTitleIndex = new Map<string, PatternInsight>();
-    for (const p of activePatternsList) {
-      if (p.title) {
-        const words = p.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        for (const w of words) activeTitleIndex.set(w, p);
-      }
-    }
-
-    const toUpdate: { pattern: PatternInsight; candidate: Candidate }[] = [];
-    const toInsert: Candidate[] = [];
-    const alreadyMatched = new Set<string>();
-    const matchDecisions: { signal: string; decision: string; reason: string }[] = [];
-
-    for (const candidate of limitedCandidates) {
-      // Find matching active pattern by tag overlap or signal overlap
-      let matchingActive: PatternInsight | undefined;
-      let matchedVia = '';
-      for (const tag of candidate.tags) {
-        const match = activeTagIndex.get(tag.toLowerCase());
-        if (match && !alreadyMatched.has(match.id)) {
-          matchingActive = match;
-          matchedVia = `tag:${tag}→"${match.title}"`;
-          break;
-        }
-      }
-      // Fallback: match by signal words against existing titles
-      if (!matchingActive) {
-        const signalWords = candidate.signal.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        for (const w of signalWords) {
-          const match = activeTitleIndex.get(w);
-          if (match && !alreadyMatched.has(match.id)) {
-            matchingActive = match;
-            matchedVia = `title_word:${w}→"${match.title}"`;
-            break;
-          }
-        }
-      }
-
-      if (matchingActive) {
-        alreadyMatched.add(matchingActive.id);
-        const oldEntryIds = new Set(matchingActive.supporting_entry_ids ?? []);
-        const hasNewEvidence = candidate.entry_ids.some(id => !oldEntryIds.has(id));
-        if (hasNewEvidence) {
-          const drift = checkPatternDrift(matchingActive, candidate);
-          if (drift.shouldUpdate) {
-            toUpdate.push({ pattern: matchingActive, candidate });
-            matchDecisions.push({ signal: candidate.signal, decision: 'update', reason: `${matchedVia}, new evidence` });
-          } else {
-            console.log(`[generate-patterns] Drift detected for "${matchingActive.title}": ${drift.reason}. Inserting as new instead.`);
-            toInsert.push(candidate);
-            matchDecisions.push({ signal: candidate.signal, decision: 'insert_drift', reason: `${matchedVia}, drift: ${drift.reason}` });
-          }
-        } else {
-          matchDecisions.push({ signal: candidate.signal, decision: 'skip_no_new_evidence', reason: matchedVia });
-        }
-      } else {
-        toInsert.push(candidate);
-        matchDecisions.push({ signal: candidate.signal, decision: 'insert_new', reason: 'no active match' });
-      }
-    }
+    debug.dismissed_active = activePatternsList.length;
 
     const resultPatterns: Record<string, unknown>[] = [];
+    let currentActiveCount = 0;
 
-    // Update existing active cards in place — title is immutable
-    for (const { pattern, candidate } of toUpdate) {
-      const validated = await writeAndValidatePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory, pattern.title);
-      if (!validated) continue;
-      if (!validated.safe) {
-        console.log(`[generate-patterns] Skipping unsafe update for pattern ${pattern.id}`);
-        continue;
-      }
-      const llmResult = validated.result;
-
-      const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
-      const { error: updateError } = await supabase
-        .from('pattern_insights')
-        .update({
-          pattern_type: candidate.type,
-          note: llmResult.preview_note || llmResult.note,
-          goal_connection: llmResult.goal_connection || null,
-          preview_note: llmResult.preview_note || llmResult.note || null,
-          full_note: llmResult.full_note || llmResult.note || null,
-          personality_framing: llmResult.personality_framing || null,
-          evidence_summary: buildUserFacingEvidenceSummary(candidate),
-          confidence: candidate.confidence,
-          confidence_reason: candidate.confidence_reason,
-          evidence_count: candidate.quotes.length,
-          entry_count: candidate.supporting_days,
-          date_range_start: allDates[0] || null,
-          date_range_end: allDates[allDates.length - 1] || null,
-          supporting_entry_ids: candidate.entry_ids,
-          supporting_quotes: candidate.quotes,
-          related_calendar_context: candidate.calendar_context,
-          related_tags: candidate.tags,
-          mood_delta: candidate.mood_delta,
-          reflection_prompt: llmResult.reflection_prompt || null,
-          suggested_experiment: llmResult.suggested_experiment || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', pattern.id)
-        .eq('status', 'active');
-
-      if (!updateError) {
-        const { data: updated } = await supabase
-          .from('pattern_insights').select().eq('id', pattern.id).single();
-        if (updated) resultPatterns.push(updated);
-      }
-    }
-
-    // Insert genuinely new cards only if there's room under the cap
-    let currentActiveCount = activePatternsList.length;
-    for (const candidate of toInsert) {
+    for (const candidate of limitedCandidates) {
       if (currentActiveCount >= MAX_ACTIVE_CARDS) break;
 
       const validated = await writeAndValidatePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
       if (!validated) continue;
       if (!validated.safe) {
-        // Demote: skip insert for unsafe patterns
         console.log(`[generate-patterns] Hiding unsafe new pattern for signal: ${candidate.signal}`);
         continue;
       }
       const llmResult = validated.result;
-
-      // Goal connection enforcement: retry once if missing for main patterns
-      if (goal && !llmResult.goal_connection && candidate.confidence !== 'early_signal') {
-        const retryValidated = await writeAndValidatePatternNote(candidate, goal, mbti, anthropicKey, feedbackHistory);
-        if (retryValidated?.safe && retryValidated.result.goal_connection) {
-          Object.assign(llmResult, retryValidated.result);
-        } else {
-          // Demote to thing_to_watch (early_signal confidence)
-          candidate.confidence = 'early_signal';
-          console.log(`[generate-patterns] Demoting pattern without goal_connection: ${candidate.signal}`);
-        }
-      }
 
       const allDates = candidate.quotes.map(q => q.date).filter(Boolean).sort();
       const row = {
@@ -2134,13 +1900,12 @@ serve(async (req) => {
       if (!insertError && inserted) {
         resultPatterns.push(inserted);
         currentActiveCount++;
+      } else if (insertError) {
+        console.error(`[generate-patterns] Insert failed for ${candidate.signal}:`, insertError.message);
       }
     }
 
-    console.log(`[generate-patterns] Trickle: ${toUpdate.length} updated, ${toInsert.length} new candidates, ${resultPatterns.length} result patterns`);
-    debug.match_decisions = matchDecisions;
-    debug.to_update = toUpdate.length;
-    debug.to_insert = toInsert.length;
+    console.log(`[generate-patterns] Fresh generation: ${limitedCandidates.length} candidates, ${resultPatterns.length} inserted`);
     debug.result_count = resultPatterns.length;
     debug.active_count_before = activePatternsList.length;
 
