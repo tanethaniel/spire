@@ -1852,9 +1852,19 @@ serve(async (req) => {
       entries, signals, calendarSignals, existingPatterns, goal,
     );
 
+    const debug: Record<string, unknown> = {
+      entries_count: entries.length,
+      signals_count: signals.length,
+      calendar_signals_count: calendarSignals.length,
+      existing_patterns_count: existingPatterns.length,
+      existing_active: existingPatterns.filter(p => p.status === 'active').map(p => ({ id: p.id, title: p.title, tags: p.related_tags })),
+      existing_saved: existingPatterns.filter(p => p.status === 'saved').map(p => ({ id: p.id, title: p.title })),
+      candidates_generated: candidates.map(c => ({ type: c.type, signal: c.signal, confidence: c.confidence, days: c.supporting_days, tags: c.tags })),
+    };
+
     if (candidates.length === 0) {
       console.log('[generate-patterns] No candidates found');
-      return new Response(JSON.stringify({ patterns: [] }), {
+      return new Response(JSON.stringify({ patterns: [], debug }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -1892,10 +1902,12 @@ serve(async (req) => {
     const unsavedCandidates = candidates.filter(c => {
       return !c.tags.some(t => savedTagsLower.has(t.toLowerCase()));
     });
+    debug.saved_tags_filter = { saved_tags: [...savedTagsLower], before: candidates.length, after: unsavedCandidates.length };
 
     // Cluster semantically similar candidates before limiting
     const clusteredCandidates = await clusterCandidates(unsavedCandidates, anthropicKey);
     console.log(`[generate-patterns] Clustered ${unsavedCandidates.length} candidates → ${clusteredCandidates.length} groups`);
+    debug.after_clustering = clusteredCandidates.map(c => ({ type: c.type, signal: c.signal, confidence: c.confidence, tags: c.tags }));
 
     // Quality gate: score, classify, and select balanced set
     const { mainPatterns: selectedMain, thingsToWatch: selectedWatch } = selectBalancedPatterns(
@@ -1905,6 +1917,7 @@ serve(async (req) => {
     );
     const limitedCandidates = [...selectedMain, ...selectedWatch];
     console.log(`[generate-patterns] Quality gate: ${selectedMain.length} main, ${selectedWatch.length} watch, from ${clusteredCandidates.length} clustered`);
+    debug.quality_gate = { main: selectedMain.length, watch: selectedWatch.length, limited: limitedCandidates.map(c => ({ signal: c.signal, type: c.type })) };
 
     // --- Remove stale cards ---
     // Safety: never remove if it would leave fewer than MIN_ACTIVE_FLOOR active cards
@@ -1950,14 +1963,17 @@ serve(async (req) => {
     const toUpdate: { pattern: PatternInsight; candidate: Candidate }[] = [];
     const toInsert: Candidate[] = [];
     const alreadyMatched = new Set<string>();
+    const matchDecisions: { signal: string; decision: string; reason: string }[] = [];
 
     for (const candidate of limitedCandidates) {
       // Find matching active pattern by tag overlap or signal overlap
       let matchingActive: PatternInsight | undefined;
+      let matchedVia = '';
       for (const tag of candidate.tags) {
         const match = activeTagIndex.get(tag.toLowerCase());
         if (match && !alreadyMatched.has(match.id)) {
           matchingActive = match;
+          matchedVia = `tag:${tag}→"${match.title}"`;
           break;
         }
       }
@@ -1968,6 +1984,7 @@ serve(async (req) => {
           const match = activeTitleIndex.get(w);
           if (match && !alreadyMatched.has(match.id)) {
             matchingActive = match;
+            matchedVia = `title_word:${w}→"${match.title}"`;
             break;
           }
         }
@@ -1981,13 +1998,18 @@ serve(async (req) => {
           const drift = checkPatternDrift(matchingActive, candidate);
           if (drift.shouldUpdate) {
             toUpdate.push({ pattern: matchingActive, candidate });
+            matchDecisions.push({ signal: candidate.signal, decision: 'update', reason: `${matchedVia}, new evidence` });
           } else {
             console.log(`[generate-patterns] Drift detected for "${matchingActive.title}": ${drift.reason}. Inserting as new instead.`);
             toInsert.push(candidate);
+            matchDecisions.push({ signal: candidate.signal, decision: 'insert_drift', reason: `${matchedVia}, drift: ${drift.reason}` });
           }
+        } else {
+          matchDecisions.push({ signal: candidate.signal, decision: 'skip_no_new_evidence', reason: matchedVia });
         }
       } else {
         toInsert.push(candidate);
+        matchDecisions.push({ signal: candidate.signal, decision: 'insert_new', reason: 'no active match' });
       }
     }
 
@@ -2102,8 +2124,13 @@ serve(async (req) => {
     }
 
     console.log(`[generate-patterns] Trickle: ${toUpdate.length} updated, ${toInsert.length} new candidates, ${resultPatterns.length} result patterns`);
+    debug.match_decisions = matchDecisions;
+    debug.to_update = toUpdate.length;
+    debug.to_insert = toInsert.length;
+    debug.result_count = resultPatterns.length;
+    debug.active_count_before = activePatternsList.length;
 
-    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles }), {
+    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles, debug }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

@@ -293,6 +293,9 @@ export async function generatePatterns(
     return { patterns: [], archivedTitles: [] };
   }
   const data = await res.json();
+  if (data.debug) {
+    console.log('[generatePatterns] debug:', JSON.stringify(data.debug, null, 2));
+  }
   return {
     patterns: (data.patterns ?? []).map(mapPatternNote),
     archivedTitles: data.archived_titles ?? [],
