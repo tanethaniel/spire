@@ -99,8 +99,7 @@ export function InsightsPage({
   const totalEntries = answered.length;
   const avgDuration = avgSessionDuration(answered);
 
-  const mainPatterns = patterns.filter(p => p.confidence !== 'early_signal' && p.status !== 'saved');
-  const earlySignals = patterns.filter(p => p.confidence === 'early_signal' && p.status !== 'saved');
+  const activePatterns = patterns.filter(p => p.status !== 'saved');
   const savedPatterns = patterns.filter(p => p.status === 'saved');
 
   const saveDisabled = savedCount >= MAX_SAVED;
@@ -317,8 +316,7 @@ export function InsightsPage({
               </div>
             ) : (
               <>
-                {/* Main patterns (strong + emerging, active) */}
-                {mainPatterns.map(p => (
+                {activePatterns.map(p => (
                   <PatternNoteCard
                     key={p.id}
                     pattern={p}
@@ -328,23 +326,6 @@ export function InsightsPage({
                     saveDisabled={saveDisabled}
                   />
                 ))}
-
-                {/* Things to watch (early_signal, active) */}
-                {earlySignals.length > 0 && (
-                  <>
-                    <div style={{ ...styles.sectionLabel, marginTop: 20 }}>Things to watch</div>
-                    {earlySignals.map(p => (
-                      <PatternNoteCard
-                        key={p.id}
-                        pattern={p}
-                        onSave={onPatternSave}
-                        onDismiss={(id) => setDismissConfirmId(id)}
-                        onOpen={() => openDetail(p)}
-                        saveDisabled={saveDisabled}
-                      />
-                    ))}
-                  </>
-                )}
 
                 {/* Saved (collapsible) */}
                 {savedPatterns.length > 0 && (

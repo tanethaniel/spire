@@ -42,12 +42,9 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
           </svg>
         </button>
 
-        {/* Top row: confidence pill + save/archive */}
+        {/* Top row: save/archive */}
         <div style={styles.topRow}>
-          <div style={styles.badge}>
-            {pattern.confidence === 'early_signal' && <span style={styles.badgeDot} />}
-            {CONFIDENCE_LABELS[pattern.confidence]}
-          </div>
+          <div />
           <div style={styles.topActions}>
             <button
               style={{

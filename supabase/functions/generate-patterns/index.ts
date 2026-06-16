@@ -1125,53 +1125,12 @@ function scoreCandidateUsefulness(
   return { score, reasons, riskFlags };
 }
 
-function classifyDisplayTier(
-  candidate: Candidate,
-  usefulnessScore: number,
-  riskFlags: string[],
-  goal: string | null,
-): 'main_pattern' | 'thing_to_watch' | 'hide' {
-  // Hard hide conditions
-  if (candidate.quotes.length === 0 && !candidate.calendar_context) return 'hide';
-
-  if (candidate.supporting_days < 2) return 'hide';
-
-  // 2-day candidates: thing_to_watch by default, main only with exceptional evidence
-  if (candidate.supporting_days === 2) {
-    if (
-      candidate.quotes.length >= 3 &&
-      goal && candidate.type === 'goal_alignment' &&
-      riskFlags.length === 0
-    ) {
-      return 'main_pattern';
-    }
-    if (candidate.quotes.length >= 1 && !riskFlags.includes('activity_frequency_only')) {
-      return 'thing_to_watch';
-    }
-    return 'hide';
-  }
-
-  // 3+ days: main if high quality, otherwise thing_to_watch
-  if (usefulnessScore >= 65 && riskFlags.length === 0) {
-    return 'main_pattern';
-  }
-  if (usefulnessScore >= 40) {
-    return 'thing_to_watch';
-  }
-  if (candidate.supporting_days >= 3 && candidate.quotes.length >= 2 && riskFlags.length === 0) {
-    return 'main_pattern';
-  }
-
-  return 'thing_to_watch';
-}
-
 interface RatedCandidate {
   candidate: Candidate;
   score: number;
   reasons: string[];
   riskFlags: string[];
   lifeCategory: LifeCategory;
-  displayTier: 'main_pattern' | 'thing_to_watch' | 'hide';
 }
 
 function selectBalancedPatterns(
@@ -1179,55 +1138,39 @@ function selectBalancedPatterns(
   existingPatterns: PatternInsight[],
   goal: string | null,
 ): { mainPatterns: Candidate[]; thingsToWatch: Candidate[]; hidden: Candidate[] } {
-  // Score and classify each candidate
   const rated: RatedCandidate[] = candidates.map(c => {
     const { score, reasons, riskFlags } = scoreCandidateUsefulness(c, goal, existingPatterns);
     const lifeCategory = assignLifeCategory(c);
-    const displayTier = classifyDisplayTier(c, score, riskFlags, goal);
-    return { candidate: c, score, reasons, riskFlags, lifeCategory, displayTier };
+    return { candidate: c, score, reasons, riskFlags, lifeCategory };
   });
 
-  // Separate by tier
-  const mainCandidates = rated
-    .filter(r => r.displayTier === 'main_pattern')
+  // Only hide candidates with zero evidence
+  const visible = rated
+    .filter(r => r.candidate.quotes.length > 0 || r.candidate.calendar_context)
+    .filter(r => r.candidate.supporting_days >= 2)
     .sort((a, b) => b.score - a.score);
-  const watchCandidates = rated
-    .filter(r => r.displayTier === 'thing_to_watch')
-    .sort((a, b) => b.score - a.score);
-  const hiddenCandidates = rated
-    .filter(r => r.displayTier === 'hide');
+  const hidden = rated.filter(r =>
+    (r.candidate.quotes.length === 0 && !r.candidate.calendar_context) ||
+    r.candidate.supporting_days < 2
+  );
 
-  // Apply category caps to main patterns
+  // Apply life category caps for diversity
   const categoryCounts = new Map<LifeCategory, number>();
-  const selectedMain: RatedCandidate[] = [];
+  const selected: RatedCandidate[] = [];
 
-  for (const r of mainCandidates) {
+  for (const r of visible) {
     const catCount = categoryCounts.get(r.lifeCategory) || 0;
     const catLimit = r.lifeCategory === 'work' ? MAX_WORK_PATTERNS : MAX_PATTERNS_PER_LIFE_CATEGORY;
-    if (catCount >= catLimit) {
-      // Demote to things to watch instead of hiding
-      watchCandidates.push(r);
-      continue;
-    }
-    if (selectedMain.length >= MAX_MAIN_PATTERNS) {
-      watchCandidates.push(r);
-      continue;
-    }
-    selectedMain.push(r);
+    if (catCount >= catLimit) continue;
+    if (selected.length >= MAX_ACTIVE_CARDS) break;
+    selected.push(r);
     categoryCounts.set(r.lifeCategory, catCount + 1);
   }
 
-  // Re-sort watch candidates after demotions
-  watchCandidates.sort((a, b) => b.score - a.score);
-  const selectedWatch = watchCandidates.slice(0, MAX_THINGS_TO_WATCH);
-
   return {
-    mainPatterns: selectedMain.map(r => r.candidate),
-    thingsToWatch: selectedWatch.map(r => ({
-      ...r.candidate,
-      confidence: 'early_signal' as const,
-    })),
-    hidden: [...hiddenCandidates, ...watchCandidates.slice(MAX_THINGS_TO_WATCH)].map(r => r.candidate),
+    mainPatterns: selected.map(r => ({ ...r.candidate })),
+    thingsToWatch: [],
+    hidden: hidden.map(r => r.candidate),
   };
 }
 

@@ -21,12 +21,9 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabl
       style={{ ...styles.card, marginBottom: 12 }}
       onClick={() => onOpen(pattern.id)}
     >
-      {/* Top row: confidence pill + save/dismiss */}
+      {/* Top row: save/dismiss */}
       <div style={styles.topRow}>
-        <div style={styles.badge}>
-          {pattern.confidence === 'early_signal' && <span style={styles.badgeDot} />}
-          {CONFIDENCE_LABELS[pattern.confidence]}
-        </div>
+        <div />
         <div style={styles.topActions} onClick={e => e.stopPropagation()}>
           <button
             style={{
