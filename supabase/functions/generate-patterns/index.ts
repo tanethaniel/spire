@@ -26,6 +26,7 @@ const NEGATIVE_EMOTIONS = new Set([
 
 const RECOVERY_ACTIVITIES = new Set([
   'gym', 'walking', 'rest', 'reading', 'friends', 'sleep', 'yoga', 'running', 'cooking', 'creative work', 'partner', 'family',
+  'exercise', 'social', 'tennis', 'boxing', 'swimming', 'cycling', 'hiking',
 ]);
 
 const RELATIONSHIP_CONTEXTS = new Set([
@@ -58,14 +59,18 @@ const LIFE_CATEGORY_MAP: Record<string, LifeCategory> = {
   meditation: 'recovery', reset: 'recovery',
   // Health
   gym: 'health', running: 'health', yoga: 'health', cooking: 'health',
-  exercise: 'health', movement: 'health',
+  exercise: 'health', movement: 'health', tennis: 'health', boxing: 'health',
+  swimming: 'health', cycling: 'health', hiking: 'health',
   // Energy
   tired: 'energy', drained: 'energy', energized: 'energy', clear: 'energy',
   scattered: 'energy', overwhelmed: 'energy',
   // Self-belief
   confidence: 'self_belief', 'self-doubt': 'self_belief', 'proving myself': 'self_belief',
-  discipline: 'self_belief', 'self-advocacy': 'self_belief', avoidance: 'self_belief',
-  pressure: 'self_belief', pride: 'self_belief',
+  discipline: 'self_belief', 'self-discipline': 'self_belief',
+  'self-advocacy': 'self_belief', 'standing up for myself': 'self_belief',
+  'pushing back': 'self_belief', 'setting boundaries': 'self_belief',
+  boundaries: 'self_belief', assertiveness: 'self_belief',
+  avoidance: 'self_belief', pressure: 'self_belief', pride: 'self_belief',
   // Calendar load
   'busy day': 'calendar_load', 'packed day': 'calendar_load',
   'fragmented day': 'calendar_load', 'context switching': 'calendar_load',
@@ -93,11 +98,14 @@ const EMOTION_KEYWORDS = new Set([
 
 const TAG_LABELS: Record<string, string> = {
   gym: 'movement',
+  exercise: 'exercise',
   meetings: 'meeting-heavy days',
   work: 'work',
   friends: 'friend time',
+  social: 'social time',
   family: 'family',
   partner: 'partner time',
+  'self-advocacy': 'self-advocacy',
   tired: 'feeling tired',
   anxious: 'feeling anxious',
   self_doubt: 'self-doubt',
@@ -142,6 +150,53 @@ const CATEGORY_TAGS = new Set([
   'activity_mood_link', 'calendar_pattern', 'self_perception',
   'contextual_blend',
 ]);
+
+// Semantic synonym groups: map granular normalized_values to canonical concepts.
+// Signals sharing a canonical group are counted together in candidate generation.
+const SYNONYM_MAP: Record<string, string> = {
+  // Exercise / movement
+  gym: 'exercise', running: 'exercise', tennis: 'exercise', boxing: 'exercise',
+  yoga: 'exercise', 'working out': 'exercise', workout: 'exercise',
+  'weight training': 'exercise', lifting: 'exercise', swimming: 'exercise',
+  cycling: 'exercise', hiking: 'exercise', pilates: 'exercise',
+  // Tiredness cluster
+  tired: 'tired', exhausted: 'tired', fatigued: 'tired', drained: 'tired',
+  'burnt out': 'tired', burnout: 'tired', sleepy: 'tired',
+  // Anxiety cluster
+  anxious: 'anxious', nervous: 'anxious', worried: 'anxious',
+  unsettled: 'anxious', uneasy: 'anxious', 'on edge': 'anxious',
+  // Overwhelm cluster
+  overwhelmed: 'overwhelmed', 'too much': 'overwhelmed', overloaded: 'overwhelmed',
+  // Self-advocacy / assertiveness
+  'self-advocacy': 'self-advocacy', 'self advocacy': 'self-advocacy',
+  'standing up for myself': 'self-advocacy', 'pushing back': 'self-advocacy',
+  'setting boundaries': 'self-advocacy', boundaries: 'self-advocacy',
+  'speaking up': 'self-advocacy', assertiveness: 'self-advocacy',
+  'advocating for myself': 'self-advocacy',
+  // Discipline / structure
+  discipline: 'discipline', 'self-discipline': 'discipline',
+  consistency: 'discipline', routine: 'discipline', structure: 'discipline',
+  // Rest / downtime
+  rest: 'rest', relaxing: 'rest', 'day off': 'rest', downtime: 'rest',
+  'taking it easy': 'rest', recovery: 'rest',
+  // Social connection
+  friends: 'social', 'friend time': 'social', 'hanging out': 'social',
+  socializing: 'social',
+  // Stress
+  stressed: 'stressed', 'under pressure': 'stressed', pressure: 'stressed',
+  tense: 'stressed',
+  // Focus / clarity
+  focused: 'focused', clear: 'focused', 'in the zone': 'focused',
+  'deep work': 'focused', flow: 'focused',
+  // Scattered
+  scattered: 'scattered', distracted: 'scattered', unfocused: 'scattered',
+  'context switching': 'scattered',
+};
+
+function canonicalize(value: string): string {
+  const lower = value.toLowerCase().trim();
+  return SYNONYM_MAP[lower] || lower;
+}
 
 function buildUserFacingEvidenceSummary(candidate: Candidate): string {
   const days = candidate.supporting_days;
@@ -443,13 +498,17 @@ function buildCandidates(
 ): Candidate[] {
   const candidates: Candidate[] = [];
 
-  // Index signals by normalized_value
+  // Index signals by normalized_value AND by canonical group
   const signalsByValue = new Map<string, SignalRow[]>();
+  const signalsByCanonical = new Map<string, SignalRow[]>();
   const signalsByType = new Map<string, SignalRow[]>();
   for (const s of signals) {
     const key = s.normalized_value?.toLowerCase() || '';
     if (!signalsByValue.has(key)) signalsByValue.set(key, []);
     signalsByValue.get(key)!.push(s);
+    const canonical = canonicalize(key);
+    if (!signalsByCanonical.has(canonical)) signalsByCanonical.set(canonical, []);
+    signalsByCanonical.get(canonical)!.push(s);
     const t = s.signal_type;
     if (!signalsByType.has(t)) signalsByType.set(t, []);
     signalsByType.get(t)!.push(s);
@@ -470,16 +529,20 @@ function buildCandidates(
   }
 
   // --- Candidate: Recurring Theme ---
-  for (const [value, sigs] of signalsByValue) {
-    if (!value) continue;
+  // Use canonical groups so "gym"+"running"+"tennis" are counted together as "exercise"
+  for (const [canonical, sigs] of signalsByCanonical) {
+    if (!canonical) continue;
     const days = distinctDaysFromDates(sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean));
     const pct = entries.length > 0 ? sigs.length / entries.length : 0;
     if (days >= 2 || pct >= 0.3) {
       const dates = sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean);
       const { confidence, reason } = assignConfidence(sigs.length, days, weekSpan(dates));
+      const subValues = [...new Set(sigs.map(s => s.normalized_value?.toLowerCase()).filter(Boolean))];
+      const signalLabel = subValues.length > 1 ? canonical : subValues[0] || canonical;
+      const subTypes = [...new Set(sigs.map(s => s.signal_type))];
       candidates.push({
         type: 'recurring_theme',
-        signal: value,
+        signal: signalLabel,
         confidence,
         confidence_reason: reason,
         supporting_days: days,
@@ -491,15 +554,18 @@ function buildCandidates(
           quote: s.quote,
         })),
         entry_ids: [...new Set(sigs.map(s => s.journal_entry_id))],
-        tags: [value, sigs[0].signal_type],
-        evidence_summary: `"${value}" appeared on ${days} distinct days (${sigs.length} mentions).`,
+        tags: [canonical, ...subValues.filter(v => v !== canonical), ...subTypes],
+        evidence_summary: subValues.length > 1
+          ? `${subValues.join(', ')} (grouped as "${canonical}") appeared on ${days} distinct days (${sigs.length} mentions).`
+          : `"${canonical}" appeared on ${days} distinct days (${sigs.length} mentions).`,
       });
     }
   }
 
   // --- Candidate: Mood Driver ---
-  for (const [value, sigs] of signalsByValue) {
-    if (!value) continue;
+  // Use canonical groups so related signals are evaluated together for mood impact
+  for (const [canonical, sigs] of signalsByCanonical) {
+    if (!canonical) continue;
     const entryIdsWithTag = new Set(sigs.map(s => s.journal_entry_id));
     const daysWithTag = distinctDaysFromDates(
       sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean),
@@ -527,9 +593,11 @@ function buildCandidates(
 
     const dates = sigs.map(s => s.journal_entries?.created_at || '').filter(Boolean);
     const { confidence, reason } = assignConfidence(sigs.length, daysWithTag, weekSpan(dates));
+    const subValues = [...new Set(sigs.map(s => s.normalized_value?.toLowerCase()).filter(Boolean))];
+    const subTypes = [...new Set(sigs.map(s => s.signal_type))];
     candidates.push({
       type: 'mood_driver',
-      signal: value,
+      signal: canonical,
       confidence,
       confidence_reason: reason,
       supporting_days: daysWithTag,
@@ -541,8 +609,8 @@ function buildCandidates(
         quote: s.quote,
       })),
       entry_ids: [...entryIdsWithTag],
-      tags: [value, sigs[0].signal_type],
-      evidence_summary: `Your mood tends to be ${describeMoodDelta(delta)} on days involving "${value}" (across ${daysWithTag} days).`,
+      tags: [canonical, ...subValues.filter(v => v !== canonical), ...subTypes],
+      evidence_summary: `Your mood tends to be ${describeMoodDelta(delta)} on days involving "${canonical}" (across ${daysWithTag} days).`,
     });
   }
 
@@ -591,7 +659,7 @@ function buildCandidates(
   if (avgMood != null) {
     const recoverySignals: SignalRow[] = [];
     for (const s of signals) {
-      if (RECOVERY_ACTIVITIES.has(s.normalized_value) && s.journal_entries?.mood_score != null) {
+      if ((RECOVERY_ACTIVITIES.has(s.normalized_value) || RECOVERY_ACTIVITIES.has(canonicalize(s.normalized_value))) && s.journal_entries?.mood_score != null) {
         if (s.journal_entries.mood_score >= avgMood + 0.5) {
           recoverySignals.push(s);
         }
@@ -922,54 +990,24 @@ function buildCandidates(
     });
   }
 
-  // --- Deduplicate candidates by signal and semantic tag overlap ---
-  // Multiple candidate types can fire for the same theme (e.g. "coding"
-  // triggers recurring_theme + mood_driver + activity_mood_link).
-  // Keep the strongest candidate per group. Two candidates are in the same
-  // group if they share an exact signal OR a semantic tag (not category tags).
+  // --- Lightweight dedup: keep best candidate per signal name ---
+  // Semantic dedup is handled by clusterCandidates (LLM-based).
+  // This pass only collapses exact-signal duplicates (e.g. same canonical
+  // value generating both recurring_theme and mood_driver candidates).
   const confidenceOrder: Record<string, number> = { strong_pattern: 0, emerging_pattern: 1, early_signal: 2 };
 
   function candidateScore(c: Candidate): number {
     return (confidenceOrder[c.confidence] ?? 3) * 100 - c.quotes.length;
   }
 
-  // CATEGORY_TAGS is defined at module scope
-
-  function semanticTags(c: Candidate): string[] {
-    return c.tags.map(t => t.toLowerCase()).filter(t => !CATEGORY_TAGS.has(t));
-  }
-
-  const tagToGroup = new Map<string, number>();
-  const signalToGroup = new Map<string, number>();
-  const groups: Candidate[][] = [];
-
+  const signalGroups = new Map<string, Candidate[]>();
   for (const c of candidates) {
-    const signalKey = c.signal.toLowerCase();
-    const semTags = semanticTags(c);
-
-    let groupIdx: number | undefined;
-    if (signalToGroup.has(signalKey)) {
-      groupIdx = signalToGroup.get(signalKey);
-    }
-    for (const t of semTags) {
-      if (tagToGroup.has(t)) {
-        groupIdx = groupIdx ?? tagToGroup.get(t);
-      }
-    }
-
-    if (groupIdx !== undefined) {
-      groups[groupIdx].push(c);
-      signalToGroup.set(signalKey, groupIdx);
-      for (const t of semTags) tagToGroup.set(t, groupIdx);
-    } else {
-      const idx = groups.length;
-      groups.push([c]);
-      signalToGroup.set(signalKey, idx);
-      for (const t of semTags) tagToGroup.set(t, idx);
-    }
+    const key = c.signal.toLowerCase();
+    if (!signalGroups.has(key)) signalGroups.set(key, []);
+    signalGroups.get(key)!.push(c);
   }
 
-  const deduped = groups.map(group => {
+  const deduped = [...signalGroups.values()].map(group => {
     group.sort((a, b) => candidateScore(a) - candidateScore(b));
     return group[0];
   });

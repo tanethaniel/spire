@@ -259,7 +259,8 @@ export function InsightsPage({
                 <span>Patterns</span>
                 {interpretationEnabled && patternsUnlocked && (
                   <button
-                    style={styles.headerAction}
+                    style={{ ...styles.headerAction, ...(patternsLoading ? { opacity: 0.5, pointerEvents: 'none' as const } : {}) }}
+                    disabled={patternsLoading}
                     onClick={async () => {
                       const result = await onUpdatePatterns();
                       if (result === 'error') {
@@ -269,7 +270,7 @@ export function InsightsPage({
                       }
                     }}
                   >
-                    {patterns.length === 0 ? 'Generate' : 'Update'}
+                    {patternsLoading ? 'Generating...' : patterns.length === 0 ? 'Generate' : 'Update'}
                   </button>
                 )}
               </div>
@@ -374,7 +375,7 @@ export function InsightsPage({
               onClose={() => setSelectedPatternId(null)}
               onFeedback={onPatternFeedback}
               onSave={onPatternSave}
-              onDismiss={(id) => setDismissConfirmId(id)}
+              onDismiss={(id) => { setDismissConfirmId(id); setSelectedPatternId(null); }}
               saveDisabled={saveDisabled}
             />
           </>

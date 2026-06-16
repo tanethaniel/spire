@@ -89,20 +89,16 @@ export function usePatternNotes(authed: boolean, interpretationEnabled: boolean)
 
   const triggerTrickle = useCallback(async () => {
     if (!interpretationEnabled) return;
-    try {
-      await backfillEntrySignals();
-      await generatePatterns(true);
+    await backfillEntrySignals();
+    await generatePatterns(true);
 
-      const allNotes = await fetchPatternNotes();
-      const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
+    const allNotes = await fetchPatternNotes();
+    const updatedActive = dedupeByPrimaryTag(allNotes.filter(p => p.status === 'active' || p.status === 'watching'));
 
-      setPatterns(prev => {
-        const savedFromCurrent = prev.filter(p => p.status === 'saved');
-        return [...updatedActive, ...savedFromCurrent];
-      });
-    } catch (err) {
-      console.error('[patterns] trickle failed:', err);
-    }
+    setPatterns(prev => {
+      const savedFromCurrent = prev.filter(p => p.status === 'saved');
+      return [...updatedActive, ...savedFromCurrent];
+    });
   }, [interpretationEnabled]);
 
   const update = useCallback(async (): Promise<'updated' | 'error'> => {
