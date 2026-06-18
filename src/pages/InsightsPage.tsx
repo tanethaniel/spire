@@ -300,9 +300,15 @@ export function InsightsPage({
                 </div>
               </div>
             ) : patternsLoading ? (
-              <div style={styles.lockedCard}>
-                <div style={styles.lockTitle}>Loading patterns…</div>
-              </div>
+              <>
+                {[0, 1].map(i => (
+                  <div key={i} style={styles.skeletonCard}>
+                    <div style={{ ...styles.skeletonLine, width: '40%', height: 12 }} />
+                    <div style={{ ...styles.skeletonLine, width: '85%', height: 18, marginTop: 10 }} />
+                    <div style={{ ...styles.skeletonLine, width: '70%', height: 14, marginTop: 8 }} />
+                  </div>
+                ))}
+              </>
             ) : !patternsUnlocked ? (
               <div style={styles.lockedCard}>
                 <div style={styles.lockIcon}>✦</div>
@@ -579,6 +585,20 @@ const styles: Record<string, React.CSSProperties> = {
   confirmProceed: {
     flex: 1, padding: '12px 0', background: '#D4756A', color: '#fff', border: 'none',
     borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+  },
+  skeletonCard: {
+    background: 'var(--bg-surface)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid var(--border-glass)',
+    borderRadius: 16,
+    padding: '18px 16px',
+    marginBottom: 12,
+  },
+  skeletonLine: {
+    background: 'rgba(255,255,255,0.25)',
+    borderRadius: 6,
+    animation: 'pulse 1.5s ease-in-out infinite',
   },
   toast: {
     position: 'fixed' as const,

@@ -1600,7 +1600,7 @@ serve(async (req) => {
         const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, [], pattern.title);
         if (!llmResult) continue;
 
-        await supabase
+        const { error: rewriteErr } = await supabase
           .from('pattern_insights')
           .update({
             note: llmResult.preview_note || llmResult.note,
@@ -1614,7 +1614,11 @@ serve(async (req) => {
           })
           .eq('id', pattern.id);
 
-        rewritten++;
+        if (rewriteErr) {
+          console.error(`[generate-patterns] MBTI rewrite failed for ${pattern.id}:`, rewriteErr.message);
+        } else {
+          rewritten++;
+        }
       }
 
       console.log(`[generate-patterns] MBTI rewrite: ${rewritten}/${patternsToRewrite.length} patterns updated`);
@@ -1673,7 +1677,7 @@ serve(async (req) => {
         const llmResult = await writePatternNote(candidate, goal, mbti, anthropicKey, [], pattern.title);
         if (!llmResult) continue;
 
-        await supabase
+        const { error: splitErr } = await supabase
           .from('pattern_insights')
           .update({
             note: llmResult.preview_note || llmResult.note || pattern.note,
@@ -1687,7 +1691,11 @@ serve(async (req) => {
           })
           .eq('id', pattern.id);
 
-        rewrittenCount++;
+        if (splitErr) {
+          console.error(`[generate-patterns] Split rewrite failed for ${pattern.id}:`, splitErr.message);
+        } else {
+          rewrittenCount++;
+        }
       }
 
       console.log(`[generate-patterns] Split rewrite: ${rewrittenCount}/${patternsToSplit.length} patterns updated`);
@@ -1713,12 +1721,15 @@ serve(async (req) => {
     }
 
     // Clean up dismissed patterns older than 14 days
-    await supabase
+    const { error: cleanupErr } = await supabase
       .from('pattern_insights')
       .delete()
       .eq('user_id', user.id)
       .eq('status', 'dismissed')
       .lt('updated_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
+    if (cleanupErr) {
+      console.error('[generate-patterns] Dismissed cleanup failed:', cleanupErr.message);
+    }
 
     // 2. Fetch Data
     const cutoff = new Date();
@@ -1842,11 +1853,18 @@ serve(async (req) => {
     if (activePatternsList.length > 0) {
       const activeIds = activePatternsList.map(p => p.id);
       console.log(`[generate-patterns] Dismissing ${activeIds.length} active cards for fresh generation`);
-      await supabase
+      const { error: dismissErr } = await supabase
         .from('pattern_insights')
         .update({ status: 'dismissed', updated_at: new Date().toISOString() })
         .eq('user_id', user.id)
         .in('id', activeIds);
+      if (dismissErr) {
+        console.error('[generate-patterns] Failed to dismiss active cards:', dismissErr.message);
+        return new Response(JSON.stringify({ patterns: [], error: 'Failed to prepare for fresh generation' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       for (const p of activePatternsList) {
         if (p.title) archivedTitles.push(p.title);
       }
@@ -1894,6 +1912,8 @@ serve(async (req) => {
         suggested_if_then_plan: null,
         status: 'active',
         updated_at: new Date().toISOString(),
+        model_version: 'claude-sonnet-4-6',
+        prompt_version: 'v3',
       };
       const { data: inserted, error: insertError } = await supabase
         .from('pattern_insights').insert(row).select().single();
@@ -1907,6 +1927,9 @@ serve(async (req) => {
 
     debug.result_count = resultPatterns.length;
     debug.active_count_before = activePatternsList.length;
+    if (resultPatterns.length === 0 && limitedCandidates.length > 0) {
+      console.warn(`[generate-patterns] Safety filtered all ${limitedCandidates.length} candidates — no patterns shown to user`);
+    }
     console.log(`[generate-patterns] Fresh generation: ${limitedCandidates.length} candidates, ${resultPatterns.length} inserted`, JSON.stringify(debug));
 
     return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles }), {

@@ -21,7 +21,7 @@ import { CompletionScreen } from './components/CompletionScreen';
 import { Tooltip, useTooltipSeen } from './components/Tooltip';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { dayKey, currentStreak, getStreakMilestone } from './lib/stats';
+import { dayKey, currentStreak } from './lib/stats';
 import { CrisisBanner } from './components/CrisisBanner';
 
 function App() {

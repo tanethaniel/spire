@@ -11,17 +11,6 @@ interface PatternDetailSheetProps {
   saveDisabled?: boolean;
 }
 
-const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
-  early_signal: 'Early signal',
-  emerging_pattern: 'Emerging',
-  strong_pattern: 'Strong pattern',
-};
-
-function formatQuoteDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
 export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onDismiss, saveDisabled }: PatternDetailSheetProps) {
   if (!open || !pattern) return null;
 

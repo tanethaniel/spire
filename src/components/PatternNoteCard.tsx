@@ -9,12 +9,6 @@ interface PatternNoteCardProps {
   saveDisabled?: boolean;
 }
 
-const CONFIDENCE_LABELS: Record<PatternNote['confidence'], string> = {
-  early_signal: 'Early signal',
-  emerging_pattern: 'Emerging',
-  strong_pattern: 'Strong pattern',
-};
-
 export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabled }: PatternNoteCardProps) {
   return (
     <div

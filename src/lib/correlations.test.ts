@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { computeCorrelations, distinctEntryDays, tipsUnlocked } from './correlations';
-import type { JournalEntry } from '../types/session';
+import type { JournalEntry, EmotionTag } from '../types/session';
 
 function entry(
   date: string,
   mood: number | null,
   tags: string[] | null,
-  emotion: string | null = null,
+  emotion: EmotionTag | null = null,
 ): JournalEntry {
   return {
     id: date + Math.random(),
@@ -212,7 +212,6 @@ describe('emotion patterns', () => {
       entry('2026-06-05', 1, ['gym'], 'happy'),
     ];
     const tips = computeCorrelations(entries);
-    const coTip = tips.find(t => t.category === 'emotion' && t.tag.includes('+'));
     // anxious+deadline should surface since anxious is the dominant emotion
     // and the co-occurrence with a different emotion might show up
     // The dominant emotion (anxious, 3 of 5) surfaces as the primary tip
