@@ -9,5 +9,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-(window as unknown as Record<string, unknown>).__supabase = supabase;
-(window as unknown as Record<string, unknown>).__supabaseUrl = supabaseUrl;
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__supabase = supabase;
+  (window as unknown as Record<string, unknown>).__supabaseUrl = supabaseUrl;
+}

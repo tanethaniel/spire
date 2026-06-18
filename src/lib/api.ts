@@ -93,6 +93,7 @@ export interface AnalysisResult {
   activity_tags: string[];
   summary: string | null;
   keyword_tags: string[];
+  crisis_flag?: boolean;
 }
 
 export async function analyzeSession(
@@ -293,7 +294,7 @@ export async function generatePatterns(
     return { patterns: [], archivedTitles: [] };
   }
   const data = await res.json();
-  if (data.debug) {
+  if (import.meta.env.DEV && data.debug) {
     console.log('[generatePatterns] debug:', JSON.stringify(data.debug, null, 2));
   }
   return {
@@ -384,6 +385,20 @@ export async function updatePatternStatus(
     .update({ status, updated_at: now, last_interacted_at: now })
     .eq('id', patternId);
   if (error) throw error;
+}
+
+export async function deleteAccount(): Promise<void> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/delete-account`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.error || `delete-account failed: ${res.status}`);
+  }
+  await supabase.auth.signOut();
 }
 
 export async function deletePattern(patternId: string): Promise<void> {

@@ -41,6 +41,7 @@ export interface SessionData {
   completedAt: string | null;
   recordingError: 'too_short' | 'transcription_failed' | null;
   targetDate: string | null;
+  crisisFlag?: boolean;
 }
 
 // User preference for whether Spire interprets entries (themes/insight/tips)

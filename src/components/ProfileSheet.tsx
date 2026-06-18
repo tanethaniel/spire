@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { deleteAccount } from '../lib/api';
 
 interface ProfileSheetProps {
   user: { name: string; avatarUrl: string | null; email: string; createdAt: string };
@@ -38,6 +39,9 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
   const [stagedLetters, setStagedLetters] = useState<[string, string, string, string]>(parseMbti(mbti));
   const [hasInteracted, setHasInteracted] = useState(false);
   const [showConfirm, setShowConfirm] = useState<'save' | 'clear' | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const stagedValue = stagedLetters.join('');
@@ -239,6 +243,13 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
         >
           Sign out
         </button>
+
+        <button
+          style={styles.deleteAccount}
+          onClick={() => setShowDeleteConfirm(true)}
+        >
+          Delete my account
+        </button>
       </div>
 
       {/* Confirmation dialog */}
@@ -262,6 +273,45 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
                 onClick={showConfirm === 'save' ? handleSave : handleClear}
               >
                 {showConfirm === 'save' ? 'Update' : 'Clear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div style={styles.confirmBackdrop} onClick={() => { if (!deleteLoading) setShowDeleteConfirm(false); }}>
+          <div style={styles.confirmDialog} onClick={e => e.stopPropagation()}>
+            <div style={styles.confirmTitle}>Delete your account?</div>
+            <div style={styles.confirmBody}>
+              This will permanently delete all your journal entries, patterns, and account data. This cannot be undone.
+            </div>
+            {deleteError && (
+              <div style={{ fontSize: 13, color: '#D4756A', marginBottom: 12 }}>{deleteError}</div>
+            )}
+            <div style={styles.confirmActions}>
+              <button
+                style={styles.confirmCancel}
+                onClick={() => { setShowDeleteConfirm(false); setDeleteError(null); }}
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                style={{ ...styles.confirmProceed, opacity: deleteLoading ? 0.5 : 1 }}
+                disabled={deleteLoading}
+                onClick={async () => {
+                  setDeleteLoading(true);
+                  setDeleteError(null);
+                  try {
+                    await deleteAccount();
+                  } catch (err) {
+                    setDeleteError(err instanceof Error ? err.message : 'Failed to delete account');
+                    setDeleteLoading(false);
+                  }
+                }}
+              >
+                {deleteLoading ? 'Deleting...' : 'Delete everything'}
               </button>
             </div>
           </div>
@@ -595,6 +645,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     color: 'var(--text-muted)',
     marginTop: 8,
+    cursor: 'pointer',
+  },
+  deleteAccount: {
+    width: '100%',
+    padding: 14,
+    background: 'none',
+    border: 'none',
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#D4756A',
+    marginTop: 4,
     cursor: 'pointer',
   },
 };

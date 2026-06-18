@@ -12,12 +12,14 @@ interface SessionPageProps {
   micStream: MediaStream | null;
   calendarEvents: CalendarEvent[] | null;
   recordingError: 'too_short' | 'transcription_failed' | null;
+  micDenied?: boolean;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onSkip: () => void;
   onBack: () => void;
   onTTSDone: () => void;
   onClearRecordingError: () => void;
+  onSubmitText?: (questionIndex: number, text: string) => void;
 }
 
 export function SessionPage({
@@ -33,10 +35,14 @@ export function SessionPage({
   onBack,
   onTTSDone,
   onClearRecordingError,
+  onSubmitText,
+  micDenied,
 }: SessionPageProps) {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [locked, setLocked] = useState(false);
   const [popupVisible, setPopupVisible] = useState(false);
+  const [textMode, setTextMode] = useState(false);
+  const [textInput, setTextInput] = useState('');
   const { speak, cancel: cancelTTS, prefetch } = useTTS();
   const ttsTriggeredRef = useRef(-1);
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,6 +75,12 @@ export function SessionPage({
   useEffect(() => {
     if (!isRecording) setLocked(false);
   }, [isRecording]);
+
+  // Reset text mode when question changes
+  useEffect(() => {
+    setTextMode(false);
+    setTextInput('');
+  }, [currentQuestion]);
 
   // Prevent TTS from replaying when returning to TTS_PLAYING after an error
   useEffect(() => {
@@ -172,33 +184,76 @@ export function SessionPage({
       </div>
 
       <div style={styles.recordArea}>
-        <AudioWaveform active={isRecording} stream={micStream} />
+        {textMode && onSubmitText ? (
+          <>
+            <textarea
+              style={styles.textArea}
+              placeholder="Type your answer here…"
+              value={textInput}
+              onChange={e => setTextInput(e.target.value)}
+              autoFocus
+              rows={4}
+            />
+            <button
+              style={{
+                ...styles.submitTextBtn,
+                ...(textInput.trim().length < 10 ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+              }}
+              onClick={() => {
+                if (textInput.trim().length >= 10) {
+                  onSubmitText(currentQuestion, textInput.trim());
+                }
+              }}
+            >
+              Submit answer
+            </button>
+            <button onClick={() => setTextMode(false)} style={styles.skipQ}>
+              Back to voice
+            </button>
+            <button onClick={onSkip} style={styles.skipQ}>
+              Skip this question
+            </button>
+          </>
+        ) : (
+          <>
+            <AudioWaveform active={isRecording} stream={micStream} />
 
-        <div style={{
-          ...styles.statusLine,
-          ...(isRecording ? { color: 'var(--error)' } : {}),
-        }}>
-          {isRecording ? (
-            <>
-              <div style={styles.recDot} />
-              <span>Recording…</span>
-            </>
-          ) : (
-            <span>Hold the button to answer</span>
-          )}
-        </div>
+            <div style={{
+              ...styles.statusLine,
+              ...(isRecording ? { color: 'var(--error)' } : {}),
+            }}>
+              {isRecording ? (
+                <>
+                  <div style={styles.recDot} />
+                  <span>Recording…</span>
+                </>
+              ) : micDenied ? (
+                <span>Microphone not available</span>
+              ) : (
+                <span>Hold the button to answer</span>
+              )}
+            </div>
 
-        <RecordButton
-          disabled={buttonDisabled}
-          recording={isRecording}
-          locked={locked}
-          onStart={handleStart}
-          onStop={handleStop}
-          onLock={handleLock}
-        />
-        <button onClick={onSkip} style={styles.skipQ}>
-          Skip this question
-        </button>
+            {!micDenied && (
+              <RecordButton
+                disabled={buttonDisabled}
+                recording={isRecording}
+                locked={locked}
+                onStart={handleStart}
+                onStop={handleStop}
+                onLock={handleLock}
+              />
+            )}
+            {onSubmitText && (
+              <button onClick={() => { if (popupVisible) dismissPopup(); setTextMode(true); }} style={styles.typeInstead}>
+                Type instead
+              </button>
+            )}
+            <button onClick={onSkip} style={styles.skipQ}>
+              Skip this question
+            </button>
+          </>
+        )}
       </div>
 
       {popupVisible && (
@@ -424,5 +479,43 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: 'var(--text-ghost)',
     fontStyle: 'italic',
+  },
+  typeInstead: {
+    fontSize: 13,
+    color: 'var(--accent-primary)',
+    background: 'none',
+    border: 'none',
+    padding: '10px 16px',
+    minHeight: 44,
+    cursor: 'pointer',
+    fontWeight: 600,
+  },
+  textArea: {
+    width: '85%',
+    maxWidth: 340,
+    minHeight: 120,
+    padding: '14px 16px',
+    fontSize: 15,
+    lineHeight: 1.6,
+    color: 'var(--text-primary)',
+    background: 'var(--bg-surface)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid var(--border-glass)',
+    borderRadius: 14,
+    resize: 'vertical' as const,
+    outline: 'none',
+    fontFamily: 'inherit',
+  },
+  submitTextBtn: {
+    padding: '14px 32px',
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 14,
+    fontSize: 16,
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginTop: 8,
   },
 };

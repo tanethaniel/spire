@@ -1776,8 +1776,8 @@ serve(async (req) => {
     };
 
     if (candidates.length === 0) {
-      console.log('[generate-patterns] No candidates found');
-      return new Response(JSON.stringify({ patterns: [], debug }), {
+      console.log('[generate-patterns] No candidates found', JSON.stringify(debug));
+      return new Response(JSON.stringify({ patterns: [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -1905,11 +1905,11 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[generate-patterns] Fresh generation: ${limitedCandidates.length} candidates, ${resultPatterns.length} inserted`);
     debug.result_count = resultPatterns.length;
     debug.active_count_before = activePatternsList.length;
+    console.log(`[generate-patterns] Fresh generation: ${limitedCandidates.length} candidates, ${resultPatterns.length} inserted`, JSON.stringify(debug));
 
-    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles, debug }), {
+    return new Response(JSON.stringify({ patterns: resultPatterns, archived_titles: archivedTitles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

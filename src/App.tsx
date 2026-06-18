@@ -20,13 +20,16 @@ import { ProfileSheet } from './components/ProfileSheet';
 import { CompletionScreen } from './components/CompletionScreen';
 import { Tooltip, useTooltipSeen } from './components/Tooltip';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { dayKey, currentStreak, getStreakMilestone } from './lib/stats';
+import { CrisisBanner } from './components/CrisisBanner';
 
 function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<AppView>('home');
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showCrisisBanner, setShowCrisisBanner] = useState(false);
 
   // Clean up any orphaned voice recordings left from failed transcription sessions
   useEffect(() => { cleanupStaleAudio(); }, []);
@@ -99,6 +102,7 @@ function App() {
     startRecording,
     stopRecording,
     skipQuestion,
+    submitTextEntry,
     runAnalysis,
     resetSession,
     clearRecordingError,
@@ -124,6 +128,7 @@ function App() {
   }, [setCalendarEvents, startSession, micStatus, requestMic]);
 
   const handleSessionComplete = useCallback(() => {
+    if (session.crisisFlag) setShowCrisisBanner(true);
     resetSession();
     refreshEntries();
     setView('history');
@@ -133,7 +138,7 @@ function App() {
     } else {
       triggerTrickle();
     }
-  }, [resetSession, refreshEntries, triggerTrickle, patternGenRef]);
+  }, [session.crisisFlag, resetSession, refreshEntries, triggerTrickle, patternGenRef]);
 
   const handleBack = useCallback(() => {
     resetSession();
@@ -206,6 +211,8 @@ function App() {
         onBack={handleBack}
         onTTSDone={onTTSDone}
         onClearRecordingError={clearRecordingError}
+        onSubmitText={submitTextEntry}
+        micDenied={micStatus === 'denied'}
       />
     );
   }
@@ -241,6 +248,11 @@ function App() {
 
       <div style={shell.root}>
         <div style={shell.viewport}>
+          {showCrisisBanner && (
+            <div style={{ padding: '16px 24px 0' }}>
+              <CrisisBanner onDismiss={() => setShowCrisisBanner(false)} />
+            </div>
+          )}
           {effectiveView === 'home' && (
             <HomePage onStart={handleStart} onOpenProfile={() => setProfileOpen(true)} avatarUrl={profileUser?.avatarUrl ?? null} userName={profileUser?.name ?? ''} />
           )}
@@ -313,4 +325,12 @@ const shell: Record<string, React.CSSProperties> = {
   },
 };
 
-export default App;
+function AppWithBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
+
+export default AppWithBoundary;

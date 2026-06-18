@@ -182,8 +182,15 @@ Rules for keyword_tags:
 - If the user mentions a synonym (e.g., "worked out", "hit the weights", "went for a jog"), map to the canonical form ("gym", "running")
 - Every tag must trace back to something the user said — no inferred or assumed tags
 
+Rules for crisis_flag:
+- Set to true if the transcript contains any mention of self-harm, suicidal ideation, wanting to die, wanting to hurt oneself, or feeling like life is not worth living
+- Set to true for expressions of hopelessness combined with a plan or intent to harm oneself
+- Set to false for general sadness, stress, frustration, or negative emotions without self-harm content
+- When in doubt, flag it — false positives are preferable to missed crises
+- Do NOT change the tone of your insight or themes based on this flag — continue being a reflective companion. The flag is used separately by the app to show crisis resources
+
 Return JSON with this exact shape and no other text:
-{"themes": ["Theme 1"], "insight": "Your insight here", "mood_score": 0, "emotion_tag": "happy", "activity_tags": ["tag1"], "summary": "Your summary here", "keyword_tags": ["tag1", "tag2"]}`,
+{"themes": ["Theme 1"], "insight": "Your insight here", "mood_score": 0, "emotion_tag": "happy", "activity_tags": ["tag1"], "summary": "Your summary here", "keyword_tags": ["tag1", "tag2"], "crisis_flag": false}`,
         messages: [{
           role: 'user',
           content: `Here are the journal transcripts to analyze:\n\n<transcripts>\n${filledTranscripts}\n</transcripts>`,
@@ -255,6 +262,16 @@ Return JSON with this exact shape and no other text:
       ? parsed.emotion_tag.toLowerCase()
       : null;
 
+    // Crisis detection: LLM flag + keyword backup
+    const CRISIS_KEYWORDS = /\b(kill\s*my\s*self|suicide|suicidal|end\s*(my|it\s*all)|don'?t\s*want\s*to\s*(be\s*here|live|exist|go\s*on)|self[\s-]*harm|cut\s*my\s*self|hurt\s*my\s*self|want\s*to\s*die|no\s*reason\s*to\s*live|better\s*off\s*(dead|without\s*me))\b/i;
+    const llmCrisisFlag = parsed.crisis_flag === true;
+    const keywordCrisisFlag = CRISIS_KEYWORDS.test(filledTranscripts);
+    const crisisFlag = llmCrisisFlag || keywordCrisisFlag;
+
+    if (crisisFlag) {
+      console.log('[analyze-session] Crisis flag triggered', { llm: llmCrisisFlag, keyword: keywordCrisisFlag });
+    }
+
     return new Response(JSON.stringify({
       themes,
       insight,
@@ -263,6 +280,7 @@ Return JSON with this exact shape and no other text:
       activity_tags: activityTags,
       summary,
       keyword_tags: keywordTags,
+      crisis_flag: crisisFlag,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

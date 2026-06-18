@@ -186,6 +186,19 @@ export function useSession() {
     });
   }, [session.currentQuestion, updateRound]);
 
+  const submitTextEntry = useCallback((questionIndex: number, text: string) => {
+    trackEvent({ event: 'question_completed', question_index: questionIndex, duration_ms: 0 });
+    updateRound(questionIndex, { transcript: text, status: 'done', transcriptFailed: false });
+
+    setSession(prev => {
+      const next = prev.currentQuestion + 1;
+      if (next >= QUESTIONS.length) {
+        return { ...prev, state: SessionState.ANALYZING, currentQuestion: next };
+      }
+      return { ...prev, state: SessionState.TTS_PLAYING, currentQuestion: next };
+    });
+  }, [updateRound]);
+
   // Always run AI analysis to populate mood/tags/themes — these feed the
   // pattern pipeline. The `interpret` flag controls whether insights are
   // shown to the user on the result screen, not whether analysis happens.
@@ -221,6 +234,7 @@ export function useSession() {
       activity_tags: string[] | null;
       summary: string | null;
       keyword_tags: string[] | null;
+      crisis_flag?: boolean;
     } = { themes: null, insight: null, mood_score: null, emotion_tag: null, activity_tags: null, summary: null, keyword_tags: null };
 
     try {
@@ -237,6 +251,7 @@ export function useSession() {
       themes: interpret ? analysis.themes : null,
       insight: interpret ? analysis.insight : null,
       completedAt,
+      crisisFlag: analysis.crisis_flag === true,
     }));
 
     const entryId = await saveJournalEntry({
@@ -299,6 +314,7 @@ export function useSession() {
     startRecording,
     stopRecording,
     skipQuestion,
+    submitTextEntry,
     runAnalysis,
     resetSession,
     clearRecordingError,
