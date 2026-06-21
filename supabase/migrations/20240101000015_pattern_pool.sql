@@ -11,6 +11,16 @@ ALTER TABLE entry_signals
   ADD COLUMN IF NOT EXISTS intensity text
     CHECK (intensity IN ('low', 'moderate', 'strong'));
 
+-- Widen signal_type CHECK to accept new signal kinds
+ALTER TABLE entry_signals DROP CONSTRAINT IF EXISTS entry_signals_signal_type_check;
+ALTER TABLE entry_signals ADD CONSTRAINT entry_signals_signal_type_check
+  CHECK (signal_type IN (
+    'activity', 'emotion', 'energy', 'stress', 'relationship', 'work',
+    'health', 'recovery', 'self_belief', 'need', 'value', 'avoidance',
+    'gratitude', 'learning', 'memory', 'social_context',
+    'behavioral_link', 'emotional_theme'
+  ));
+
 CREATE INDEX IF NOT EXISTS idx_entry_signals_kind
   ON entry_signals(user_id, signal_kind);
 
