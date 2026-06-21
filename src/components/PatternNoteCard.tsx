@@ -1,5 +1,5 @@
 import React from 'react';
-import type { PatternNote } from '../types/session';
+import type { PatternNote, PatternConfidence } from '../types/session';
 
 interface PatternNoteCardProps {
   pattern: PatternNote;
@@ -9,29 +9,46 @@ interface PatternNoteCardProps {
   saveDisabled?: boolean;
 }
 
+const CONFIDENCE_STYLE: Record<PatternConfidence, React.CSSProperties> = {
+  early_signal: { background: 'transparent', border: '1.5px solid var(--text-ghost)', width: 7, height: 7 },
+  emerging_pattern: { background: 'linear-gradient(135deg, var(--accent-primary) 50%, transparent 50%)', border: '1.5px solid var(--accent-primary)', width: 7, height: 7 },
+  strong_pattern: { background: 'var(--accent-primary)', border: '1.5px solid var(--accent-primary)', width: 7, height: 7 },
+};
+
 export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabled }: PatternNoteCardProps) {
+  const isDimmed = pattern.slotState === 'dimmed';
+  const isSaved = pattern.slotState === 'saved';
+
   return (
     <div
-      style={{ ...styles.card, marginBottom: 12 }}
+      style={{
+        ...styles.card,
+        marginBottom: 12,
+        ...(isDimmed ? { opacity: 0.5, filter: 'grayscale(0.3)' } : {}),
+      }}
       onClick={() => onOpen(pattern.id)}
     >
-      {/* Top row: save/dismiss */}
+      {/* Top row: confidence + actions */}
       <div style={styles.topRow}>
-        <div />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ ...styles.confidenceDot, ...CONFIDENCE_STYLE[pattern.confidence], borderRadius: '50%' }} />
+          {pattern.hasNewEvidence && <div style={styles.updatedDot} />}
+          {isDimmed && <span style={styles.fadingLabel}>Fading</span>}
+        </div>
         <div style={styles.topActions} onClick={e => e.stopPropagation()}>
           <button
             style={{
               ...styles.iconBtn,
-              ...(pattern.status === 'saved' ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
-              ...(saveDisabled && pattern.status !== 'saved' ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+              ...(isSaved ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
+              ...(saveDisabled && !isSaved ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
             }}
             onClick={() => {
-              if (saveDisabled && pattern.status !== 'saved') return;
+              if (saveDisabled && !isSaved) return;
               onSave(pattern.id);
             }}
-            aria-label={pattern.status === 'saved' ? 'Unsave' : 'Save'}
+            aria-label={isSaved ? 'Unsave' : 'Save'}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill={pattern.status === 'saved' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
             </svg>
           </button>
@@ -92,12 +109,23 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     padding: '3px 8px',
   },
-  badgeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: '50%',
-    background: 'var(--text-ghost)',
+  confidenceDot: {
     flexShrink: 0,
+    display: 'inline-block',
+  },
+  updatedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: 'var(--accent-primary)',
+    flexShrink: 0,
+  },
+  fadingLabel: {
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.06em',
+    color: 'var(--text-ghost)',
   },
   topActions: {
     display: 'flex',

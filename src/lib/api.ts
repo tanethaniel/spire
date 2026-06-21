@@ -280,57 +280,31 @@ export async function extractEntrySignals(entryId: string): Promise<void> {
   }
 }
 
-export async function generatePatterns(
-  forceRefresh = false,
-): Promise<{ patterns: PatternNote[]; archivedTitles: string[] }> {
+export async function refreshPatternSlots(
+  action: 'refresh' | 'save' | 'dismiss' = 'refresh',
+  patternId?: string,
+): Promise<PatternNote[]> {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/manage-pattern-slots`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ force_refresh: forceRefresh }),
+    body: JSON.stringify({ action, pattern_id: patternId }),
   });
   if (!res.ok) {
-    console.error('[generatePatterns] failed:', res.status);
-    return { patterns: [], archivedTitles: [] };
+    console.error('[refreshPatternSlots] failed:', res.status);
+    return [];
   }
   const data = await res.json();
-  if (import.meta.env.DEV && data.debug) {
-    console.log('[generatePatterns] debug:', JSON.stringify(data.debug, null, 2));
-  }
-  return {
-    patterns: (data.patterns ?? []).map(mapPatternNote),
-    archivedTitles: data.archived_titles ?? [],
-  };
+  return (data.patterns ?? []).map(mapPatternNote);
 }
 
-export async function rewritePatternsMbti(): Promise<number> {
+export async function matchPatternEvidence(entryId: string): Promise<void> {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {
+  await fetch(`${EDGE_FUNCTION_BASE}/match-pattern-evidence`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ rewrite_mbti: true }),
+    body: JSON.stringify({ entry_id: entryId }),
   });
-  if (!res.ok) {
-    console.error('[rewritePatternsMbti] failed:', res.status);
-    return 0;
-  }
-  const data = await res.json();
-  return data.rewritten ?? 0;
-}
-
-export async function rewritePatternsSplit(): Promise<number> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-patterns`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ rewrite_split: true }),
-  });
-  if (!res.ok) {
-    console.error('[rewritePatternsSplit] failed:', res.status);
-    return 0;
-  }
-  const data = await res.json();
-  return data.rewritten ?? 0;
 }
 
 export async function fetchPatternNotes(): Promise<PatternNote[]> {
@@ -338,11 +312,11 @@ export async function fetchPatternNotes(): Promise<PatternNote[]> {
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
-    .from('pattern_insights')
+    .from('pattern_pool')
     .select('*')
     .eq('user_id', user.id)
-    .in('status', ['active', 'saved', 'watching'])
-    .order('created_at', { ascending: false });
+    .in('slot_state', ['active', 'dimmed', 'saved'])
+    .order('slot_promoted_at', { ascending: false });
   if (error) throw error;
 
   return (data ?? []).map(mapPatternNote);
@@ -369,8 +343,16 @@ export async function updatePatternFeedback(
 ): Promise<void> {
   const now = new Date().toISOString();
   const { error } = await supabase
-    .from('pattern_insights')
+    .from('pattern_pool')
     .update({ user_feedback: feedback, updated_at: now, last_interacted_at: now })
+    .eq('id', patternId);
+  if (error) throw error;
+}
+
+export async function clearNewEvidence(patternId: string): Promise<void> {
+  const { error } = await supabase
+    .from('pattern_pool')
+    .update({ has_new_evidence: false })
     .eq('id', patternId);
   if (error) throw error;
 }
@@ -381,8 +363,8 @@ export async function updatePatternStatus(
 ): Promise<void> {
   const now = new Date().toISOString();
   const { error } = await supabase
-    .from('pattern_insights')
-    .update({ status, updated_at: now, last_interacted_at: now })
+    .from('pattern_pool')
+    .update({ slot_state: status, updated_at: now, last_interacted_at: now })
     .eq('id', patternId);
   if (error) throw error;
 }
@@ -404,49 +386,40 @@ export async function deleteAccount(): Promise<void> {
 export async function deletePattern(patternId: string): Promise<void> {
   const now = new Date().toISOString();
   const { error } = await supabase
-    .from('pattern_insights')
-    .update({ status: 'dismissed', updated_at: now })
+    .from('pattern_pool')
+    .update({ slot_state: 'dismissed', updated_at: now })
     .eq('id', patternId);
   if (error) throw error;
 }
 
 function mapPatternNote(row: Record<string, unknown>): PatternNote {
-  const quotes = row.supporting_quotes;
-  let parsedQuotes: PatternNote['supportingQuotes'] = null;
-  if (Array.isArray(quotes)) {
-    parsedQuotes = quotes.map((q: Record<string, unknown>) => ({
-      quote: String(q.quote ?? q.text ?? ''),
-      date: String(q.date ?? q.entryDate ?? ''),
-    }));
-  }
+  const slotState = (row.slot_state as PatternNote['slotState']) ?? 'active';
+  const previewNote = (row.preview_note as string) ?? null;
 
   return {
     id: String(row.id),
-    patternType: String(row.pattern_type ?? ''),
+    patternKind: (row.pattern_kind as PatternNote['patternKind']) ?? 'behavioral_link',
     title: String(row.title ?? ''),
-    note: String(row.note ?? ''),
-    previewNote: (row.preview_note as string) ?? null,
+    previewNote,
     fullNote: (row.full_note as string) ?? null,
     goalConnection: row.goal_connection as string | null,
     personalityFraming: row.personality_framing as string | null,
-    evidenceSummary: row.evidence_summary as string | null,
     confidence: (row.confidence as PatternNote['confidence']) ?? 'early_signal',
-    confidenceReason: row.confidence_reason as string | null,
-    evidenceCount: row.evidence_count as number | null,
-    entryCount: row.entry_count as number | null,
-    dateRangeStart: row.date_range_start as string | null,
-    dateRangeEnd: row.date_range_end as string | null,
-    supportingQuotes: parsedQuotes,
-    relatedCalendarContext: row.related_calendar_context as Record<string, unknown> | null,
+    evidenceCount: (row.evidence_count as number) ?? 0,
+    sessionCount: (row.session_count as number) ?? 0,
+    slotState,
+    hasNewEvidence: (row.has_new_evidence as boolean) ?? false,
+    decayStartedAt: row.decay_started_at as string | null,
     relatedTags: row.related_tags as string[] | null,
     moodDelta: row.mood_delta as number | null,
     reflectionPrompt: row.reflection_prompt as string | null,
     suggestedExperiment: row.suggested_experiment as string | null,
-    suggestedIfThenPlan: (row.suggested_if_then_plan as PatternNote['suggestedIfThenPlan']) ?? null,
-    status: (row.status as PatternNote['status']) ?? 'active',
     userFeedback: (row.user_feedback as PatternNote['userFeedback']) ?? null,
     createdAt: String(row.created_at ?? ''),
     updatedAt: String(row.updated_at ?? ''),
+    // Legacy compat
+    status: slotState,
+    note: previewNote ?? String(row.title ?? ''),
   };
 }
 

@@ -23,6 +23,7 @@ interface InsightsPageProps {
   onPatternFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onPatternSave: (id: string) => void;
   onPatternDismiss: (id: string) => void;
+  onPatternMarkSeen?: (id: string) => void;
   patternsError: string | null;
   onClearPatternsError: () => void;
 }
@@ -58,7 +59,7 @@ export function InsightsPage({
   entries, loading, onOpenProfile, avatarUrl, userName,
   interpretationEnabled, patterns, savedCount, patternsLoading,
   onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
-  patternsError, onClearPatternsError,
+  onPatternMarkSeen, patternsError, onClearPatternsError,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
@@ -109,8 +110,9 @@ export function InsightsPage({
   const totalEntries = answered.length;
   const avgDuration = avgSessionDuration(answered);
 
-  const activePatterns = patterns.filter(p => p.status !== 'saved');
-  const savedPatterns = patterns.filter(p => p.status === 'saved');
+  const activePatterns = patterns.filter(p => p.slotState === 'active');
+  const dimmedPatterns = patterns.filter(p => p.slotState === 'dimmed');
+  const savedPatterns = patterns.filter(p => p.slotState === 'saved');
 
   const saveDisabled = savedCount >= MAX_SAVED;
   const patternsUnlocked = totalEntries >= MIN_ENTRIES_FOR_PATTERNS && totalDays >= MIN_DAYS_FOR_PATTERNS;
@@ -266,20 +268,18 @@ export function InsightsPage({
             <div style={{ position: 'relative', marginTop: 28 }}>
               <div style={{ ...styles.sectionLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Patterns</span>
-                {interpretationEnabled && patternsUnlocked && (
+                {interpretationEnabled && patternsUnlocked && patterns.length === 0 && (
                   <button
                     style={{ ...styles.headerAction, ...(patternsLoading ? { opacity: 0.5, pointerEvents: 'none' as const } : {}) }}
                     disabled={patternsLoading}
                     onClick={async () => {
                       const result = await onUpdatePatterns();
                       if (result === 'error') {
-                        setToast('Patterns could not update right now. Your existing patterns are still here.');
-                      } else {
-                        setToast('Updated your patterns with your latest reflections.');
+                        setToast('Patterns could not generate right now. Try again later.');
                       }
                     }}
                   >
-                    {patternsLoading ? 'Generating...' : patterns.length === 0 ? 'Generate' : 'Update'}
+                    {patternsLoading ? 'Generating...' : 'Generate'}
                   </button>
                 )}
               </div>
@@ -343,6 +343,17 @@ export function InsightsPage({
                   />
                 ))}
 
+                {dimmedPatterns.map(p => (
+                  <PatternNoteCard
+                    key={p.id}
+                    pattern={p}
+                    onSave={onPatternSave}
+                    onDismiss={(id) => setDismissConfirmId(id)}
+                    onOpen={() => openDetail(p)}
+                    saveDisabled={saveDisabled}
+                  />
+                ))}
+
                 {/* Saved (collapsible) */}
                 {savedPatterns.length > 0 && (
                   <>
@@ -373,6 +384,7 @@ export function InsightsPage({
               onFeedback={onPatternFeedback}
               onSave={onPatternSave}
               onDismiss={(id) => { setDismissConfirmId(id); setSelectedPatternId(null); }}
+              onMarkSeen={onPatternMarkSeen}
               saveDisabled={saveDisabled}
             />
           </>

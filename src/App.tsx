@@ -7,7 +7,7 @@ import { useSettings } from './hooks/useSettings';
 import { usePatternNotes } from './hooks/usePatternNotes';
 import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
-import { deleteJournalEntry } from './lib/api';
+import { deleteJournalEntry, matchPatternEvidence } from './lib/api';
 import { cleanupStaleAudio } from './lib/audioDb';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
@@ -78,7 +78,7 @@ function App() {
   const [showMicPrompt, setShowMicPrompt] = useState(false);
   const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
-  const { patterns, savedCount, loading: patternsLoading, lastError: patternsError, clearError: clearPatternsError, update: updatePatterns, submitFeedback, toggleSave, dismiss, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
+  const { patterns, savedCount, loading: patternsLoading, lastError: patternsError, clearError: clearPatternsError, update: updatePatterns, submitFeedback, toggleSave, dismiss, markSeen, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
   const [tabsSeen, markTabsSeen] = useTooltipSeen('tabs');
 
   const profileUser = authSession ? {
@@ -284,6 +284,7 @@ function App() {
               onPatternFeedback={submitFeedback}
               onPatternSave={(id) => toggleSave(id)}
               onPatternDismiss={(id) => dismiss(id)}
+              onPatternMarkSeen={(id) => markSeen(id)}
               patternsError={patternsError}
               onClearPatternsError={clearPatternsError}
             />

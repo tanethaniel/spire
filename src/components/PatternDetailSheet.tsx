@@ -1,5 +1,17 @@
-import React from 'react';
-import type { PatternNote } from '../types/session';
+import React, { useEffect, useRef } from 'react';
+import type { PatternNote, PatternConfidence } from '../types/session';
+
+const CONFIDENCE_LABELS: Record<PatternConfidence, string> = {
+  early_signal: 'Early signal',
+  emerging_pattern: 'Emerging pattern',
+  strong_pattern: 'Strong pattern',
+};
+
+const CONFIDENCE_COLORS: Record<PatternConfidence, string> = {
+  early_signal: 'var(--text-ghost)',
+  emerging_pattern: 'var(--accent-primary)',
+  strong_pattern: 'var(--accent-primary)',
+};
 
 interface PatternDetailSheetProps {
   pattern: PatternNote | null;
@@ -8,17 +20,34 @@ interface PatternDetailSheetProps {
   onFeedback: (id: string, feedback: 'true' | 'kind_of' | 'not_really') => void;
   onSave: (id: string) => void;
   onDismiss?: (id: string) => void;
+  onMarkSeen?: (id: string) => void;
   saveDisabled?: boolean;
 }
 
-export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onDismiss, saveDisabled }: PatternDetailSheetProps) {
+export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave, onDismiss, onMarkSeen, saveDisabled }: PatternDetailSheetProps) {
+  const markedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (open && pattern?.hasNewEvidence && pattern.id !== markedRef.current) {
+      markedRef.current = pattern.id;
+      onMarkSeen?.(pattern.id);
+    }
+    if (!open) markedRef.current = null;
+  }, [open, pattern, onMarkSeen]);
+
   if (!open || !pattern) return null;
+
+  const isSaved = pattern.slotState === 'saved';
 
   const feedbackOptions: { value: 'true' | 'kind_of' | 'not_really'; label: string }[] = [
     { value: 'true', label: 'Yes' },
     { value: 'kind_of', label: 'Kind of' },
     { value: 'not_really', label: 'Not really' },
   ];
+
+  const weeksTracked = pattern.createdAt
+    ? Math.max(1, Math.ceil((Date.now() - new Date(pattern.createdAt).getTime()) / (7 * 24 * 60 * 60 * 1000)))
+    : null;
 
   return (
     <div style={styles.backdrop} onClick={onClose}>
@@ -38,18 +67,18 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
             <button
               style={{
                 ...styles.actionChip,
-                ...(pattern.status === 'saved' ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
-                ...(saveDisabled && pattern.status !== 'saved' ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                ...(isSaved ? { color: 'var(--accent-primary)', borderColor: 'var(--accent-primary)' } : {}),
+                ...(saveDisabled && !isSaved ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
               }}
               onClick={() => {
-                if (saveDisabled && pattern.status !== 'saved') return;
+                if (saveDisabled && !isSaved) return;
                 onSave(pattern.id);
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill={pattern.status === 'saved' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={isSaved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
               </svg>
-              {pattern.status === 'saved' ? 'Saved' : 'Save'}
+              {isSaved ? 'Saved' : 'Save'}
             </button>
             {onDismiss && (
               <button style={styles.actionChip} onClick={() => onDismiss(pattern.id)}>
@@ -61,6 +90,24 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
               </button>
             )}
           </div>
+        </div>
+
+        {/* Confidence + evidence summary */}
+        <div style={styles.evidenceSummary}>
+          <span style={{ color: CONFIDENCE_COLORS[pattern.confidence], fontWeight: 600 }}>
+            {CONFIDENCE_LABELS[pattern.confidence]}
+          </span>
+          <span style={{ color: 'var(--text-ghost)', margin: '0 6px' }}>&middot;</span>
+          <span>
+            Based on {pattern.sessionCount} session{pattern.sessionCount !== 1 ? 's' : ''}
+            {weeksTracked && weeksTracked > 1 ? ` over ${weeksTracked} weeks` : ''}
+          </span>
+          {pattern.hasNewEvidence && (
+            <>
+              <span style={{ color: 'var(--text-ghost)', margin: '0 6px' }}>&middot;</span>
+              <span style={{ color: 'var(--accent-primary)' }}>Updated with new reflections</span>
+            </>
+          )}
         </div>
 
         {/* Title */}
@@ -214,6 +261,15 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'background 0.15s',
     whiteSpace: 'nowrap' as const,
+  },
+  evidenceSummary: {
+    fontSize: 11,
+    color: '#8A9298',
+    lineHeight: 1.4,
+    marginBottom: 10,
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    alignItems: 'center',
   },
   title: {
     fontSize: 20,

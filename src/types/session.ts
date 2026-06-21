@@ -89,41 +89,35 @@ export interface JournalEntry {
 // --- Pattern Notes types ---
 
 export type PatternConfidence = 'early_signal' | 'emerging_pattern' | 'strong_pattern';
-export type PatternStatus = 'active' | 'saved' | 'watching' | 'dismissed' | 'archived';
+export type PatternSlotState = 'pool' | 'active' | 'dimmed' | 'saved' | 'dismissed';
 export type PatternFeedback = 'true' | 'kind_of' | 'not_really';
-
-export interface PatternQuote {
-  quote: string;
-  date: string;
-}
+// Legacy alias
+export type PatternStatus = PatternSlotState;
 
 export interface PatternNote {
   id: string;
-  patternType: string;
+  patternKind: 'behavioral_link' | 'emotional_theme';
   title: string;
-  note: string;
   previewNote: string | null;
   fullNote: string | null;
   goalConnection: string | null;
   personalityFraming: string | null;
-  evidenceSummary: string | null;
   confidence: PatternConfidence;
-  confidenceReason: string | null;
-  evidenceCount: number | null;
-  entryCount: number | null;
-  dateRangeStart: string | null;
-  dateRangeEnd: string | null;
-  supportingQuotes: PatternQuote[] | null;
-  relatedCalendarContext: Record<string, unknown> | null;
+  evidenceCount: number;
+  sessionCount: number;
+  slotState: PatternSlotState;
+  hasNewEvidence: boolean;
+  decayStartedAt: string | null;
   relatedTags: string[] | null;
   moodDelta: number | null;
   reflectionPrompt: string | null;
   suggestedExperiment: string | null;
-  suggestedIfThenPlan: { ifCue: string; thenResponse: string; fullText: string } | null;
-  status: PatternStatus;
   userFeedback: PatternFeedback | null;
   createdAt: string;
   updatedAt: string;
+  // Legacy compat aliases
+  status: PatternSlotState;
+  note: string;
 }
 
 // A surfaced cross-session correlation, e.g. "better moods on gym days".
