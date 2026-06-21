@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getUserSettings, setUserSettings, rewritePatternsMbti } from '../lib/api';
+import { getUserSettings, setUserSettings } from '../lib/api';
 
 export function useSettings(authed: boolean) {
   const [interpretationEnabled, setInterpretation] = useState(true);
@@ -47,7 +47,6 @@ export function useSettings(authed: boolean) {
     setMbtiState(next);
     try {
       await setUserSettings({ ...currentSettings(), mbti: next });
-      rewritePatternsMbti().catch(() => {});
     } catch {
       setMbtiState(prev);
     }

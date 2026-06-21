@@ -11,6 +11,10 @@ BEGIN
   END IF;
 
   -- Delete in FK-safe order
+  DELETE FROM public.pattern_evidence WHERE pattern_pool_id IN (
+    SELECT id FROM public.pattern_pool WHERE user_id = target_user_id
+  );
+  DELETE FROM public.pattern_pool WHERE user_id = target_user_id;
   DELETE FROM public.pattern_actions WHERE user_id = target_user_id;
   DELETE FROM public.pattern_insights WHERE user_id = target_user_id;
   DELETE FROM public.entry_signals WHERE user_id = target_user_id;
