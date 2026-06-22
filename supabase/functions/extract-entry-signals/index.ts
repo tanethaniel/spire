@@ -39,18 +39,24 @@ Canonical emotion values: happy, sad, angry, tired, anxious, bored, focused, oka
 Canonical energy values: energized, steady, tired, drained, restless, overwhelmed, clear, scattered
 
 ## 2. Behavioral links (signal_kind: "behavioral_link")
-Connections between a context/trigger, a response/action, and an emotional outcome.
+Connections between a context/trigger, a response/action, and an emotional outcome. These can be POSITIVE or NEGATIVE.
 Extract these when the user describes doing something IN RESPONSE to a situation and mentions how it felt.
-Example: "After all those meetings I just needed to move my body, and I felt so much better after the gym" → trigger: "packed meetings", response: "gym", emotional_outcome: "felt much better, cleared head"
+Examples:
+- "After all those meetings I just needed to move my body, and I felt so much better after the gym" → trigger: "packed meetings", response: "gym", emotional_outcome: "felt much better, cleared head", outcome_valence: 1
+- "Calling my sister always makes the week feel lighter" → trigger: "tough week", response: "called sister", emotional_outcome: "felt lighter and more connected", outcome_valence: 2
+- "I skipped lunch again because of back-to-back meetings and felt awful by 4pm" → trigger: "back-to-back meetings", response: "skipped lunch", emotional_outcome: "felt awful, drained", outcome_valence: -2
 
 Only extract behavioral links when ALL THREE parts (trigger, response, outcome) are present or strongly implied in the text. Do not fabricate any part.
 
 ## 3. Emotional themes (signal_kind: "emotional_theme")
-Recurring inner states, beliefs, or emotional patterns — especially self-perception, doubt, pride, longing, or unresolved feelings.
+Recurring inner states, beliefs, or emotional patterns. These include BOTH positive and negative inner states — pride, gratitude, growing confidence, self-doubt, longing, or unresolved feelings.
 Extract these when the user expresses an emotional state that goes deeper than a momentary mood.
-Example: "I keep wondering if I'm actually good enough for this role" → theme: "self-doubt about competence", intensity: "strong", context: "work role"
+Examples:
+- "I keep wondering if I'm actually good enough for this role" → theme: "self-doubt about competence", intensity: "strong", context: "work role"
+- "I'm starting to feel like I actually belong here" → theme: "growing sense of belonging", intensity: "moderate", context: "work"
+- "Every time I make something with my hands I feel like myself again" → theme: "creative fulfillment as identity", intensity: "strong", context: "hobbies"
 
-Only extract emotional themes when the language carries genuine emotional weight. "Work was fine" is NOT a theme. "I can't shake this feeling that I'm falling behind" IS.
+Only extract emotional themes when the language carries genuine emotional weight. "Work was fine" is NOT a theme. "I can't shake this feeling that I'm falling behind" IS. "I genuinely feel proud of how I handled that" also IS.
 
 Rules:
 1. Every signal MUST have a direct quote from the transcript as evidence
@@ -60,7 +66,7 @@ Rules:
 5. Normalize values to lowercase
 6. Prioritize behavioral_link and emotional_theme signals — these are more valuable than flat signals
 7. A single passage can produce both a flat signal AND a behavioral_link or emotional_theme
-8. Be selective with emotional_theme: only extract when the language shows real emotional weight, conflict, or recurring concern
+8. Be selective with emotional_theme: only extract when the language shows real emotional weight — positive (pride, gratitude, growth) or negative (doubt, frustration, loss). Neutral observations are not themes
 
 Return JSON only:
 {"signals": [
