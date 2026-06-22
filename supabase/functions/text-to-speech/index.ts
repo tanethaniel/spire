@@ -11,7 +11,7 @@ const corsHeaders = {
 // Warm, calm narrator for a journaling app. Both are overridable via secrets.
 const DEFAULT_VOICE = Deno.env.get('OPENAI_TTS_VOICE') || 'shimmer';
 const DEFAULT_MODEL = Deno.env.get('OPENAI_TTS_MODEL') || 'gpt-4o-mini-tts';
-const TONE = 'You are a close friend catching up over coffee. Speak naturally and conversationally — use soft "so...", "hmm", and "yeah" where they fit. Let sentences breathe with real pauses, not metronomic ones. Vary your pacing: lean in on curious parts, ease back on reflective ones. Sound like a person thinking out loud with someone, not reading a script.';
+const TONE = 'Begin speaking immediately with no leading silence. You are a close friend catching up over coffee. Speak naturally and conversationally. Vary your pacing: lean in on curious parts, ease back on reflective ones. Sound like a person thinking out loud with someone, not reading a script.';
 const MAX_TTS_PER_DAY = 50;
 
 serve(async (req) => {
