@@ -9,15 +9,8 @@ interface HomePageProps {
   userName: string;
 }
 
-const TOPICS = [
-  { icon: '💼', label: 'Work', hint: 'Career, projects, colleagues' },
-  { icon: '🤝', label: 'People', hint: 'Friends, family, relationships' },
-  { icon: '🌿', label: 'Mind & body', hint: 'Health, energy, mood' },
-  { icon: '💭', label: 'On my mind', hint: 'Anything else' },
-];
 
 export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePageProps) {
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [sessionFormat, setSessionFormat] = useState<SessionFormat>('structured');
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -181,29 +174,6 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
           <span style={styles.flowLabel}>Branching</span>
           <span style={styles.flowSub}>Follow your lead</span>
         </button>
-      </div>
-
-      <div style={styles.divider}>
-        <div style={styles.dividerLine} />
-        <span style={styles.dividerText}>or choose a topic</span>
-        <div style={styles.dividerLine} />
-      </div>
-
-      <div style={styles.promptGrid}>
-        {TOPICS.map(t => (
-          <button
-            key={t.label}
-            style={{
-              ...styles.pill,
-              ...(selectedTopic === t.label ? styles.pillSelected : {}),
-            }}
-            onClick={() => setSelectedTopic(t.label)}
-          >
-            <span style={{ fontSize: 20 }}>{t.icon}</span>
-            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>{t.label}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.3 }}>{t.hint}</span>
-          </button>
-        ))}
       </div>
 
       <div style={styles.ctaArea}>
@@ -493,51 +463,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: 'var(--text-muted)',
     letterSpacing: '0.02em',
-  },
-  divider: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '0 24px',
-    margin: '0 0 16px',
-    flexShrink: 0,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    background: 'rgba(255,255,255,0.25)',
-  },
-  dividerText: {
-    fontSize: 12,
-    color: 'var(--text-ghost)',
-    letterSpacing: '0.05em',
-  },
-  promptGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 10,
-    padding: '0 24px',
-    marginBottom: 20,
-    flexShrink: 0,
-  },
-  pill: {
-    background: 'var(--bg-elevated)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1.5px solid var(--border-glass)',
-    borderTop: '1.5px solid rgba(255,255,255,0.35)',
-    borderRadius: 14,
-    boxShadow: 'var(--glass-shadow)',
-    padding: '16px 14px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 6,
-    textAlign: 'left' as const,
-    transition: 'all 0.15s',
-  },
-  pillSelected: {
-    borderColor: 'var(--accent-primary)',
-    background: 'rgba(107,191,168,0.12)',
   },
   ctaArea: {
     padding: '0 24px',
