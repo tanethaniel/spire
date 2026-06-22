@@ -210,8 +210,7 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
               onClick={() => {
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
-                yesterday.setHours(21, 0, 0, 0);
-                const isoDate = yesterday.toISOString();
+                const isoDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}T12:00:00.000Z`;
                 if (yesterdayEvents !== null) {
                   setShowDayPicker(false);
                   onStart(yesterdayEvents, isoDate, sessionFormat);
