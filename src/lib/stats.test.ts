@@ -7,7 +7,7 @@ describe('dayKey', () => {
   });
 
   it('zero-pads single-digit months and days', () => {
-    expect(dayKey(new Date('2026-01-03T00:00:00Z'))).toBe('2026-01-03');
+    expect(dayKey(new Date(2026, 0, 3))).toBe('2026-01-03');
   });
 });
 
