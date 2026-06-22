@@ -12,6 +12,27 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
+async function fetchWithAuth(url: string, options: RequestInit): Promise<Response> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(url, { ...options, headers: { ...options.headers, ...headers } });
+
+  if (res.status === 401) {
+    const { error } = await supabase.auth.refreshSession();
+    if (error) {
+      window.dispatchEvent(new CustomEvent('spire:auth-expired'));
+      return res;
+    }
+    const freshHeaders = await getAuthHeaders();
+    const retry = await fetch(url, { ...options, headers: { ...options.headers, ...freshHeaders } });
+    if (retry.status === 401) {
+      window.dispatchEvent(new CustomEvent('spire:auth-expired'));
+    }
+    return retry;
+  }
+
+  return res;
+}
+
 // Calendar events are fetched server-side via the fetch-calendar edge function.
 // The Google provider token never persists in browser storage.
 export async function fetchCalendarEvents(targetDate?: Date): Promise<CalendarEvent[]> {
@@ -46,12 +67,10 @@ export async function fetchCalendarEvents(targetDate?: Date): Promise<CalendarEv
 }
 
 export async function textToSpeech(text: string, instructions?: string): Promise<ArrayBuffer> {
-  const headers = await getAuthHeaders();
   const body: Record<string, string> = { text };
   if (instructions) body.instructions = instructions;
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/text-to-speech`, {
+  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/text-to-speech`, {
     method: 'POST',
-    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`text-to-speech failed: ${res.status}`);
@@ -100,10 +119,8 @@ export async function analyzeSession(
   transcripts: (string | null)[],
   format?: SessionFormat,
 ): Promise<AnalysisResult> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/analyze-session`, {
+  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/analyze-session`, {
     method: 'POST',
-    headers,
     body: JSON.stringify({ transcripts, format }),
   });
   if (!res.ok) throw new Error(`analyze-session failed: ${res.status}`);
@@ -121,10 +138,8 @@ export async function generateFollowups(
   calendarEvents: CalendarEvent[] | null,
   targetDate: string | null,
 ): Promise<FollowUp[]> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-followups`, {
+  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/generate-followups`, {
     method: 'POST',
-    headers,
     body: JSON.stringify({
       open_transcript: openTranscript,
       calendar_events: calendarEvents,
@@ -313,10 +328,8 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
 // --- Signal Extraction & Pattern Generation ---
 
 export async function extractEntrySignals(entryId: string): Promise<void> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/extract-entry-signals`, {
+  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/extract-entry-signals`, {
     method: 'POST',
-    headers,
     body: JSON.stringify({ entry_id: entryId }),
   });
   if (!res.ok) {
@@ -328,10 +341,8 @@ export async function refreshPatternSlots(
   action: 'refresh' | 'save' | 'dismiss' = 'refresh',
   patternId?: string,
 ): Promise<PatternNote[]> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/manage-pattern-slots`, {
+  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/manage-pattern-slots`, {
     method: 'POST',
-    headers,
     body: JSON.stringify({ action, pattern_id: patternId }),
   });
   if (!res.ok) {
@@ -343,10 +354,8 @@ export async function refreshPatternSlots(
 }
 
 export async function matchPatternEvidence(entryId: string): Promise<void> {
-  const headers = await getAuthHeaders();
-  await fetch(`${EDGE_FUNCTION_BASE}/match-pattern-evidence`, {
+  await fetchWithAuth(`${EDGE_FUNCTION_BASE}/match-pattern-evidence`, {
     method: 'POST',
-    headers,
     body: JSON.stringify({ entry_id: entryId }),
   });
 }
@@ -414,10 +423,8 @@ export async function updatePatternStatus(
 }
 
 export async function deleteAccount(): Promise<void> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${EDGE_FUNCTION_BASE}/delete-account`, {
+  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/delete-account`, {
     method: 'POST',
-    headers,
     body: JSON.stringify({}),
   });
   if (!res.ok) {

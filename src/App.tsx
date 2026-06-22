@@ -73,6 +73,13 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Sign out when the global auth error handler detects an unrecoverable 401
+  useEffect(() => {
+    const handleAuthExpired = () => { supabase.auth.signOut(); };
+    window.addEventListener('spire:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('spire:auth-expired', handleAuthExpired);
+  }, []);
+
   const authed = !!authSession;
   const { status: micStatus, requestMic } = useMicPermission();
   const [showMicPrompt, setShowMicPrompt] = useState(false);
