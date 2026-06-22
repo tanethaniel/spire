@@ -38,7 +38,7 @@ Return a JSON object with this exact shape:
 
 - question: The follow-up question (one sentence)
 - subPrompt: A brief encouragement shown below the question (5-10 words max, e.g., "Whatever comes to mind.", "Take your time.")
-- toneInstruction: TTS voice direction (e.g., "Speak warmly and curiously, like you genuinely want to know more. Pause naturally.")
+- toneInstruction: TTS voice direction (e.g., "Sound like a friend leaning in — genuinely curious, unhurried. Let the question land with a natural pause at the end.")
 
 Return ONLY the JSON object, no other text.`;
 
@@ -146,7 +146,7 @@ serve(async (req) => {
             subPrompt: typeof f.subPrompt === 'string' ? f.subPrompt.trim().slice(0, 100) : 'Whatever comes to mind.',
             toneInstruction: typeof f.toneInstruction === 'string'
               ? f.toneInstruction.trim().slice(0, 300)
-              : 'Speak warmly and curiously, pausing naturally between phrases.',
+              : 'Sound like a friend leaning in — genuinely curious, unhurried. Let the question breathe.',
           }))
       : [];
 
