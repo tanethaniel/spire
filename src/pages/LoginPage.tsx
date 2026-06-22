@@ -1,9 +1,28 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+type AuthMode = 'signin' | 'signup';
+
+function mapAuthError(error: { message: string }): string {
+  const msg = error.message;
+  if (msg.includes('Invalid login credentials')) return 'Email or password is incorrect';
+  if (msg.includes('Email not confirmed')) return 'Check your email for a confirmation link';
+  if (msg.includes('already registered')) return 'An account with this email already exists. Try signing in.';
+  if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to fetch'))
+    return 'Connection failed. Check your internet and try again.';
+  return msg;
+}
+
 export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const handleGoogleSignIn = async () => {
     setError(null);
@@ -27,6 +46,32 @@ export function LoginPage() {
     }
   };
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setEmailLoading(true);
+
+    try {
+      if (mode === 'signup') {
+        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        if (signUpError) {
+          setError(mapAuthError(signUpError));
+        } else {
+          setEmailSent(true);
+        }
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          setError(mapAuthError(signInError));
+        }
+      }
+    } catch {
+      setError('Connection failed. Check your internet and try again.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.content}>
@@ -47,9 +92,74 @@ export function LoginPage() {
           {loading ? 'Signing in…' : 'Continue with Google'}
         </button>
 
+        {/* Divider */}
+        <div style={styles.divider}>
+          <div style={styles.dividerLine} />
+          <span style={styles.dividerText}>or</span>
+          <div style={styles.dividerLine} />
+        </div>
+
+        {/* Email/Password Form */}
+        {emailSent ? (
+          <div style={styles.emailSentMsg}>Check your email for a confirmation link</div>
+        ) : (
+          <form onSubmit={handleEmailSubmit} style={styles.form}>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              style={{
+                ...styles.input,
+                ...(focusedField === 'email' ? styles.inputFocus : {}),
+              }}
+              onFocus={() => setFocusedField('email')}
+              onBlur={() => setFocusedField(null)}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              minLength={6}
+              style={{
+                ...styles.input,
+                ...(focusedField === 'password' ? styles.inputFocus : {}),
+              }}
+              onFocus={() => setFocusedField('password')}
+              onBlur={() => setFocusedField(null)}
+            />
+            <button
+              type="submit"
+              disabled={emailLoading}
+              style={styles.submitBtn}
+            >
+              {emailLoading
+                ? (mode === 'signup' ? 'Creating account…' : 'Signing in…')
+                : (mode === 'signup' ? 'Create account' : 'Sign in')}
+            </button>
+          </form>
+        )}
+
+        {/* Toggle mode */}
+        {!emailSent && (
+          <button
+            type="button"
+            style={styles.toggleLink}
+            onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); }}
+          >
+            {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          </button>
+        )}
+
         {error && (
           <div style={{ fontSize: 13, color: 'var(--error)', marginTop: 12 }}>{error}</div>
         )}
+
+        {/* Note about Google */}
+        <p style={styles.googleNote}>Connect Google later for calendar integration</p>
 
         <p style={styles.privacy}>
           Sign in to connect your calendar and start reflecting.
@@ -106,10 +216,78 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'all 0.15s',
   },
+  divider: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    margin: '20px 0',
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    background: 'rgba(255,255,255,0.3)',
+  },
+  dividerText: {
+    fontSize: 13,
+    color: 'var(--text-muted)',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 10,
+  },
+  input: {
+    width: '100%',
+    background: 'rgba(255,255,255,0.15)',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: 12,
+    padding: '12px 16px',
+    fontSize: 15,
+    color: '#1A2026',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+    transition: 'border-color 0.15s',
+  },
+  inputFocus: {
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  submitBtn: {
+    width: '100%',
+    padding: 16,
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 16,
+    fontSize: 16,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    boxShadow: 'var(--glass-shadow-lg)',
+  },
+  toggleLink: {
+    fontSize: 13,
+    color: 'var(--text-muted)',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    marginTop: 12,
+    textDecoration: 'none',
+  },
+  emailSentMsg: {
+    fontSize: 15,
+    color: 'var(--accent-primary)',
+    fontWeight: 600,
+    padding: '16px 0',
+  },
+  googleNote: {
+    fontSize: 12,
+    color: 'var(--text-ghost)',
+    marginTop: 16,
+  },
   privacy: {
     fontSize: 12,
     color: 'var(--text-ghost)',
-    marginTop: 20,
+    marginTop: 12,
     lineHeight: 1.6,
   },
 };
