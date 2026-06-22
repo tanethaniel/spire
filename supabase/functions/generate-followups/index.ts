@@ -10,7 +10,7 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `You are a journaling companion deciding what follow-up questions to ask after someone shares about their day. You will receive their initial open-ended response about what they did today.
 
-Your job: figure out what dimensions are missing and generate 0-3 follow-up questions.
+Your job: figure out what dimensions are missing and generate 0-6 follow-up questions.
 
 ## Dimensions to check
 - **Activities**: Did they describe what they did? (usually yes since the opener asks this)
@@ -30,7 +30,7 @@ Your job: figure out what dimensions are missing and generate 0-3 follow-up ques
 7. Vary the question style: "What was going through your mind when...", "Was there a moment that stood out...", "How are you feeling about...", "What did you take away from...", "Tell me more about..."
 8. Keep questions short and conversational — one sentence, no preamble.
 9. The final follow-up can be a gentle "Anything else on your mind?" if appropriate, but only if the user seems to have more to say.
-10. Maximum 3 follow-ups. Often 1-2 is plenty.
+10. Maximum 6 follow-ups. Often 2-4 is plenty. Use more when the user's response is rich with threads worth exploring.
 
 ## Output format
 Return a JSON object with this exact shape:
@@ -105,7 +105,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 512,
+        max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -140,7 +140,7 @@ serve(async (req) => {
     const followups = Array.isArray(parsed.followups)
       ? parsed.followups
           .filter((f: unknown) => typeof f === 'object' && f !== null && typeof (f as Record<string, unknown>).question === 'string')
-          .slice(0, 3)
+          .slice(0, 6)
           .map((f: Record<string, unknown>) => ({
             question: String(f.question).trim().slice(0, 300),
             subPrompt: typeof f.subPrompt === 'string' ? f.subPrompt.trim().slice(0, 100) : 'Whatever comes to mind.',
