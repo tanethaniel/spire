@@ -515,7 +515,7 @@ const styles: Record<string, React.CSSProperties> = {
     paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 4,
   },
   deleteBtn: {
-    background: 'none', border: 'none', fontSize: 13, color: 'var(--text-ghost)',
+    background: 'none', border: 'none', fontSize: 13, color: 'var(--error)',
     padding: '8px 0', cursor: 'pointer',
   },
   confirmRow: {

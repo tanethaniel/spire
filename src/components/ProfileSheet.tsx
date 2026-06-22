@@ -298,7 +298,7 @@ export function ProfileSheet({ user, stats, interpretationEnabled, onToggle, mbt
                 Cancel
               </button>
               <button
-                style={{ ...styles.confirmProceed, opacity: deleteLoading ? 0.5 : 1 }}
+                style={{ ...styles.confirmProceed, background: 'var(--error)', boxShadow: '0 2px 8px rgba(212,117,106,0.25)', opacity: deleteLoading ? 0.5 : 1 }}
                 disabled={deleteLoading}
                 onClick={async () => {
                   setDeleteLoading(true);

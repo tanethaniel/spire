@@ -445,8 +445,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   flowTileSelected: {
-    borderColor: 'var(--accent-primary)',
-    background: 'rgba(107,191,168,0.12)',
+    borderColor: 'rgba(255,255,255,0.35)',
+    background: 'rgba(255,255,255,0.12)',
   },
   flowIcon: {
     display: 'flex',
