@@ -381,7 +381,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minHeight: 0,
     padding: '0 24px',
-    marginBottom: 12,
+    marginBottom: 0,
   },
   calendarHeader: {
     display: 'flex',
@@ -439,13 +439,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-muted)',
   },
   eventsScroll: {
-    flex: 1,
+    flex: '1 1 0',
     minHeight: 0,
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
     paddingRight: 2,
+    paddingBottom: 12,
   },
   eventBlock: {
     display: 'flex',
@@ -483,8 +484,8 @@ const styles: Record<string, React.CSSProperties> = {
   flowSelector: {
     display: 'flex',
     gap: 10,
-    padding: '0 24px',
-    marginBottom: 16,
+    padding: '12px 24px 0',
+    marginBottom: 12,
     flexShrink: 0,
   },
   flowTile: {
