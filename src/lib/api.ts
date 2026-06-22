@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { captureException } from './posthog';
 import type { CalendarEvent, JournalEntry, UserSettings, PatternNote, PatternFeedback, PatternStatus, SessionFormat } from '../types/session';
 
 const EDGE_FUNCTION_BASE = import.meta.env.VITE_SUPABASE_URL + '/functions/v1';
@@ -62,6 +63,7 @@ async function fetchWithRetry(
       }
     }
   }
+  captureException(lastError, { endpoint: url, retries: maxRetries });
   throw lastError;
 }
 

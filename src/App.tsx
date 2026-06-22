@@ -9,6 +9,7 @@ import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
 import { deleteJournalEntry, matchPatternEvidence } from './lib/api';
 import { cleanupStaleAudio } from './lib/audioDb';
+import { identifyUser, resetUser } from './lib/posthog';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { SessionPage } from './pages/SessionPage';
@@ -65,6 +66,8 @@ function App() {
         sessionStorage.removeItem('google_refresh_token');
       }
       setAuthSession(session);
+      if (session?.user) identifyUser(session.user.id);
+      else resetUser();
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
       }

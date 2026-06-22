@@ -1,4 +1,5 @@
 import React from 'react';
+import { captureException } from '../lib/posthog';
 
 interface State {
   hasError: boolean;
@@ -13,6 +14,7 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Stat
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack);
+    captureException(error, { componentStack: info.componentStack ?? undefined });
   }
 
   render() {
