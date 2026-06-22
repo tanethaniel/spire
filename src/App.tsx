@@ -7,7 +7,7 @@ import { useSettings } from './hooks/useSettings';
 import { usePatternNotes } from './hooks/usePatternNotes';
 import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
-import { deleteJournalEntry, matchPatternEvidence } from './lib/api';
+import { deleteJournalEntry } from './lib/api';
 import { cleanupStaleAudio } from './lib/audioDb';
 import { identifyUser, resetUser } from './lib/posthog';
 import { LoginPage } from './pages/LoginPage';

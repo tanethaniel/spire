@@ -21,6 +21,9 @@ function entry(
     keywordTags: null,
     eventContext: null,
     durationMs: null,
+    sessionFormat: null,
+    freeformTranscript: null,
+    followupTranscripts: null,
   };
 }
 
