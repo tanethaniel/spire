@@ -9,11 +9,42 @@ interface PatternNoteCardProps {
   saveDisabled?: boolean;
 }
 
-const CONFIDENCE_STYLE: Record<PatternConfidence, React.CSSProperties> = {
-  early_signal: { background: 'transparent', border: '1.5px solid var(--text-ghost)', width: 7, height: 7 },
-  emerging_pattern: { background: 'linear-gradient(135deg, var(--accent-primary) 50%, transparent 50%)', border: '1.5px solid var(--accent-primary)', width: 7, height: 7 },
-  strong_pattern: { background: 'var(--accent-primary)', border: '1.5px solid var(--accent-primary)', width: 7, height: 7 },
+const CONFIDENCE_DOT_COUNT: Record<PatternConfidence, number> = {
+  early_signal: 1,
+  emerging_pattern: 2,
+  strong_pattern: 3,
 };
+
+function ConfidenceDots({ confidence }: { confidence: PatternConfidence }) {
+  const count = CONFIDENCE_DOT_COUNT[confidence];
+  return (
+    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+      {[0, 1, 2].map(i => (
+        <div
+          key={i}
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: '50%',
+            background: i < count ? 'var(--accent-primary)' : 'var(--border-glass)',
+            transition: 'background 0.2s',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function UpdatedBadge() {
+  return (
+    <span style={styles.updatedBadge}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 4 23 10 17 10" />
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+      </svg>
+    </span>
+  );
+}
 
 export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabled }: PatternNoteCardProps) {
   const isDimmed = pattern.slotState === 'dimmed';
@@ -30,9 +61,9 @@ export function PatternNoteCard({ pattern, onOpen, onSave, onDismiss, saveDisabl
     >
       {/* Top row: confidence + actions */}
       <div style={styles.topRow}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ ...styles.confidenceDot, ...CONFIDENCE_STYLE[pattern.confidence], borderRadius: '50%' }} />
-          {pattern.hasNewEvidence && <div style={styles.updatedDot} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ConfidenceDots confidence={pattern.confidence} />
+          {pattern.hasNewEvidence && <UpdatedBadge />}
           {isDimmed && <span style={styles.fadingLabel}>Fading</span>}
         </div>
         <div style={styles.topActions} onClick={e => e.stopPropagation()}>
@@ -109,15 +140,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     padding: '3px 8px',
   },
-  confidenceDot: {
-    flexShrink: 0,
-    display: 'inline-block',
-  },
-  updatedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: 'var(--accent-primary)',
+  updatedBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    color: 'var(--accent-primary)',
     flexShrink: 0,
   },
   fadingLabel: {

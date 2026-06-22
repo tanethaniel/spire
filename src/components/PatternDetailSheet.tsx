@@ -7,10 +7,10 @@ const CONFIDENCE_LABELS: Record<PatternConfidence, string> = {
   strong_pattern: 'Strong pattern',
 };
 
-const CONFIDENCE_COLORS: Record<PatternConfidence, string> = {
-  early_signal: 'var(--text-ghost)',
-  emerging_pattern: 'var(--accent-primary)',
-  strong_pattern: 'var(--accent-primary)',
+const CONFIDENCE_DOT_COUNT: Record<PatternConfidence, number> = {
+  early_signal: 1,
+  emerging_pattern: 2,
+  strong_pattern: 3,
 };
 
 interface PatternDetailSheetProps {
@@ -94,7 +94,20 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
 
         {/* Confidence + evidence summary */}
         <div style={styles.evidenceSummary}>
-          <span style={{ color: CONFIDENCE_COLORS[pattern.confidence], fontWeight: 600 }}>
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center', marginRight: 6 }}>
+            {[0, 1, 2].map(i => (
+              <div
+                key={i}
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: i < CONFIDENCE_DOT_COUNT[pattern.confidence] ? 'var(--accent-primary)' : 'rgba(0,0,0,0.1)',
+                }}
+              />
+            ))}
+          </div>
+          <span style={{ fontWeight: 600, color: '#3A4248' }}>
             {CONFIDENCE_LABELS[pattern.confidence]}
           </span>
           <span style={{ color: 'var(--text-ghost)', margin: '0 6px' }}>&middot;</span>
@@ -105,7 +118,11 @@ export function PatternDetailSheet({ pattern, open, onClose, onFeedback, onSave,
           {pattern.hasNewEvidence && (
             <>
               <span style={{ color: 'var(--text-ghost)', margin: '0 6px' }}>&middot;</span>
-              <span style={{ color: 'var(--accent-primary)' }}>Updated with new reflections</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span style={{ color: 'var(--accent-primary)', marginLeft: 4 }}>Updated</span>
             </>
           )}
         </div>
