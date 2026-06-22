@@ -1,13 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
-import { SessionState, type CalendarEvent, type QuestionRound, type SessionData, QUESTIONS, getQ1WithContext } from '../types/session';
+import { SessionState, type CalendarEvent, type QuestionRound, type SessionData, type SessionFormat, QUESTIONS, getQ1WithContext } from '../types/session';
 import { getSupportedMimeType } from '../lib/audio';
 import { saveAudio, deleteAudio } from '../lib/audioDb';
-import { processEntry, analyzeSession, saveJournalEntry, extractEntrySignals, matchPatternEvidence } from '../lib/api';
+import { processEntry, analyzeSession, saveJournalEntry, extractEntrySignals, matchPatternEvidence, generateFollowups } from '../lib/api';
 import { trackEvent } from '../lib/events';
 
-function createInitialRounds(): QuestionRound[] {
+function createGuidedRounds(): QuestionRound[] {
   return QUESTIONS.map((q, i) => ({
     index: i,
+    roundType: 'guided' as const,
     question: q.question,
     subPrompt: q.subPrompt,
     toneInstruction: q.toneInstruction,
@@ -17,14 +18,34 @@ function createInitialRounds(): QuestionRound[] {
   }));
 }
 
+function createBranchingRounds(events: CalendarEvent[] | null, isYesterday: boolean): QuestionRound[] {
+  const q1 = getQ1WithContext(events, isYesterday);
+  return [{
+    index: 0,
+    roundType: 'open' as const,
+    question: q1.question,
+    subPrompt: q1.subPrompt,
+    toneInstruction: 'Speak like you\'re greeting a close friend you haven\'t seen all day. Warm, relaxed, genuinely curious. Let the words breathe — pause naturally between phrases. Don\'t rush the ending, let it trail off gently like a real question.',
+    transcript: null,
+    audioKey: null,
+    status: 'pending',
+  }];
+}
+
+function createInitialRounds(): QuestionRound[] {
+  return createGuidedRounds();
+}
+
 export type PatternGenPromise = Promise<void> | null;
 
 export function useSession() {
   const [session, setSession] = useState<SessionData>({
     state: SessionState.IDLE,
     sessionId: null,
+    sessionFormat: 'structured',
     currentQuestion: 0,
     rounds: createInitialRounds(),
+    followUpCount: 0,
     calendarEvents: null,
     themes: null,
     insight: null,
@@ -41,9 +62,8 @@ export function useSession() {
   const recordStartRef = useRef<number>(0);
   const analysisRanRef = useRef(false);
   const patternGenRef = useRef<PatternGenPromise>(null);
+  const sessionFormatRef = useRef<SessionFormat>('structured');
 
-  // Keep refs in sync so runAnalysis always reads fresh data without
-  // needing session.rounds/startedAt/calendarEvents in its dep array.
   const roundsRef = useRef(session.rounds);
   const startedAtRef = useRef(session.startedAt);
   const calendarEventsRef = useRef(session.calendarEvents);
@@ -54,6 +74,7 @@ export function useSession() {
   calendarEventsRef.current = session.calendarEvents;
   sessionIdRef.current = session.sessionId;
   targetDateRef.current = session.targetDate;
+  sessionFormatRef.current = session.sessionFormat;
 
   const updateRound = useCallback((index: number, updates: Partial<QuestionRound>) => {
     setSession(prev => ({
@@ -73,14 +94,27 @@ export function useSession() {
     }));
   }, []);
 
-  const startSession = useCallback((targetDate?: string | null) => {
+  const startSession = useCallback((targetDate?: string | null, format: SessionFormat = 'structured') => {
     trackEvent({ event: 'session_open' });
+    const isYesterday = !!targetDate;
+    const rounds = format === 'branching'
+      ? createBranchingRounds(calendarEventsRef.current, isYesterday)
+      : createGuidedRounds();
+
+    if (format === 'structured' && calendarEventsRef.current) {
+      const q1 = getQ1WithContext(calendarEventsRef.current, isYesterday);
+      rounds[0] = { ...rounds[0], question: q1.question, subPrompt: q1.subPrompt };
+    }
+
     setSession(prev => ({
       ...prev,
       state: SessionState.TTS_PLAYING,
       sessionId: crypto.randomUUID(),
+      sessionFormat: format,
       startedAt: new Date().toISOString(),
       currentQuestion: 0,
+      rounds,
+      followUpCount: 0,
       targetDate: targetDate ?? null,
     }));
   }, []);
@@ -96,7 +130,67 @@ export function useSession() {
         ),
       };
     });
-    // The component will transition to ready-to-record after TTS audio ends
+  }, []);
+
+  const advanceAfterTranscription = useCallback((idx: number) => {
+    setSession(prev => {
+      if (prev.currentQuestion !== idx) return prev;
+
+      if (prev.sessionFormat === 'branching' && idx === 0) {
+        return { ...prev, state: SessionState.GENERATING_FOLLOWUPS };
+      }
+
+      const next = idx + 1;
+      const totalRounds = prev.rounds.length;
+      if (next >= totalRounds) {
+        return { ...prev, state: SessionState.ANALYZING, currentQuestion: next };
+      }
+      return { ...prev, state: SessionState.TTS_PLAYING, currentQuestion: next };
+    });
+  }, []);
+
+  const handleFollowupGeneration = useCallback(async () => {
+    const rounds = roundsRef.current;
+    const openTranscript = rounds[0]?.transcript;
+    if (!openTranscript) {
+      setSession(prev => ({ ...prev, state: SessionState.ANALYZING }));
+      return;
+    }
+
+    try {
+      const followups = await generateFollowups(
+        openTranscript,
+        calendarEventsRef.current,
+        targetDateRef.current,
+      );
+
+      if (followups.length === 0) {
+        setSession(prev => ({ ...prev, state: SessionState.ANALYZING }));
+        return;
+      }
+
+      const newRounds: QuestionRound[] = followups.map((f, i) => ({
+        index: 1 + i,
+        roundType: 'followup' as const,
+        question: f.question,
+        subPrompt: f.subPrompt,
+        toneInstruction: f.toneInstruction,
+        transcript: null,
+        audioKey: null,
+        status: 'pending' as const,
+      }));
+
+      setSession(prev => ({
+        ...prev,
+        state: SessionState.TTS_PLAYING,
+        currentQuestion: 1,
+        rounds: [...prev.rounds, ...newRounds],
+        followUpCount: followups.length,
+      }));
+    } catch (err) {
+      console.error('[followups] generation failed, skipping to analysis:', err);
+      setSession(prev => ({ ...prev, state: SessionState.ANALYZING }));
+    }
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -137,7 +231,6 @@ export function useSession() {
 
         trackEvent({ event: 'question_completed', question_index: idx, duration_ms: duration });
 
-        // Background transcription
         try {
           const { transcript } = await processEntry(blob, idx, mimeType);
           updateRound(idx, { transcript, status: 'done', transcriptFailed: false });
@@ -149,14 +242,7 @@ export function useSession() {
           return;
         }
 
-        setSession(prev => {
-          if (prev.currentQuestion !== idx) return prev;
-          const next = idx + 1;
-          if (next >= QUESTIONS.length) {
-            return { ...prev, state: SessionState.ANALYZING, currentQuestion: next };
-          }
-          return { ...prev, state: SessionState.TTS_PLAYING, currentQuestion: next };
-        });
+        advanceAfterTranscription(idx);
       };
 
       mediaRecorderRef.current = recorder;
@@ -164,7 +250,7 @@ export function useSession() {
     } catch {
       setSession(prev => ({ ...prev, state: SessionState.ERROR }));
     }
-  }, [session.currentQuestion, updateRound]);
+  }, [session.currentQuestion, updateRound, advanceAfterTranscription]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') {
@@ -178,8 +264,12 @@ export function useSession() {
     updateRound(idx, { status: 'skipped' });
 
     setSession(prev => {
+      if (prev.sessionFormat === 'branching' && idx === 0) {
+        return { ...prev, state: SessionState.ANALYZING, currentQuestion: idx + 1 };
+      }
       const next = prev.currentQuestion + 1;
-      if (next >= QUESTIONS.length) {
+      const totalRounds = prev.rounds.length;
+      if (next >= totalRounds) {
         return { ...prev, state: SessionState.ANALYZING, currentQuestion: next };
       }
       return { ...prev, state: SessionState.TTS_PLAYING, currentQuestion: next };
@@ -191,22 +281,25 @@ export function useSession() {
     updateRound(questionIndex, { transcript: text, status: 'done', transcriptFailed: false });
 
     setSession(prev => {
+      if (prev.sessionFormat === 'branching' && questionIndex === 0) {
+        return { ...prev, state: SessionState.GENERATING_FOLLOWUPS };
+      }
       const next = prev.currentQuestion + 1;
-      if (next >= QUESTIONS.length) {
+      const totalRounds = prev.rounds.length;
+      if (next >= totalRounds) {
         return { ...prev, state: SessionState.ANALYZING, currentQuestion: next };
       }
       return { ...prev, state: SessionState.TTS_PLAYING, currentQuestion: next };
     });
   }, [updateRound]);
 
-  // Always run AI analysis to populate mood/tags/themes — these feed the
-  // pattern pipeline. The `interpret` flag controls whether insights are
-  // shown to the user on the result screen, not whether analysis happens.
   const runAnalysis = useCallback(async (interpret: boolean) => {
     if (analysisRanRef.current) return;
     analysisRanRef.current = true;
 
-    const transcripts = roundsRef.current.map(r => r.transcript);
+    const rounds = roundsRef.current;
+    const format = sessionFormatRef.current;
+    const transcripts = rounds.map(r => r.transcript);
     const calendarEvents = calendarEventsRef.current;
     const startedAt = startedAtRef.current;
     const sessionId = sessionIdRef.current ?? crypto.randomUUID();
@@ -239,13 +332,12 @@ export function useSession() {
     } = { themes: null, insight: null, mood_score: null, emotion_tag: null, activity_tags: null, summary: null, keyword_tags: null };
 
     try {
-      const result = await analyzeSession(transcripts);
+      const result = await analyzeSession(transcripts, format);
       analysis = result;
     } catch (err) {
       console.error('[runAnalysis] analysis failed, saving entry without analysis:', err);
     }
 
-    // In Log mode, show result without insights; in Interpreted mode, show them
     setSession(prev => ({
       ...prev,
       state: SessionState.RESULT,
@@ -255,7 +347,7 @@ export function useSession() {
       crisisFlag: analysis.crisis_flag === true,
     }));
 
-    const entryId = await saveJournalEntry({
+    const savePayload: Parameters<typeof saveJournalEntry>[0] = {
       sessionId,
       transcripts,
       themes: analysis.themes,
@@ -268,7 +360,17 @@ export function useSession() {
       event_context: calendarEvents,
       duration_ms: durationMs,
       targetDate: targetDateRef.current,
-    });
+      session_format: format,
+    };
+
+    if (format === 'branching') {
+      savePayload.freeform_transcript = rounds[0]?.transcript ?? null;
+      savePayload.followup_transcripts = rounds
+        .filter(r => r.roundType === 'followup' && r.transcript)
+        .map(r => ({ question: r.question, transcript: r.transcript! }));
+    }
+
+    const entryId = await saveJournalEntry(savePayload);
 
     trackEvent({ event: 'session_completed', duration_ms: durationMs });
     triggerPatterns(entryId);
@@ -277,7 +379,6 @@ export function useSession() {
   const resetSession = useCallback(() => {
     analysisRanRef.current = false;
 
-    // Stop mic and recorder if still active
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
@@ -290,8 +391,10 @@ export function useSession() {
     setSession({
       state: SessionState.IDLE,
       sessionId: null,
+      sessionFormat: 'structured',
       currentQuestion: 0,
       rounds: createInitialRounds(),
+      followUpCount: 0,
       calendarEvents: null,
       themes: null,
       insight: null,
@@ -320,5 +423,6 @@ export function useSession() {
     resetSession,
     clearRecordingError,
     patternGenRef,
+    handleFollowupGeneration,
   };
 }

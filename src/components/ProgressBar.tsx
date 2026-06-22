@@ -1,19 +1,27 @@
 import { QUESTIONS } from '../types/session';
+import type { SessionFormat } from '../types/session';
 
 interface ProgressBarProps {
   currentQuestion: number;
   onBack: () => void;
+  sessionFormat?: SessionFormat;
+  totalRounds?: number;
 }
 
-export function ProgressBar({ currentQuestion, onBack }: ProgressBarProps) {
-  const total = QUESTIONS.length;
+export function ProgressBar({ currentQuestion, onBack, sessionFormat = 'structured', totalRounds }: ProgressBarProps) {
+  const isBranching = sessionFormat === 'branching';
+  const total = isBranching ? (totalRounds ?? 1) : QUESTIONS.length;
   const pct = ((Math.min(currentQuestion, total - 1) + 1) / total) * 100;
+
+  const label = isBranching
+    ? (currentQuestion === 0 ? 'Open reflection' : `Follow-up ${currentQuestion} of ${total - 1}`)
+    : `Question ${Math.min(currentQuestion + 1, total)} of ${total}`;
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <button onClick={onBack} style={styles.back}>‹ Back</button>
-        <span style={styles.label}>Question {Math.min(currentQuestion + 1, total)} of {total}</span>
+        <button onClick={onBack} style={styles.back}>&#8249; Back</button>
+        <span style={styles.label}>{label}</span>
       </div>
       <div style={styles.track}>
         <div style={{ ...styles.fill, width: `${pct}%` }} />

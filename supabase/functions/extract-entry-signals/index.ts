@@ -288,7 +288,7 @@ serve(async (req) => {
     // Fetch the journal entry and verify ownership
     const { data: entry, error: entryError } = await supabase
       .from('journal_entries')
-      .select('id, user_id, q1_transcript, q2_transcript, q3_transcript, q4_transcript, q5_transcript, q6_transcript')
+      .select('id, user_id, q1_transcript, q2_transcript, q3_transcript, q4_transcript, q5_transcript, q6_transcript, session_format, freeform_transcript, followup_transcripts')
       .eq('id', entryId)
       .single();
 
@@ -306,14 +306,25 @@ serve(async (req) => {
       });
     }
 
-    // Build transcript text from q1-q6 (skip nulls)
-    const transcripts: (string | null)[] = TRANSCRIPT_FIELDS.map(
-      (field) => entry[field] as string | null,
-    );
-    const filledTranscripts = transcripts
-      .map((t, i) => t ? `Q${i + 1}: ${t}` : null)
-      .filter(Boolean)
-      .join('\n\n');
+    // Build transcript text from either branching or structured format
+    let filledTranscripts: string;
+    if (entry.freeform_transcript) {
+      const parts: string[] = [`Open: ${entry.freeform_transcript}`];
+      const followups = Array.isArray(entry.followup_transcripts) ? entry.followup_transcripts : [];
+      for (let i = 0; i < followups.length; i++) {
+        const f = followups[i] as { transcript?: string };
+        if (f?.transcript) parts.push(`Follow-up ${i + 1}: ${f.transcript}`);
+      }
+      filledTranscripts = parts.join('\n\n');
+    } else {
+      const transcripts: (string | null)[] = TRANSCRIPT_FIELDS.map(
+        (field) => entry[field] as string | null,
+      );
+      filledTranscripts = transcripts
+        .map((t, i) => t ? `Q${i + 1}: ${t}` : null)
+        .filter(Boolean)
+        .join('\n\n');
+    }
 
     if (!filledTranscripts) {
       return new Response(JSON.stringify({ signals: [] }), {

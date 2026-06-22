@@ -6,6 +6,7 @@ export const SessionState = {
   TTS_PLAYING: 'TTS_PLAYING',
   RECORDING: 'RECORDING',
   BACKGROUND_TRANSCRIBING: 'BACKGROUND_TRANSCRIBING',
+  GENERATING_FOLLOWUPS: 'GENERATING_FOLLOWUPS',
   ANALYZING: 'ANALYZING',
   RESULT: 'RESULT',
   ERROR: 'ERROR',
@@ -18,8 +19,11 @@ export interface CalendarEvent {
   time: string;
 }
 
+export type SessionFormat = 'structured' | 'branching';
+
 export interface QuestionRound {
   index: number;
+  roundType: 'guided' | 'open' | 'followup';
   question: string;
   subPrompt: string;
   toneInstruction: string;
@@ -32,8 +36,10 @@ export interface QuestionRound {
 export interface SessionData {
   state: SessionState;
   sessionId: string | null;
+  sessionFormat: SessionFormat;
   currentQuestion: number;
   rounds: QuestionRound[];
+  followUpCount: number;
   calendarEvents: CalendarEvent[] | null;
   themes: string[] | null;
   insight: string | null;
@@ -84,6 +90,9 @@ export interface JournalEntry {
   keywordTags: string[] | null;  // richer tags for pattern recognition, null in Log mode
   eventContext: CalendarEvent[] | null;
   durationMs: number | null;
+  sessionFormat: SessionFormat | null;
+  freeformTranscript: string | null;
+  followupTranscripts: { question: string; transcript: string }[] | null;
 }
 
 // --- Pattern Notes types ---

@@ -61,6 +61,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const transcripts = body?.transcripts;
+    const format = body?.format ?? 'structured';
 
     if (!Array.isArray(transcripts)) {
       return new Response(JSON.stringify({ error: 'Invalid request' }), {
@@ -81,7 +82,13 @@ serve(async (req) => {
     // Build the transcript block — user content is clearly delimited and
     // labelled as data, not instructions, to defend against prompt injection
     const filledTranscripts = transcripts
-      .map((t: string | null, i: number) => t ? `Q${i + 1}: ${t}` : null)
+      .map((t: string | null, i: number) => {
+        if (!t) return null;
+        if (format === 'branching') {
+          return i === 0 ? `Open: ${t}` : `Follow-up ${i}: ${t}`;
+        }
+        return `Q${i + 1}: ${t}`;
+      })
       .filter(Boolean)
       .join('\n\n');
 

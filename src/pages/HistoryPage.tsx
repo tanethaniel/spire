@@ -252,7 +252,11 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
                         <span style={styles.durationBadge}>{Math.round(entry.durationMs / 60000)}m</span>
                       )}
                     </div>
-                    <div style={styles.meta}>{answeredCount} of 6 answered</div>
+                    <div style={styles.meta}>
+                      {entry.sessionFormat === 'branching'
+                        ? `Open entry${entry.followupTranscripts?.length ? ` + ${entry.followupTranscripts.length} follow-up${entry.followupTranscripts.length > 1 ? 's' : ''}` : ''}`
+                        : `${answeredCount} of 6 answered`}
+                    </div>
                   </div>
                   <span style={{ ...styles.chevron, transform: isOpen ? 'rotate(180deg)' : 'none' }}>∨</span>
                 </div>
@@ -268,24 +272,51 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
                         <div style={styles.summaryText}>{entry.summary}</div>
                       </div>
                     )}
-                    {entry.transcripts.map((t, i) =>
-                      t ? (
-                        <div key={i} style={styles.qRow}>
-                          <div
-                            style={styles.qRowHead}
-                            onClick={() => toggleQ(entry.id, i)}
-                          >
-                            <div style={styles.answerLabel}>Q{i + 1} · {Q_LABELS[i]}</div>
-                            <span style={{
-                              ...styles.qChevron,
-                              transform: isQExpanded(`${entry.id}-${i}`) ? 'rotate(180deg)' : 'none',
-                            }}>∨</span>
+                    {entry.sessionFormat === 'branching' ? (
+                      <>
+                        {entry.freeformTranscript && (
+                          <div style={styles.qRow}>
+                            <div style={styles.qRowHead} onClick={() => toggleQ(entry.id, 0)}>
+                              <div style={styles.answerLabel}>Open reflection</div>
+                              <span style={{ ...styles.qChevron, transform: isQExpanded(`${entry.id}-0`) ? 'rotate(180deg)' : 'none' }}>∨</span>
+                            </div>
+                            {isQExpanded(`${entry.id}-0`) && (
+                              <div style={styles.answerText}>{highlightText(entry.freeformTranscript, keyword)}</div>
+                            )}
                           </div>
-                          {isQExpanded(`${entry.id}-${i}`) && (
-                            <div style={styles.answerText}>{highlightText(t, keyword)}</div>
-                          )}
-                        </div>
-                      ) : null,
+                        )}
+                        {entry.followupTranscripts?.map((f, i) => (
+                          <div key={i + 1} style={styles.qRow}>
+                            <div style={styles.qRowHead} onClick={() => toggleQ(entry.id, i + 1)}>
+                              <div style={styles.answerLabel}>Follow-up {i + 1}</div>
+                              <span style={{ ...styles.qChevron, transform: isQExpanded(`${entry.id}-${i + 1}`) ? 'rotate(180deg)' : 'none' }}>∨</span>
+                            </div>
+                            {isQExpanded(`${entry.id}-${i + 1}`) && (
+                              <div style={styles.answerText}>{highlightText(f.transcript, keyword)}</div>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      entry.transcripts.map((t, i) =>
+                        t ? (
+                          <div key={i} style={styles.qRow}>
+                            <div
+                              style={styles.qRowHead}
+                              onClick={() => toggleQ(entry.id, i)}
+                            >
+                              <div style={styles.answerLabel}>Q{i + 1} · {Q_LABELS[i]}</div>
+                              <span style={{
+                                ...styles.qChevron,
+                                transform: isQExpanded(`${entry.id}-${i}`) ? 'rotate(180deg)' : 'none',
+                              }}>∨</span>
+                            </div>
+                            {isQExpanded(`${entry.id}-${i}`) && (
+                              <div style={styles.answerText}>{highlightText(t, keyword)}</div>
+                            )}
+                          </div>
+                        ) : null,
+                      )
                     )}
                     <div style={styles.deleteArea}>
                       {confirmDelete === entry.id ? (

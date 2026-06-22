@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { CalendarEvent, JournalEntry, UserSettings, PatternNote, PatternFeedback, PatternStatus } from '../types/session';
+import type { CalendarEvent, JournalEntry, UserSettings, PatternNote, PatternFeedback, PatternStatus, SessionFormat } from '../types/session';
 
 const EDGE_FUNCTION_BASE = import.meta.env.VITE_SUPABASE_URL + '/functions/v1';
 
@@ -98,15 +98,42 @@ export interface AnalysisResult {
 
 export async function analyzeSession(
   transcripts: (string | null)[],
+  format?: SessionFormat,
 ): Promise<AnalysisResult> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${EDGE_FUNCTION_BASE}/analyze-session`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ transcripts }),
+    body: JSON.stringify({ transcripts, format }),
   });
   if (!res.ok) throw new Error(`analyze-session failed: ${res.status}`);
   return res.json();
+}
+
+export interface FollowUp {
+  question: string;
+  subPrompt: string;
+  toneInstruction: string;
+}
+
+export async function generateFollowups(
+  openTranscript: string,
+  calendarEvents: CalendarEvent[] | null,
+  targetDate: string | null,
+): Promise<FollowUp[]> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${EDGE_FUNCTION_BASE}/generate-followups`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      open_transcript: openTranscript,
+      calendar_events: calendarEvents,
+      target_date: targetDate,
+    }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data?.followups) ? data.followups : [];
 }
 
 export async function saveJournalEntry(entry: {
@@ -122,6 +149,9 @@ export async function saveJournalEntry(entry: {
   event_context: CalendarEvent[] | null;
   duration_ms: number;
   targetDate?: string | null;
+  session_format?: SessionFormat;
+  freeform_transcript?: string | null;
+  followup_transcripts?: { question: string; transcript: string }[];
 }): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -151,9 +181,15 @@ export async function saveJournalEntry(entry: {
   if (entry.targetDate) {
     row.created_at = entry.targetDate;
   }
-  entry.transcripts.forEach((t, i) => {
-    row[`q${i + 1}_transcript`] = t;
-  });
+  if (entry.session_format === 'branching') {
+    row.session_format = 'branching';
+    row.freeform_transcript = entry.freeform_transcript ?? null;
+    row.followup_transcripts = entry.followup_transcripts ?? [];
+  } else {
+    entry.transcripts.forEach((t, i) => {
+      row[`q${i + 1}_transcript`] = t;
+    });
+  }
 
   const { data, error } = await supabase.from('journal_entries').insert(row).select('id').single();
   if (error) throw error;
@@ -237,23 +273,31 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
     .order('created_at', { ascending: false });
   if (error) throw error;
 
-  const entries = (data ?? []).map((row): JournalEntry => ({
-    id: row.id,
-    createdAt: row.created_at,
-    transcripts: [
-      row.q1_transcript, row.q2_transcript, row.q3_transcript,
-      row.q4_transcript, row.q5_transcript, row.q6_transcript,
-    ],
-    themes: row.themes ? filterMetaThemes(row.themes) : row.themes,
-    insight: filterMetaInsight(row.insight),
-    moodScore: row.mood_score ?? null,
-    emotionTag: row.emotion_tag ?? null,
-    activityTags: row.activity_tags ?? null,
-    summary: filterMetaSummary(row.summary),
-    keywordTags: row.keyword_tags ?? null,
-    eventContext: row.event_context,
-    durationMs: row.duration_ms,
-  }));
+  const entries = (data ?? []).map((row): JournalEntry => {
+    const isBranching = row.session_format === 'branching';
+    const followups = Array.isArray(row.followup_transcripts) ? row.followup_transcripts : [];
+    const transcripts = isBranching
+      ? [row.freeform_transcript, ...followups.map((f: { transcript: string }) => f.transcript)]
+      : [row.q1_transcript, row.q2_transcript, row.q3_transcript, row.q4_transcript, row.q5_transcript, row.q6_transcript];
+
+    return {
+      id: row.id,
+      createdAt: row.created_at,
+      transcripts,
+      themes: row.themes ? filterMetaThemes(row.themes) : row.themes,
+      insight: filterMetaInsight(row.insight),
+      moodScore: row.mood_score ?? null,
+      emotionTag: row.emotion_tag ?? null,
+      activityTags: row.activity_tags ?? null,
+      summary: filterMetaSummary(row.summary),
+      keywordTags: row.keyword_tags ?? null,
+      eventContext: row.event_context,
+      durationMs: row.duration_ms,
+      sessionFormat: row.session_format ?? 'structured',
+      freeformTranscript: row.freeform_transcript ?? null,
+      followupTranscripts: followups.length > 0 ? followups : null,
+    };
+  });
 
   // Deduplicate: entries with identical transcripts on the same day are dupes
   const seen = new Set<string>();

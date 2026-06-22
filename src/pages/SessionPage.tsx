@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SessionState, QUESTIONS, type CalendarEvent, type QuestionRound, getQ1Categories } from '../types/session';
+import { SessionState, QUESTIONS, type CalendarEvent, type QuestionRound, type SessionFormat, getQ1Categories } from '../types/session';
 import { useTTS } from '../hooks/useTTS';
 import { ProgressBar } from '../components/ProgressBar';
 import { RecordButton } from '../components/RecordButton';
@@ -13,6 +13,8 @@ interface SessionPageProps {
   calendarEvents: CalendarEvent[] | null;
   recordingError: 'too_short' | 'transcription_failed' | null;
   micDenied?: boolean;
+  sessionFormat?: SessionFormat;
+  totalRounds?: number;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onSkip: () => void;
@@ -37,6 +39,8 @@ export function SessionPage({
   onClearRecordingError,
   onSubmitText,
   micDenied,
+  sessionFormat = 'structured',
+  totalRounds,
 }: SessionPageProps) {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -100,10 +104,12 @@ export function SessionPage({
       onTTSDone();
     }, round.toneInstruction);
 
-    // Pre-fetch next question's audio while this one plays
-    const next = currentQuestion + 1;
-    if (next < QUESTIONS.length) {
-      prefetch(QUESTIONS[next].question, next, QUESTIONS[next].toneInstruction);
+    // Pre-fetch next question's audio for guided mode (branching follow-ups are dynamic)
+    if (sessionFormat === 'structured') {
+      const next = currentQuestion + 1;
+      if (next < QUESTIONS.length) {
+        prefetch(QUESTIONS[next].question, next, QUESTIONS[next].toneInstruction);
+      }
     }
 
     return () => {
@@ -127,11 +133,31 @@ export function SessionPage({
     setLocked(true);
   }, []);
 
+  // Thinking screen for branching mode follow-up generation
+  if (state === SessionState.GENERATING_FOLLOWUPS) {
+    return (
+      <div style={styles.page}>
+        <ProgressBar currentQuestion={currentQuestion} onBack={onBack} sessionFormat={sessionFormat} totalRounds={totalRounds} />
+        <div style={styles.transitionScreen}>
+          <div style={styles.transitionIcon}>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <circle cx="8" cy="16" r="2.5" fill="var(--accent-primary)" style={{ animation: 'pulse 1.4s ease-in-out infinite' }} />
+              <circle cx="16" cy="16" r="2.5" fill="var(--accent-primary)" style={{ animation: 'pulse 1.4s ease-in-out 0.2s infinite' }} />
+              <circle cx="24" cy="16" r="2.5" fill="var(--accent-primary)" style={{ animation: 'pulse 1.4s ease-in-out 0.4s infinite' }} />
+            </svg>
+          </div>
+          <div style={styles.transitionTitle}>Reflecting on what you shared…</div>
+          <div style={styles.transitionSub}>Thinking about what to explore next</div>
+        </div>
+      </div>
+    );
+  }
+
   // Transition screen between questions
   if (isTranscribing) {
     return (
       <div style={styles.page}>
-        <ProgressBar currentQuestion={currentQuestion} onBack={onBack} />
+        <ProgressBar currentQuestion={currentQuestion} onBack={onBack} sessionFormat={sessionFormat} totalRounds={totalRounds} />
         <div style={styles.transitionScreen}>
           <div style={styles.transitionIcon}>
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -149,9 +175,14 @@ export function SessionPage({
     );
   }
 
+  const isBranching = sessionFormat === 'branching';
+  const qLabel = isBranching
+    ? (round.roundType === 'open' ? '' : `Follow-up ${currentQuestion}`)
+    : `Q${currentQuestion + 1}`;
+
   return (
     <div style={styles.page}>
-      <ProgressBar currentQuestion={currentQuestion} onBack={onBack} />
+      <ProgressBar currentQuestion={currentQuestion} onBack={onBack} sessionFormat={sessionFormat} totalRounds={totalRounds} />
 
       <div style={styles.questionArea}>
         {ttsPlaying && (
@@ -165,7 +196,7 @@ export function SessionPage({
           </div>
         )}
 
-        <div style={styles.qNumber}>Q{currentQuestion + 1}</div>
+        {qLabel && <div style={styles.qNumber}>{qLabel}</div>}
         <div style={styles.qText}>{round.question}</div>
         <div style={styles.qSub}>{round.subPrompt}</div>
 

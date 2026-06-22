@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { CalendarEvent } from '../types/session';
+import type { CalendarEvent, SessionFormat } from '../types/session';
 import { fetchCalendarEvents } from '../lib/api';
 
 interface HomePageProps {
-  onStart: (events: CalendarEvent[] | null, targetDate: string | null) => void;
+  onStart: (events: CalendarEvent[] | null, targetDate: string | null, format: SessionFormat) => void;
   onOpenProfile: () => void;
   avatarUrl: string | null;
   userName: string;
@@ -18,6 +18,7 @@ const TOPICS = [
 
 export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePageProps) {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [sessionFormat, setSessionFormat] = useState<SessionFormat>('structured');
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -147,6 +148,41 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
         )}
       </div>
 
+      <div style={styles.flowSelector}>
+        <button
+          style={{
+            ...styles.flowTile,
+            ...(sessionFormat === 'structured' ? styles.flowTileSelected : {}),
+          }}
+          onClick={() => setSessionFormat('structured')}
+        >
+          <span style={styles.flowIcon}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+            </svg>
+          </span>
+          <span style={styles.flowLabel}>Guided</span>
+          <span style={styles.flowSub}>6 questions</span>
+        </button>
+        <button
+          style={{
+            ...styles.flowTile,
+            ...(sessionFormat === 'branching' ? styles.flowTileSelected : {}),
+          }}
+          onClick={() => setSessionFormat('branching')}
+        >
+          <span style={styles.flowIcon}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="18" r="3" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="12" r="3" />
+              <path d="M8.59 13.51l5.82 3.98" /><path d="M8.59 10.49l5.82-3.98" />
+            </svg>
+          </span>
+          <span style={styles.flowLabel}>Branching</span>
+          <span style={styles.flowSub}>Follow your lead</span>
+        </button>
+      </div>
+
       <div style={styles.divider}>
         <div style={styles.dividerLine} />
         <span style={styles.dividerText}>or choose a topic</span>
@@ -189,7 +225,7 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
               style={styles.dayOption}
               onClick={() => {
                 setShowDayPicker(false);
-                onStart(calendarEvents, null);
+                onStart(calendarEvents, null, sessionFormat);
               }}
             >
               <div style={styles.dayOptionIcon}>☀️</div>
@@ -208,7 +244,7 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
                 const isoDate = yesterday.toISOString();
                 if (yesterdayEvents !== null) {
                   setShowDayPicker(false);
-                  onStart(yesterdayEvents, isoDate);
+                  onStart(yesterdayEvents, isoDate, sessionFormat);
                   return;
                 }
                 setYesterdayLoading(true);
@@ -216,11 +252,11 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
                   .then(events => {
                     setYesterdayEvents(events.length > 0 ? events : null);
                     setShowDayPicker(false);
-                    onStart(events.length > 0 ? events : null, isoDate);
+                    onStart(events.length > 0 ? events : null, isoDate, sessionFormat);
                   })
                   .catch(() => {
                     setShowDayPicker(false);
-                    onStart(null, isoDate);
+                    onStart(null, isoDate, sessionFormat);
                   })
                   .finally(() => setYesterdayLoading(false));
               }}
@@ -413,6 +449,50 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: 'var(--text-muted)',
     marginTop: 2,
+  },
+  flowSelector: {
+    display: 'flex',
+    gap: 10,
+    padding: '0 24px',
+    marginBottom: 16,
+    flexShrink: 0,
+  },
+  flowTile: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: 6,
+    padding: '14px 12px',
+    background: 'var(--bg-elevated)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1.5px solid var(--border-glass)',
+    borderTop: '1.5px solid rgba(255,255,255,0.35)',
+    borderRadius: 14,
+    boxShadow: 'var(--glass-shadow)',
+    transition: 'all 0.15s',
+    cursor: 'pointer',
+  },
+  flowTileSelected: {
+    borderColor: 'var(--accent-primary)',
+    background: 'rgba(107,191,168,0.12)',
+  },
+  flowIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'var(--text-muted)',
+  },
+  flowLabel: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--text-primary)',
+  },
+  flowSub: {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    letterSpacing: '0.02em',
   },
   divider: {
     display: 'flex',

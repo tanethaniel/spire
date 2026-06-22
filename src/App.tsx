@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { SessionState, type CalendarEvent } from './types/session';
+import { SessionState, type CalendarEvent, type SessionFormat } from './types/session';
 import { useSession } from './hooks/useSession';
 import { useMicPermission } from './hooks/useMicPermission';
 import { useSettings } from './hooks/useSettings';
@@ -107,16 +107,17 @@ function App() {
     resetSession,
     clearRecordingError,
     patternGenRef,
+    handleFollowupGeneration,
   } = useSession();
 
-  const pendingStartRef = useRef<{ events: CalendarEvent[] | null; targetDate: string | null } | null>(null);
+  const pendingStartRef = useRef<{ events: CalendarEvent[] | null; targetDate: string | null; format: SessionFormat } | null>(null);
 
-  const handleStart = useCallback(async (events: CalendarEvent[] | null, targetDate: string | null = null) => {
+  const handleStart = useCallback(async (events: CalendarEvent[] | null, targetDate: string | null = null, format: SessionFormat = 'structured') => {
     const isYesterday = !!targetDate;
     if (events) setCalendarEvents(events, isYesterday);
 
     if (micStatus !== 'granted') {
-      pendingStartRef.current = { events, targetDate };
+      pendingStartRef.current = { events, targetDate, format };
       const granted = await requestMic();
       if (!granted) {
         setShowMicPrompt(true);
@@ -124,7 +125,7 @@ function App() {
       }
     }
 
-    startSession(targetDate);
+    startSession(targetDate, format);
   }, [setCalendarEvents, startSession, micStatus, requestMic]);
 
   const handleSessionComplete = useCallback(() => {
@@ -153,13 +154,16 @@ function App() {
   const effectiveView: AppView = view;
 
   useEffect(() => {
+    if (session.state === SessionState.GENERATING_FOLLOWUPS) {
+      handleFollowupGeneration();
+    }
     if (session.state === SessionState.ANALYZING) {
       if (micStream) {
         micStream.getTracks().forEach(t => t.stop());
       }
       runAnalysis(interpretationEnabled);
     }
-  }, [session.state, interpretationEnabled, runAnalysis, micStream]);
+  }, [session.state, interpretationEnabled, runAnalysis, micStream, handleFollowupGeneration]);
 
   if (authLoading) {
     return (
@@ -205,6 +209,8 @@ function App() {
         micStream={micStream}
         calendarEvents={session.calendarEvents}
         recordingError={session.recordingError ?? null}
+        sessionFormat={session.sessionFormat}
+        totalRounds={session.rounds.length}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
         onSkip={skipQuestion}
@@ -227,7 +233,7 @@ function App() {
             const granted = await requestMic();
             if (granted) {
               setShowMicPrompt(false);
-              startSession(pendingStartRef.current?.targetDate);
+              startSession(pendingStartRef.current?.targetDate, pendingStartRef.current?.format ?? 'structured');
               pendingStartRef.current = null;
             }
           }}
