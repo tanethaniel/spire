@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CalendarEvent, SessionFormat } from '../types/session';
 import { fetchCalendarEvents } from '../lib/api';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 interface HomePageProps {
   onStart: (events: CalendarEvent[] | null, targetDate: string | null, format: SessionFormat) => void;
   onOpenProfile: () => void;
   avatarUrl: string | null;
   userName: string;
+  entryCount: number;
 }
 
 
-export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePageProps) {
+export function HomePage({ onStart, onOpenProfile, avatarUrl, userName, entryCount }: HomePageProps) {
   const [sessionFormat, setSessionFormat] = useState<SessionFormat>('structured');
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -18,6 +20,7 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
   const [showDayPicker, setShowDayPicker] = useState(false);
   const [yesterdayEvents, setYesterdayEvents] = useState<CalendarEvent[] | null>(null);
   const [yesterdayLoading, setYesterdayLoading] = useState(false);
+  const { canInstall, promptInstall, dismissInstall } = useInstallPrompt();
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +179,27 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
         </button>
       </div>
 
+      {entryCount === 0 && (
+        <div style={styles.welcomeCard}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+            Ready for your first reflection?
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+            Tap below to start — it takes about 3 minutes. You can speak or type.
+          </div>
+        </div>
+      )}
+
+      {canInstall && entryCount >= 2 && (
+        <div style={styles.installBanner}>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1 }}>
+            Add Spire to your home screen
+          </span>
+          <button style={styles.installBtn} onClick={promptInstall}>Install</button>
+          <button style={styles.installDismiss} onClick={dismissInstall}>&times;</button>
+        </div>
+      )}
+
       <div style={styles.ctaArea}>
         <button
           style={styles.ctaButton}
@@ -246,6 +270,43 @@ export function HomePage({ onStart, onOpenProfile, avatarUrl, userName }: HomePa
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  welcomeCard: {
+    margin: '0 24px 12px',
+    padding: '14px 16px',
+    background: 'rgba(255,255,255,0.35)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(255,255,255,0.4)',
+    borderRadius: 14,
+  },
+  installBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    margin: '0 24px 12px',
+    padding: '10px 14px',
+    background: 'rgba(255,255,255,0.3)',
+    borderRadius: 12,
+    border: '1px solid rgba(255,255,255,0.3)',
+  },
+  installBtn: {
+    padding: '6px 14px',
+    background: 'var(--accent-primary)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  installDismiss: {
+    background: 'none',
+    border: 'none',
+    fontSize: 18,
+    color: 'var(--text-ghost)',
+    cursor: 'pointer',
+    padding: '0 4px',
+  },
   page: {
     width: '100%',
     maxWidth: 430,

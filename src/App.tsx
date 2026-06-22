@@ -270,7 +270,7 @@ function App() {
             </div>
           )}
           {effectiveView === 'home' && (
-            <HomePage onStart={handleStart} onOpenProfile={() => setProfileOpen(true)} avatarUrl={profileUser?.avatarUrl ?? null} userName={profileUser?.name ?? ''} />
+            <HomePage onStart={handleStart} onOpenProfile={() => setProfileOpen(true)} avatarUrl={profileUser?.avatarUrl ?? null} userName={profileUser?.name ?? ''} entryCount={entries.length} />
           )}
           {effectiveView === 'history' && (
             <HistoryPage
