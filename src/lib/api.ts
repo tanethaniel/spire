@@ -33,6 +33,38 @@ async function fetchWithAuth(url: string, options: RequestInit): Promise<Respons
   return res;
 }
 
+const DEFAULT_TIMEOUT = 15_000;
+const LONG_TIMEOUT = 45_000;
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  { timeout = DEFAULT_TIMEOUT, maxRetries = 2 }: { timeout?: number; maxRetries?: number } = {},
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetchWithAuth(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.status >= 500 && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      lastError = err;
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+    }
+  }
+  throw lastError;
+}
+
 // Calendar events are fetched server-side via the fetch-calendar edge function.
 // The Google provider token never persists in browser storage.
 export async function fetchCalendarEvents(targetDate?: Date): Promise<CalendarEvent[]> {
@@ -69,7 +101,7 @@ export async function fetchCalendarEvents(targetDate?: Date): Promise<CalendarEv
 export async function textToSpeech(text: string, instructions?: string): Promise<ArrayBuffer> {
   const body: Record<string, string> = { text };
   if (instructions) body.instructions = instructions;
-  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/text-to-speech`, {
+  const res = await fetchWithRetry(`${EDGE_FUNCTION_BASE}/text-to-speech`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -90,13 +122,17 @@ export async function processEntry(
   formData.append('audio', audioBlob, `recording.${ext}`);
   formData.append('question_index', String(questionIndex));
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LONG_TIMEOUT);
   const res = await fetch(`${EDGE_FUNCTION_BASE}/process-entry`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
     },
     body: formData,
+    signal: controller.signal,
   });
+  clearTimeout(timer);
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`process-entry failed: ${res.status} ${detail}`);
@@ -119,7 +155,7 @@ export async function analyzeSession(
   transcripts: (string | null)[],
   format?: SessionFormat,
 ): Promise<AnalysisResult> {
-  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/analyze-session`, {
+  const res = await fetchWithRetry(`${EDGE_FUNCTION_BASE}/analyze-session`, {
     method: 'POST',
     body: JSON.stringify({ transcripts, format }),
   });
@@ -138,7 +174,7 @@ export async function generateFollowups(
   calendarEvents: CalendarEvent[] | null,
   targetDate: string | null,
 ): Promise<FollowUp[]> {
-  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/generate-followups`, {
+  const res = await fetchWithRetry(`${EDGE_FUNCTION_BASE}/generate-followups`, {
     method: 'POST',
     body: JSON.stringify({
       open_transcript: openTranscript,
@@ -328,7 +364,7 @@ export async function fetchJournalEntries(): Promise<JournalEntry[]> {
 // --- Signal Extraction & Pattern Generation ---
 
 export async function extractEntrySignals(entryId: string): Promise<void> {
-  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/extract-entry-signals`, {
+  const res = await fetchWithRetry(`${EDGE_FUNCTION_BASE}/extract-entry-signals`, {
     method: 'POST',
     body: JSON.stringify({ entry_id: entryId }),
   });
@@ -341,7 +377,7 @@ export async function refreshPatternSlots(
   action: 'refresh' | 'save' | 'dismiss' = 'refresh',
   patternId?: string,
 ): Promise<PatternNote[]> {
-  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/manage-pattern-slots`, {
+  const res = await fetchWithRetry(`${EDGE_FUNCTION_BASE}/manage-pattern-slots`, {
     method: 'POST',
     body: JSON.stringify({ action, pattern_id: patternId }),
   });
@@ -354,7 +390,7 @@ export async function refreshPatternSlots(
 }
 
 export async function matchPatternEvidence(entryId: string): Promise<void> {
-  await fetchWithAuth(`${EDGE_FUNCTION_BASE}/match-pattern-evidence`, {
+  await fetchWithRetry(`${EDGE_FUNCTION_BASE}/match-pattern-evidence`, {
     method: 'POST',
     body: JSON.stringify({ entry_id: entryId }),
   });
@@ -423,7 +459,7 @@ export async function updatePatternStatus(
 }
 
 export async function deleteAccount(): Promise<void> {
-  const res = await fetchWithAuth(`${EDGE_FUNCTION_BASE}/delete-account`, {
+  const res = await fetchWithRetry(`${EDGE_FUNCTION_BASE}/delete-account`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
