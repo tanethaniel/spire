@@ -26,7 +26,7 @@ const PRIVACY_ITEMS = [
   {
     icon: '\u{1F399}',
     title: 'Your audio is transcribed, then immediately deleted.',
-    detail: 'We use OpenAI Whisper to convert speech to text. Audio files are deleted from servers right after transcription. We never store recordings.',
+    detail: "We use OpenAI Whisper to convert speech to text. Audio is streamed directly and never stored on Spire's servers. OpenAI may retain API data for up to 30 days for abuse monitoring, then deletes it.",
   },
   {
     icon: '\u{1F512}',
@@ -41,7 +41,7 @@ const PRIVACY_ITEMS = [
   {
     icon: '\u{2728}',
     title: 'Themes and insights are generated privately.',
-    detail: 'When interpretation is enabled, your transcripts are analyzed by AI to surface patterns. This data is never shared or used for training.',
+    detail: "When interpretation is enabled, your transcripts are analyzed by Anthropic's Claude to surface patterns. Anthropic does not use API data for model training. Your data is never shared with other users.",
   },
 ];
 

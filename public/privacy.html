@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#B0E5D7">
+  <title>Spire — Privacy Policy</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(160deg, #d4ede4 0%, #e8e4d8 50%, #d4ede4 100%);
+      min-height: 100dvh;
+      padding: 24px;
+      color: #1A2026;
+    }
+    .container {
+      max-width: 430px;
+      margin: 0 auto;
+    }
+    .wordmark {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 24px;
+    }
+    .wordmark span { color: #6BBFA8; }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .updated {
+      font-size: 13px;
+      color: #6B7580;
+      margin-bottom: 28px;
+    }
+    h2 {
+      font-size: 17px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+    }
+    p, li {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #3A4550;
+      margin-bottom: 8px;
+    }
+    ul {
+      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+    .card {
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+      padding: 28px 24px;
+      margin-bottom: 16px;
+    }
+    .highlight {
+      background: rgba(107,191,168,0.12);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #3A4550;
+    }
+    a { color: #6BBFA8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .back {
+      display: inline-block;
+      margin-top: 24px;
+      margin-bottom: 40px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="wordmark">spire<span>.</span></div>
+
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: June 2026</p>
+
+    <div class="card">
+      <h2>The short version</h2>
+      <div class="highlight">
+        Your journal is yours. We don't sell your data, show you ads, or share your entries with anyone. You can export or delete everything at any time.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>What Spire collects</h2>
+      <ul>
+        <li><strong>Voice recordings</strong> — Streamed directly to OpenAI for transcription, then discarded. Audio is never stored on Spire's servers.</li>
+        <li><strong>Text transcripts</strong> — Your spoken words converted to text. Stored in your personal account.</li>
+        <li><strong>Mood, emotion, and activity data</strong> — Derived from your transcripts by AI analysis when interpretation is enabled.</li>
+        <li><strong>Calendar event titles and times</strong> — Read-only from Google Calendar to personalize your reflection questions. Not stored permanently.</li>
+        <li><strong>Usage analytics</strong> — Anonymized error reports only. No session recording, no page tracking, no personal data.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Where your data goes</h2>
+      <p>Your data is processed by three services:</p>
+      <ul>
+        <li><strong>Supabase</strong> (database) — Stores your transcripts, settings, and patterns. Protected by row-level security so only you can access your data.</li>
+        <li><strong>OpenAI</strong> (transcription) — Receives your audio to convert speech to text. OpenAI may retain API data for up to 30 days for abuse monitoring, then deletes it. Audio is not used for model training.</li>
+        <li><strong>Anthropic</strong> (analysis) — Receives your transcripts to generate themes, mood analysis, and patterns. Anthropic does not use API data for model training. Calendar event titles may be included to personalize follow-up questions.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>What Spire does NOT do</h2>
+      <ul>
+        <li>Sell, rent, or share your data with third parties</li>
+        <li>Show you advertisements</li>
+        <li>Use your journal entries to train AI models</li>
+        <li>Let other users see your entries or patterns</li>
+        <li>Modify your Google Calendar</li>
+        <li>Record your screen or track your browsing</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Your controls</h2>
+      <ul>
+        <li><strong>Turn off AI analysis</strong> — Disable interpretation in settings. Your transcripts are still stored, but not analyzed by AI.</li>
+        <li><strong>Export your data</strong> — Download a JSON file of all your journal entries, patterns, and settings from your profile.</li>
+        <li><strong>Delete individual entries</strong> — Swipe to delete any journal entry. Deleted entries are permanently removed.</li>
+        <li><strong>Delete your account</strong> — Permanently removes all your data from Spire's servers, including transcripts, patterns, settings, and analytics.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Analytics</h2>
+      <p>Spire uses PostHog for error tracking only. We have disabled:</p>
+      <ul>
+        <li>Automatic event capture</li>
+        <li>Page view tracking</li>
+        <li>Session recording</li>
+      </ul>
+      <p>The only data sent is anonymized error reports to help us fix bugs. Your user ID is a random identifier, not your email or name.</p>
+    </div>
+
+    <div class="card">
+      <h2>Contact</h2>
+      <p>Questions about your data? Email <a href="mailto:tan.ethaniel@gmail.com">tan.ethaniel@gmail.com</a></p>
+    </div>
+
+    <a href="/" class="back">&larr; Back to Spire</a>
+  </div>
+</body>
+</html>

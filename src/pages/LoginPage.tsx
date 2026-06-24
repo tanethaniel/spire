@@ -166,6 +166,12 @@ export function LoginPage() {
           <br />
           Your journal entries are private — only you can see them.
         </p>
+        <p style={styles.legal}>
+          By continuing, you agree to our{' '}
+          <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={styles.legalLink}>Privacy Policy</a>
+          {' '}and{' '}
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={styles.legalLink}>Terms of Service</a>.
+        </p>
       </div>
     </div>
   );
@@ -289,5 +295,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-ghost)',
     marginTop: 12,
     lineHeight: 1.6,
+  },
+  legal: {
+    fontSize: 11,
+    color: 'var(--text-ghost)',
+    marginTop: 8,
+    lineHeight: 1.5,
+  },
+  legalLink: {
+    color: '#6BBFA8',
+    textDecoration: 'none',
   },
 };
