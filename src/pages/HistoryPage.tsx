@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { JournalEntry } from '../types/session';
 import { Tooltip, useTooltipSeen } from '../components/Tooltip';
-
-const INITIAL_DISPLAY_COUNT = 7;
 
 interface HistoryPageProps {
   entries: JournalEntry[];
@@ -89,10 +87,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
   const [search, setSearch] = useState('');
   const [keyword, setKeyword] = useState('');
   const [showKeyword, setShowKeyword] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [searchSeen, markSearchSeen] = useTooltipSeen('search');
-  const bodyRef = useRef<HTMLDivElement | null>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -102,24 +97,8 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
       setSearch('');
       setKeyword('');
       setShowKeyword(false);
-      setShowAll(false);
     }
   }, [visible]);
-
-  const sentinelRef = useCallback((node: HTMLDivElement | null) => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-      observerRef.current = null;
-    }
-    if (!node) return;
-    const scrollRoot = bodyRef.current;
-    if (!scrollRoot) return;
-    observerRef.current = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setShowAll(true); },
-      { root: scrollRoot, rootMargin: '0px', threshold: 0.1 },
-    );
-    observerRef.current.observe(node);
-  }, []);
 
   const answered = useMemo(
     () => entries.filter(e => e.transcripts.some(Boolean)),
@@ -224,7 +203,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
         </div>
       )}
 
-      <div ref={bodyRef} style={styles.body}>
+      <div style={styles.body}>
         {loading ? (
           <div style={styles.empty}>Loading your reflections…</div>
         ) : error ? (
@@ -241,14 +220,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
             <div style={styles.emptySub}>Try a different search or filter.</div>
           </div>
         ) : (
-          <>
-          {(() => {
-            const isSearching = search.trim() !== '' || keyword.trim() !== '';
-            const displayEntries = isSearching || showAll ? filtered : filtered.slice(0, INITIAL_DISPLAY_COUNT);
-            const hasMore = !isSearching && !showAll && filtered.length > INITIAL_DISPLAY_COUNT;
-            return (
-              <>
-              {displayEntries.map(entry => {
+          filtered.map(entry => {
             const isOpen = expanded.has(entry.id);
             const answeredCount = entry.transcripts.filter(Boolean).length;
             return (
@@ -380,19 +352,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
                 )}
               </div>
             );
-          })}
-              {hasMore && (
-                <div style={styles.loadMoreHint}>
-                  <div style={styles.loadMoreFade} />
-                  <div ref={sentinelRef} style={styles.loadMoreText}>
-                    Scroll for older entries
-                  </div>
-                </div>
-              )}
-              </>
-            );
-          })()}
-          </>
+          })
         )}
       </div>
     </div>
@@ -575,25 +535,5 @@ const styles: Record<string, React.CSSProperties> = {
   confirmNo: {
     background: 'none', border: '1px solid var(--border-glass)', borderRadius: 8,
     padding: '6px 14px', fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer',
-  },
-  loadMoreHint: {
-    position: 'relative',
-    paddingTop: 8,
-    paddingBottom: 32,
-  },
-  loadMoreFade: {
-    position: 'absolute',
-    top: -40,
-    left: -24,
-    right: -24,
-    height: 48,
-    background: 'linear-gradient(to bottom, transparent, rgba(212, 237, 228, 0.8))',
-    pointerEvents: 'none' as const,
-  },
-  loadMoreText: {
-    textAlign: 'center' as const,
-    fontSize: 13,
-    color: 'var(--text-ghost)',
-    fontWeight: 500,
   },
 };
