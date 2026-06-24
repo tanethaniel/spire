@@ -7,7 +7,7 @@ interface BottomNavProps {
 
 const ITEMS: { view: AppView; label: string; icon: string }[] = [
   { view: 'home', label: 'Reflect', icon: '◉' },
-  { view: 'insights', label: 'Review', icon: '✦' },
+  { view: 'insights', label: 'Review', icon: '★' },
   { view: 'history', label: 'Receipts', icon: '☰' },
 ];
 
