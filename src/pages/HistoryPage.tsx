@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { JournalEntry } from '../types/session';
 import { Tooltip, useTooltipSeen } from '../components/Tooltip';
 
@@ -91,6 +91,8 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
   const [showKeyword, setShowKeyword] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [searchSeen, markSearchSeen] = useTooltipSeen('search');
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -103,6 +105,21 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
       setShowAll(false);
     }
   }, [visible]);
+
+  const sentinelRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+    if (!node) return;
+    const scrollRoot = bodyRef.current;
+    if (!scrollRoot) return;
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setShowAll(true); },
+      { root: scrollRoot, rootMargin: '0px', threshold: 0.1 },
+    );
+    observerRef.current.observe(node);
+  }, []);
 
   const answered = useMemo(
     () => entries.filter(e => e.transcripts.some(Boolean)),
@@ -207,7 +224,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
         </div>
       )}
 
-      <div style={styles.body}>
+      <div ref={bodyRef} style={styles.body}>
         {loading ? (
           <div style={styles.empty}>Loading your reflections…</div>
         ) : error ? (
@@ -367,9 +384,9 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
               {hasMore && (
                 <div style={styles.loadMoreHint}>
                   <div style={styles.loadMoreFade} />
-                  <button style={styles.loadMoreBtn} onClick={() => setShowAll(true)}>
-                    Load older entries
-                  </button>
+                  <div ref={sentinelRef} style={styles.loadMoreText}>
+                    Scroll for older entries
+                  </div>
                 </div>
               )}
               </>
@@ -561,10 +578,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   loadMoreHint: {
     position: 'relative',
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 32,
-    display: 'flex',
-    justifyContent: 'center',
   },
   loadMoreFade: {
     position: 'absolute',
@@ -575,18 +590,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(to bottom, transparent, rgba(212, 237, 228, 0.8))',
     pointerEvents: 'none' as const,
   },
-  loadMoreBtn: {
-    background: 'var(--bg-surface)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid var(--border-glass)',
-    borderRadius: 12,
-    padding: '10px 20px',
+  loadMoreText: {
+    textAlign: 'center' as const,
     fontSize: 13,
+    color: 'var(--text-ghost)',
     fontWeight: 500,
-    color: 'var(--text-muted)',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    fontFamily: 'inherit',
   },
 };
