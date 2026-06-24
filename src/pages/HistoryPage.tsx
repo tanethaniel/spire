@@ -288,7 +288,7 @@ export function HistoryPage({ entries, loading, error, visible, onOpenProfile, a
                         {entry.followupTranscripts?.map((f, i) => (
                           <div key={i + 1} style={styles.qRow}>
                             <div style={styles.qRowHead} onClick={() => toggleQ(entry.id, i + 1)}>
-                              <div style={styles.answerLabel}>Follow-up {i + 1}</div>
+                              <div style={f.question ? styles.followupLabel : styles.answerLabel}>{f.question || `Follow-up ${i + 1}`}</div>
                               <span style={{ ...styles.qChevron, transform: isQExpanded(`${entry.id}-${i + 1}`) ? 'rotate(180deg)' : 'none' }}>∨</span>
                             </div>
                             {isQExpanded(`${entry.id}-${i + 1}`) && (
@@ -502,6 +502,10 @@ const styles: Record<string, React.CSSProperties> = {
   answerLabel: {
     fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)',
     letterSpacing: '0.08em', textTransform: 'uppercase',
+  },
+  followupLabel: {
+    fontSize: 13, fontWeight: 600, color: 'var(--accent-primary)',
+    lineHeight: 1.4,
   },
   qChevron: {
     fontSize: 12, color: 'var(--text-ghost)', transition: 'transform 0.2s',
