@@ -297,6 +297,16 @@ export async function setUserSettings(settings: UserSettings): Promise<void> {
   if (error) throw error;
 }
 
+export async function saveGoogleRefreshToken(refreshToken: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('user_settings').upsert({
+    user_id: user.id,
+    google_refresh_token: refreshToken,
+    updated_at: new Date().toISOString(),
+  });
+}
+
 // --- History (past entries for History + Insights views) ---
 
 const META_WORDS = /\b(transcript|journal entry|journal session|no data|absent entry|empty entry|incomplete entry|brief response)/i;

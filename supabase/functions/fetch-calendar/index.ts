@@ -104,6 +104,42 @@ serve(async (req) => {
       }
     }
 
+    // Fallback: read refresh token from user_settings (persisted across mobile restarts)
+    let refreshToken: string | null = typeof body.refresh_token === 'string' && body.refresh_token.length > 0
+      ? body.refresh_token : null;
+
+    if (!googleAccessToken && !refreshToken) {
+      const { data: settings } = await adminClient
+        .from('user_settings')
+        .select('google_refresh_token')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (settings?.google_refresh_token) {
+        refreshToken = settings.google_refresh_token;
+      }
+    }
+
+    if (!googleAccessToken && refreshToken) {
+      const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
+      const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+      if (clientId && clientSecret) {
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token',
+          }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          googleAccessToken = tokenData.access_token;
+        }
+      }
+    }
+
     if (!googleAccessToken) {
       return new Response(JSON.stringify({ events: [], error: 'calendar_scope_missing' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -122,7 +158,7 @@ serve(async (req) => {
     });
 
     // If token expired, try refreshing it
-    if ((calRes.status === 401 || calRes.status === 403) && body.refresh_token) {
+    if ((calRes.status === 401 || calRes.status === 403) && refreshToken) {
       const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
       const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
       if (clientId && clientSecret) {
@@ -132,7 +168,7 @@ serve(async (req) => {
           body: new URLSearchParams({
             client_id: clientId,
             client_secret: clientSecret,
-            refresh_token: body.refresh_token,
+            refresh_token: refreshToken,
             grant_type: 'refresh_token',
           }),
         });

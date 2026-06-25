@@ -7,7 +7,7 @@ import { useSettings } from './hooks/useSettings';
 import { usePatternNotes } from './hooks/usePatternNotes';
 import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
-import { deleteJournalEntry } from './lib/api';
+import { deleteJournalEntry, saveGoogleRefreshToken } from './lib/api';
 import { cleanupStaleAudio } from './lib/audioDb';
 import { identifyUser, resetUser } from './lib/posthog';
 import { LoginPage } from './pages/LoginPage';
@@ -42,7 +42,10 @@ function App() {
     if (window.location.hash) {
       const params = new URLSearchParams(window.location.hash.substring(1));
       const prt = params.get('provider_refresh_token');
-      if (prt) sessionStorage.setItem('google_refresh_token', prt);
+      if (prt) {
+        sessionStorage.setItem('google_refresh_token', prt);
+        saveGoogleRefreshToken(prt).catch(() => {});
+      }
     }
   }, []);
 
@@ -50,6 +53,7 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.provider_refresh_token) {
         sessionStorage.setItem('google_refresh_token', session.provider_refresh_token);
+        saveGoogleRefreshToken(session.provider_refresh_token).catch(() => {});
       }
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
@@ -61,6 +65,7 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.provider_refresh_token) {
         sessionStorage.setItem('google_refresh_token', session.provider_refresh_token);
+        saveGoogleRefreshToken(session.provider_refresh_token).catch(() => {});
       }
       if (!session) {
         sessionStorage.removeItem('google_refresh_token');
