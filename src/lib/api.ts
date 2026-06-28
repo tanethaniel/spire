@@ -269,7 +269,7 @@ export async function getUserSettings(): Promise<UserSettings> {
 
   const { data, error } = await supabase
     .from('user_settings')
-    .select('interpretation_enabled, mbti, onboarding_completed, goal')
+    .select('interpretation_enabled, mbti, onboarding_completed, goal, tooltips_seen')
     .eq('user_id', user.id)
     .maybeSingle();
   if (error) throw error;
@@ -279,6 +279,7 @@ export async function getUserSettings(): Promise<UserSettings> {
     mbti: data?.mbti ?? null,
     onboardingCompleted: data?.onboarding_completed ?? false,
     goal: data?.goal ?? null,
+    tooltipsSeen: Array.isArray(data?.tooltips_seen) ? data.tooltips_seen : [],
   };
 }
 
@@ -292,6 +293,7 @@ export async function setUserSettings(settings: UserSettings): Promise<void> {
     mbti: settings.mbti,
     onboarding_completed: settings.onboardingCompleted,
     goal: settings.goal,
+    tooltips_seen: settings.tooltipsSeen,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

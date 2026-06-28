@@ -11,6 +11,8 @@ interface HistoryPageProps {
   avatarUrl: string | null;
   userName: string;
   onDeleteEntry: (id: string) => void;
+  tooltipsSeen: string[];
+  onMarkTooltipSeen: (key: string) => void;
 }
 
 const Q_LABELS = ['Context', 'Emotions', 'Memory', 'Learning', 'Self', 'Anything else'];
@@ -80,14 +82,14 @@ function highlightText(text: string, kw: string): ReactNode {
   );
 }
 
-export function HistoryPage({ entries, loading, error, visible, onOpenProfile, avatarUrl, userName, onDeleteEntry }: HistoryPageProps) {
+export function HistoryPage({ entries, loading, error, visible, onOpenProfile, avatarUrl, userName, onDeleteEntry, tooltipsSeen, onMarkTooltipSeen }: HistoryPageProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [keyword, setKeyword] = useState('');
   const [showKeyword, setShowKeyword] = useState(false);
-  const [searchSeen, markSearchSeen] = useTooltipSeen('search');
+  const [searchSeen, markSearchSeen] = useTooltipSeen('search', tooltipsSeen, onMarkTooltipSeen);
 
   useEffect(() => {
     if (!visible) {

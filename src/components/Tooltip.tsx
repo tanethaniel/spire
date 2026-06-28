@@ -1,12 +1,21 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
-export function useTooltipSeen(key: string): [boolean, () => void] {
+// Tracks whether a guide chip has been seen. localStorage is an instant,
+// per-device cache; the optional server-backed args make it durable across
+// cache clears (iOS PWAs evict localStorage), so chips stay dismissed.
+export function useTooltipSeen(
+  key: string,
+  serverSeen?: string[],
+  onServerMark?: (key: string) => void,
+): [boolean, () => void] {
   const storageKey = `tooltip_seen_${key}`;
-  const [seen, setSeen] = useState(() => localStorage.getItem(storageKey) === '1');
-  const markSeen = () => {
+  const [localSeen, setLocalSeen] = useState(() => localStorage.getItem(storageKey) === '1');
+  const seen = localSeen || (serverSeen?.includes(key) ?? false);
+  const markSeen = useCallback(() => {
     localStorage.setItem(storageKey, '1');
-    setSeen(true);
-  };
+    setLocalSeen(true);
+    onServerMark?.(key);
+  }, [storageKey, key, onServerMark]);
   return [seen, markSeen];
 }
 

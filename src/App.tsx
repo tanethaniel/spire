@@ -92,10 +92,10 @@ function App() {
   const authed = !!authSession;
   const { status: micStatus, requestMic } = useMicPermission();
   const [showMicPrompt, setShowMicPrompt] = useState(false);
-  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, loaded: settingsLoaded } = useSettings(authed);
+  const { interpretationEnabled, setInterpretationEnabled, mbti, setMbti, onboardingCompleted, completeOnboarding, goals, tooltipsSeen, markTooltipSeen, loaded: settingsLoaded } = useSettings(authed);
   const { entries, loading: entriesLoading, error: entriesError, refresh: refreshEntries } = useEntries(authed);
   const { patterns, savedCount, loading: patternsLoading, lastError: patternsError, clearError: clearPatternsError, update: updatePatterns, submitFeedback, toggleSave, dismiss, markSeen, triggerTrickle } = usePatternNotes(authed, interpretationEnabled);
-  const [tabsSeen, markTabsSeen] = useTooltipSeen('tabs');
+  const [tabsSeen, markTabsSeen] = useTooltipSeen('tabs', tooltipsSeen, markTooltipSeen);
 
   const profileUser = authSession ? {
     name: authSession.user.user_metadata?.full_name ?? authSession.user.email ?? '',
@@ -291,6 +291,8 @@ function App() {
               avatarUrl={profileUser?.avatarUrl ?? null}
               userName={profileUser?.name ?? ''}
               onDeleteEntry={handleDeleteEntry}
+              tooltipsSeen={tooltipsSeen}
+              onMarkTooltipSeen={markTooltipSeen}
             />
           )}
           {effectiveView === 'insights' && (
@@ -312,6 +314,8 @@ function App() {
               onPatternMarkSeen={(id) => markSeen(id)}
               patternsError={patternsError}
               onClearPatternsError={clearPatternsError}
+              tooltipsSeen={tooltipsSeen}
+              onMarkTooltipSeen={markTooltipSeen}
             />
           )}
         </div>

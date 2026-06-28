@@ -26,6 +26,8 @@ interface InsightsPageProps {
   onPatternMarkSeen?: (id: string) => void;
   patternsError: string | null;
   onClearPatternsError: () => void;
+  tooltipsSeen: string[];
+  onMarkTooltipSeen: (key: string) => void;
 }
 
 const HEATMAP_WEEKS = 5;
@@ -60,13 +62,14 @@ export function InsightsPage({
   interpretationEnabled, patterns, savedCount, patternsLoading,
   onUpdatePatterns, onPatternFeedback, onPatternSave, onPatternDismiss,
   onPatternMarkSeen, patternsError, onClearPatternsError,
+  tooltipsSeen, onMarkTooltipSeen,
 }: InsightsPageProps) {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('completeness');
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(null);
   const [savedOpen, setSavedOpen] = useState(false);
   const [dismissConfirmId, setDismissConfirmId] = useState<string | null>(null);
-  const [heatmapSeen, markHeatmapSeen] = useTooltipSeen('heatmap');
-  const [patternsSeen, markPatternsSeen] = useTooltipSeen('patterns');
+  const [heatmapSeen, markHeatmapSeen] = useTooltipSeen('heatmap', tooltipsSeen, onMarkTooltipSeen);
+  const [patternsSeen, markPatternsSeen] = useTooltipSeen('patterns', tooltipsSeen, onMarkTooltipSeen);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {

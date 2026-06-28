@@ -58,6 +58,7 @@ export interface UserSettings {
   mbti: string | null;
   onboardingCompleted: boolean;
   goal: string | null;
+  tooltipsSeen: string[];
 }
 
 export type EmotionTag = 'happy' | 'sad' | 'angry' | 'tired' | 'anxious' | 'bored' | 'focused' | 'okay' | 'peaceful';

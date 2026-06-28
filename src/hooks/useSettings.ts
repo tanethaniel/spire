@@ -6,6 +6,7 @@ export function useSettings(authed: boolean) {
   const [mbti, setMbtiState] = useState<string | null>(null);
   const [onboardingCompleted, setOnboardingState] = useState(true);
   const [goal, setGoalState] = useState<string | null>(null);
+  const [tooltipsSeen, setTooltipsSeen] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export function useSettings(authed: boolean) {
           setMbtiState(s.mbti);
           setOnboardingState(s.onboardingCompleted);
           setGoalState(s.goal);
+          setTooltipsSeen(s.tooltipsSeen);
         }
       })
       .catch(() => {})
@@ -30,6 +32,7 @@ export function useSettings(authed: boolean) {
     mbti,
     onboardingCompleted,
     goal,
+    tooltipsSeen,
   });
 
   const setInterpretationEnabled = useCallback(async (next: boolean) => {
@@ -40,7 +43,7 @@ export function useSettings(authed: boolean) {
     } catch {
       setInterpretation(prev);
     }
-  }, [interpretationEnabled, mbti, onboardingCompleted, goal]);
+  }, [interpretationEnabled, mbti, onboardingCompleted, goal, tooltipsSeen]);
 
   const setMbti = useCallback(async (next: string | null) => {
     const prev = mbti;
@@ -50,7 +53,15 @@ export function useSettings(authed: boolean) {
     } catch {
       setMbtiState(prev);
     }
-  }, [interpretationEnabled, mbti, onboardingCompleted, goal]);
+  }, [interpretationEnabled, mbti, onboardingCompleted, goal, tooltipsSeen]);
+
+  const markTooltipSeen = useCallback((key: string) => {
+    if (tooltipsSeen.includes(key)) return;
+    const next = [...tooltipsSeen, key];
+    setTooltipsSeen(next);
+    // Best-effort persist; localStorage cache covers the gap if this fails.
+    setUserSettings({ ...currentSettings(), tooltipsSeen: next }).catch(() => {});
+  }, [interpretationEnabled, mbti, onboardingCompleted, goal, tooltipsSeen]);
 
   const completeOnboarding = useCallback(async (
     selectedGoals: string[],
@@ -68,11 +79,12 @@ export function useSettings(authed: boolean) {
         mbti: selectedMbti ?? mbti,
         onboardingCompleted: true,
         goal: goalJson,
+        tooltipsSeen,
       });
     } catch {
       // Onboarding state is best-effort; don't revert to avoid re-showing
     }
-  }, [mbti]);
+  }, [mbti, tooltipsSeen]);
 
   const goals: string[] = (() => {
     if (!goal) return [];
@@ -84,6 +96,7 @@ export function useSettings(authed: boolean) {
     mbti, setMbti,
     onboardingCompleted, completeOnboarding,
     goals,
+    tooltipsSeen, markTooltipSeen,
     loaded,
   };
 }
