@@ -211,6 +211,7 @@ serve(async (req) => {
       }))
       .filter((e: { title: string }) => e.title.length > 0);
 
+    console.log('[fetch-calendar] Success — returning', events.length, 'events');
     return new Response(JSON.stringify({ events }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
