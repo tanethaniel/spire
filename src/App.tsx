@@ -8,6 +8,7 @@ import { usePatternNotes } from './hooks/usePatternNotes';
 import { useEntries } from './hooks/useEntries';
 import { supabase } from './lib/supabase';
 import { deleteJournalEntry, saveGoogleRefreshToken } from './lib/api';
+import { unlockAudio } from './lib/audioPlayer';
 import { cleanupStaleAudio } from './lib/audioDb';
 import { identifyUser, resetUser } from './lib/posthog';
 import { LoginPage } from './pages/LoginPage';
@@ -128,6 +129,9 @@ function App() {
   const pendingStartRef = useRef<{ events: CalendarEvent[] | null; targetDate: string | null; format: SessionFormat } | null>(null);
 
   const handleStart = useCallback(async (events: CalendarEvent[] | null, targetDate: string | null = null, format: SessionFormat = 'structured') => {
+    // Unlock audio synchronously within the tap so iOS allows TTS playback later.
+    unlockAudio();
+
     const isYesterday = !!targetDate;
     if (events) setCalendarEvents(events, isYesterday);
 

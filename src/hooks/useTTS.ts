@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { textToSpeech } from '../lib/api';
+import { getSharedAudio } from '../lib/audioPlayer';
 
 const FALLBACK_AUDIO: Record<number, string> = {
   0: '/audio/q1.wav',
@@ -11,7 +12,6 @@ const FALLBACK_AUDIO: Record<number, string> = {
 };
 
 export function useTTS() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef(false);
   const callIdRef = useRef(0);
   const cacheRef = useRef<Map<number, Promise<ArrayBuffer | null>>>(new Map());
@@ -19,10 +19,7 @@ export function useTTS() {
   useEffect(() => {
     return () => {
       abortRef.current = true;
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      getSharedAudio().pause();
       cacheRef.current.clear();
     };
   }, []);
@@ -42,10 +39,8 @@ export function useTTS() {
     const myId = ++callIdRef.current;
     abortRef.current = false;
 
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    const player = getSharedAudio();
+    player.pause();
 
     const finish = () => {
       if (abortRef.current || callIdRef.current !== myId) return;
@@ -65,13 +60,13 @@ export function useTTS() {
 
       const blob = new Blob([buffer], { type: 'audio/mpeg' });
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
+      player.muted = false;
+      player.src = url;
 
-      audio.onended = () => { URL.revokeObjectURL(url); finish(); };
-      audio.onerror = () => { URL.revokeObjectURL(url); finish(); };
+      player.onended = () => { URL.revokeObjectURL(url); finish(); };
+      player.onerror = () => { URL.revokeObjectURL(url); finish(); };
 
-      await audio.play();
+      await player.play();
       return;
     } catch {
       if (abortRef.current || callIdRef.current !== myId) return;
@@ -82,15 +77,15 @@ export function useTTS() {
     const fallbackSrc = FALLBACK_AUDIO[questionIndex];
     if (fallbackSrc) {
       try {
-        const audio = new Audio(fallbackSrc);
-        audioRef.current = audio;
+        player.muted = false;
+        player.src = fallbackSrc;
 
-        audio.onended = finish;
-        audio.onerror = () => {
+        player.onended = finish;
+        player.onerror = () => {
           trySpeechSynthesis(text, finish);
         };
 
-        await audio.play();
+        await player.play();
         return;
       } catch {
         if (abortRef.current) return;
@@ -103,10 +98,7 @@ export function useTTS() {
   const cancel = useCallback(() => {
     ++callIdRef.current;
     abortRef.current = true;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    getSharedAudio().pause();
     window.speechSynthesis?.cancel();
   }, []);
 
