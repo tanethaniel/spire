@@ -19,22 +19,22 @@ export function getSharedAudio(): HTMLAudioElement {
 }
 
 // Call this synchronously inside a user gesture (e.g. the start-session tap).
+// The clip is silent, so it plays unmuted with no audible sound — iOS only
+// treats UNMUTED playback within a gesture as a real unlock.
 export function unlockAudio(): void {
   const a = getSharedAudio();
   try {
-    a.muted = true;
+    a.muted = false;
+    a.volume = 1;
     a.src = SILENT_WAV;
     const p = a.play();
     if (p && typeof p.then === 'function') {
       p.then(() => {
         a.pause();
         try { a.currentTime = 0; } catch { /* ignore */ }
-        a.muted = false;
-      }).catch(() => { a.muted = false; });
-    } else {
-      a.muted = false;
+      }).catch(() => { /* ignore */ });
     }
   } catch {
-    a.muted = false;
+    /* ignore */
   }
 }
