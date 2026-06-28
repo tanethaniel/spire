@@ -315,6 +315,66 @@ async function writePatternNote(
   }
 }
 
+// Identify pool candidates that semantically duplicate a pattern the user has
+// already seen (active, saved, or recently dismissed). Tag-overlap filtering
+// alone misses near-duplicates that share a theme but use different tags
+// (e.g. "rest days bring guilt" vs "rest days bring restlessness"). Returns the
+// set of candidate IDs to skip. One cheap Haiku call; fails open (empty set).
+async function findSemanticDuplicates(
+  candidates: PoolPattern[],
+  references: { title: string; note: string }[],
+  anthropicKey: string,
+): Promise<Set<string>> {
+  const dupes = new Set<string>();
+  if (candidates.length === 0 || references.length === 0) return dupes;
+
+  const payload = {
+    existing_patterns: references.map((r, i) => ({ index: i, title: r.title, summary: r.note })),
+    candidates: candidates.map((c, i) => ({
+      index: i,
+      title: c.title || '',
+      summary: c.preview_note || c.full_note || '',
+    })),
+  };
+
+  const SYSTEM = `You deduplicate personal-insight pattern cards for a journaling app. You are given EXISTING patterns already shown to the user and CANDIDATE patterns being considered for display (candidates are ordered by priority — lower index = stronger). Mark a candidate as a duplicate if it describes the same underlying pattern as (a) any existing pattern, OR (b) any earlier candidate in the list (lower index). "Same underlying pattern" means the same root insight even if worded differently: same behavioral link, same emotional dynamic, or same theme. For example "rest days bring guilt" and "rest days bring restlessness" are duplicates (both: rest triggers discomfort about not being productive). Keep only the strongest of any duplicate set. Return ONLY JSON: {"duplicate_candidate_indices": [<index>, ...]}. When uncertain, prefer marking as a duplicate — showing the user repetitive cards is worse than dropping one.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 256,
+        system: SYSTEM,
+        messages: [{ role: 'user', content: JSON.stringify(payload) }],
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[manage-pattern-slots] Dedup LLM error: ${res.status}`);
+      return dupes;
+    }
+    const result = await res.json();
+    const text = result?.content?.[0]?.text;
+    if (!text) return dupes;
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return dupes;
+    const parsed = JSON.parse(m[0]);
+    const idxs = Array.isArray(parsed.duplicate_candidate_indices) ? parsed.duplicate_candidate_indices : [];
+    for (const i of idxs) {
+      if (candidates[i]) dupes.add(candidates[i].id);
+    }
+    return dupes;
+  } catch (err) {
+    console.error('[manage-pattern-slots] Dedup call failed:', err);
+    return dupes;
+  }
+}
+
 async function writeAndValidate(
   pattern: PoolPattern,
   evidence: EvidenceRow[],
@@ -538,6 +598,19 @@ serve(async (req) => {
           return (b.last_evidence_at || '').localeCompare(a.last_evidence_at || '');
         });
 
+      // Semantic dedup: candidates that duplicate a pattern the user has already
+      // seen (active/dimmed/saved, or recently dismissed) are skipped, even when
+      // their tags differ. This is what tag-overlap filtering misses.
+      const references = patterns
+        .filter(p =>
+          p.slot_state === 'active' ||
+          p.slot_state === 'dimmed' ||
+          p.slot_state === 'saved' ||
+          (p.slot_state === 'dismissed' && p.updated_at > dismissCutoff))
+        .map(p => ({ title: p.title || '', note: p.preview_note || p.full_note || '' }))
+        .filter(r => r.title || r.note);
+      const duplicateIds = await findSemanticDuplicates(candidates, references, anthropicKey);
+
       let filled = 0;
       for (const candidate of candidates) {
         if (filled >= slotsToFill) break;
@@ -545,6 +618,12 @@ serve(async (req) => {
         // Diversity: skip if tags overlap with already-active patterns
         const candidateTags = (candidate.related_tags || []).map(t => t.toLowerCase());
         if (candidateTags.some(t => activeTags.has(t))) continue;
+
+        // Semantic dedup: skip near-duplicates of already-seen patterns
+        if (duplicateIds.has(candidate.id)) {
+          console.log(`[manage-pattern-slots] Skipping semantic duplicate: ${candidate.signature}`);
+          continue;
+        }
 
         // Fetch evidence and generate LLM note
         const evidence = await fetchEvidenceForPattern(supabase, candidate.id);
