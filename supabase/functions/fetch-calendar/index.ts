@@ -122,7 +122,9 @@ serve(async (req) => {
     if (!googleAccessToken && refreshToken) {
       const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
       const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
-      if (clientId && clientSecret) {
+      if (!clientId || !clientSecret) {
+        console.error('[fetch-calendar] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET secret');
+      } else {
         const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -136,6 +138,9 @@ serve(async (req) => {
         if (tokenRes.ok) {
           const tokenData = await tokenRes.json();
           googleAccessToken = tokenData.access_token;
+        } else {
+          const errBody = await tokenRes.text();
+          console.error('[fetch-calendar] Token exchange failed:', tokenRes.status, errBody);
         }
       }
     }
