@@ -51,7 +51,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let settled = false;
+    const finish = (session: Session | null) => {
+      if (settled) return;
+      settled = true;
       if (session?.provider_refresh_token) {
         sessionStorage.setItem('google_refresh_token', session.provider_refresh_token);
         saveGoogleRefreshToken(session.provider_refresh_token).catch(() => {});
@@ -61,7 +64,15 @@ function App() {
       }
       setAuthSession(session);
       setAuthLoading(false);
-    });
+    };
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => finish(session))
+      .catch(() => finish(null));
+
+    // Never hang on the splash if Supabase is unreachable (e.g. a paused
+    // project or network failure) — fall through to the login screen.
+    const timeout = setTimeout(() => finish(null), 8000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.provider_refresh_token) {
@@ -79,7 +90,10 @@ function App() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Sign out when the global auth error handler detects an unrecoverable 401
